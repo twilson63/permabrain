@@ -56,8 +56,23 @@ const tags = buildArticleTags({
 });
 const item = await createDataItem({ payload: content, tags, identity });
 await transport.uploadDataItem(item);
-const queried = await transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article', 'Article-Key': 'subject/hyperbeam-probe' });
-assert.ok(Array.isArray(queried));
+let queried = [];
+const deadline = Date.now() + Number(process.env.PERMABRAIN_HYPERBEAM_GRAPHQL_TIMEOUT_MS || 30000);
+let lastQueryError = null;
+while (Date.now() < deadline) {
+  try {
+    queried = await transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article', 'Article-Key': 'subject/hyperbeam-probe' });
+    if (queried.some((node) => node.id === item.id)) break;
+  } catch (err) {
+    lastQueryError = err;
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+}
+assert.ok(Array.isArray(queried), 'GraphQL query did not return an array');
+assert.ok(
+  queried.some((node) => node.id === item.id),
+  `Uploaded item ${item.id} was not found by GraphQL tag query. Results: ${JSON.stringify(queried)}${lastQueryError ? ` Last error: ${lastQueryError.message}` : ''}`
+);
 const fetched = await transport.fetchDataItem(item.id);
 assert.equal(payloadText(fetched), content);
-console.log(`HyperBEAM upload/query/fetch passed for ${item.id}`);
+console.log(`HyperBEAM upload/graphql/fetch passed for ${item.id}`);
