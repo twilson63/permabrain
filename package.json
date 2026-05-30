@@ -1,0 +1,22 @@
+{
+  "name": "permabrain",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Public signed third brain knowledge graph on Arweave/HyperBEAM.",
+  "bin": {
+    "permabrain": "./scripts/cli.mjs"
+  },
+  "scripts": {
+    "test": "node test/test.mjs",
+    "test:unit": "node test/test.mjs",
+    "test:hyperbeam": "node test/hyperbeam.mjs",
+    "test:wikipedia": "node test/wikipedia.mjs",
+    "test:arweave": "node test/arweave.mjs",
+    "test:public-upload": "node test/public-upload.mjs"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^3.1.0",
+    "arbundles": "^0.11.2",
+    "arweave": "^1.15.7"
+  }
+}

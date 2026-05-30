@@ -1,0 +1,10 @@
+node_modules/
+.permabrain/
+*.log
+.DS_Store
+coverage/
+.understand-anything/intermediate/
+.understand-anything/tmp/
+
+.understand-anything/
+context.md
