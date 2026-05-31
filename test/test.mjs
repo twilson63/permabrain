@@ -6,7 +6,7 @@ import path from 'node:path';
 import { initState } from '../src/config.mjs';
 import { ensureIdentity } from '../src/keys.mjs';
 import { createDataItem, parseAns104, payloadText, verifyDataItem } from '../src/dataitem.mjs';
-import { LocalTransport } from '../src/transport.mjs';
+import { HyperbeamTransport, LocalTransport } from '../src/transport.mjs';
 import {
   buildArticleTags,
   buildAttestationTags,
@@ -150,6 +150,19 @@ assert.equal(payloadText(fetched), '# Ada Lovelace');
 const queried = await transport.queryByTags({ 'PermaBrain-Type': 'article', 'Article-Key': 'person/ada-lovelace' });
 assert.equal(queried.length, 1);
 assert.equal(queried[0].id, item.id);
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async () => new Response(Buffer.from(item.ans104Base64, 'base64url'));
+try {
+  const hyperbeam = new HyperbeamTransport({ gateway: { dataUrl: 'http://example.invalid', graphqlUrl: 'http://example.invalid/graphql' }, bundler: { uploadUrl: 'http://example.invalid/upload' } });
+  const rawFetched = await hyperbeam.fetchDataItem(item.id);
+  assert.equal(rawFetched.id, item.id);
+  assert.equal(payloadText(rawFetched), '# Ada Lovelace');
+  assert.equal(tagsToObject(rawFetched.tags)['Article-Key'], 'person/ada-lovelace');
+  assert.equal(await verifyDataItem(rawFetched), true);
+} finally {
+  globalThis.fetch = originalFetch;
+}
 
 result = run(['probe-hyperbeam', '--url', 'http://127.0.0.1:9', '--json']);
 assert.equal(result.status, 0, result.stderr);

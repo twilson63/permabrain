@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { statePaths } from './config.mjs';
-import { payloadBuffer, payloadText, rawDataItemBytes } from './dataitem.mjs';
+import { parseAns104, payloadBuffer, payloadText, rawDataItemBytes } from './dataitem.mjs';
 import { tagsToObject } from './tags.mjs';
 
 export function getTransport(config, home) {
@@ -85,11 +85,16 @@ export class HyperbeamTransport {
     const text = bytes.toString('utf8');
     try { return JSON.parse(text); }
     catch {
+      const parsed = parseAns104(bytes);
       return {
-        format: 'hyperbeam-raw-fetch',
-        id,
-        payloadBase64: bytes.toString('base64url'),
-        tags: []
+        format: 'ans104@1.0',
+        id: parsed.id,
+        owner: parsed.owner,
+        tags: parsed.tags,
+        payloadBase64: Buffer.from(parsed.rawData).toString('base64url'),
+        ans104Base64: bytes.toString('base64url'),
+        signature: parsed.signature,
+        publicKey: parsed.owner
       };
     }
   }
