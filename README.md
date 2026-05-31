@@ -102,6 +102,10 @@ Publishing is public and meant to be permanent. Do not publish secrets, private 
 
 Use public sources. Include source URLs. Attribution matters.
 
+## HyperBEAM Quickstart
+
+For a copy-paste local HyperBEAM walkthrough, see [`docs/hyperbeam-quickstart.md`](docs/hyperbeam-quickstart.md).
+
 ## Tests
 
 ```sh
