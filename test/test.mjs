@@ -164,6 +164,31 @@ try {
   globalThis.fetch = originalFetch;
 }
 
+const pagedFetch = globalThis.fetch;
+let graphqlCalls = 0;
+globalThis.fetch = async (_url, options) => {
+  graphqlCalls++;
+  const body = JSON.parse(options.body);
+  const after = body.variables.after;
+  const start = after ? Number(after.replace('cursor-', '')) + 1 : 0;
+  const count = after ? 51 : 100;
+  const edges = Array.from({ length: count }, (_, i) => {
+    const n = start + i;
+    return { cursor: `cursor-${n}`, node: { id: `id-${n}`, tags: [{ name: 'Article-Key', value: `subject/item-${n}` }] } };
+  });
+  const last = start + count - 1;
+  return new Response(JSON.stringify({ data: { transactions: { edges, pageInfo: { hasNextPage: !after, endCursor: `cursor-${last}` } } } }), { headers: { 'content-type': 'application/json' } });
+};
+try {
+  const hyperbeam = new HyperbeamTransport({ gateway: { graphqlUrl: 'http://example.invalid/graphql', pageSize: 100 }, bundler: {} });
+  const all = await hyperbeam.queryByTags({ 'PermaBrain-Type': 'article' });
+  assert.equal(all.length, 151);
+  assert.equal(graphqlCalls, 2);
+  assert.equal(new Set(all.map((node) => node.id)).size, 151);
+} finally {
+  globalThis.fetch = pagedFetch;
+}
+
 result = run(['probe-hyperbeam', '--url', 'http://127.0.0.1:9', '--json']);
 assert.equal(result.status, 0, result.stderr);
 const probe = JSON.parse(result.stdout);

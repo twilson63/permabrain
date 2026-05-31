@@ -105,15 +105,32 @@ export class HyperbeamTransport {
 
   async queryByTags(filters = {}) {
     const tags = Object.entries(filters).map(([name, value]) => ({ name, values: [String(value)] }));
-    const query = `query($tags: [TagFilter!]) { transactions(first: 100, tags: $tags) { edges { node { id tags { name value } } } } }`;
-    const res = await fetch(this.config.gateway.graphqlUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ query, variables: { tags } })
-    });
-    if (!res.ok) throw new Error(`HyperBEAM GraphQL failed: HTTP ${res.status}`);
-    const json = await res.json();
-    return json.data?.transactions?.edges?.map((edge) => edge.node) || [];
+    const first = Number(this.config.gateway?.pageSize || 100);
+    const maxPages = Number(this.config.gateway?.maxPages || 1000);
+    const query = `query($tags: [TagFilter!], $first: Int!, $after: String) { transactions(first: $first, after: $after, tags: $tags) { edges { cursor node { id tags { name value } } } pageInfo { hasNextPage endCursor } } }`;
+    const nodes = [];
+    const seen = new Set();
+    let after = null;
+    for (let page = 0; page < maxPages; page++) {
+      const res = await fetch(this.config.gateway.graphqlUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query, variables: { tags, first, after } })
+      });
+      if (!res.ok) throw new Error(`HyperBEAM GraphQL failed: HTTP ${res.status}`);
+      const json = await res.json();
+      if (json.errors?.length) throw new Error(`HyperBEAM GraphQL failed: ${json.errors.map((err) => err.message || String(err)).join('; ')}`);
+      const transactions = json.data?.transactions;
+      for (const edge of transactions?.edges || []) {
+        if (!edge.node?.id || seen.has(edge.node.id)) continue;
+        seen.add(edge.node.id);
+        nodes.push(edge.node);
+      }
+      if (!transactions?.pageInfo?.hasNextPage) return nodes;
+      after = transactions.pageInfo.endCursor || transactions.edges?.at(-1)?.cursor;
+      if (!after) throw new Error('HyperBEAM GraphQL pagination failed: missing endCursor');
+    }
+    throw new Error(`HyperBEAM GraphQL pagination exceeded ${maxPages} pages`);
   }
 }
 
