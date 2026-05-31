@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { initState } from '../src/config.mjs';
 import { queryArticles } from '../src/article.mjs';
+import { consensusScore } from '../src/consensus.mjs';
 import { ensureIdentity } from '../src/keys.mjs';
 import { createDataItem, parseAns104, payloadText, verifyDataItem } from '../src/dataitem.mjs';
 import { HyperbeamTransport, LocalTransport } from '../src/transport.mjs';
@@ -303,10 +304,21 @@ assert.equal(result.status, 0, result.stderr);
 result = run(['consensus', 'person/ada-lovelace', '--json'], { env: cliEnv });
 assert.equal(result.status, 0, result.stderr);
 const consensus = JSON.parse(result.stdout);
-assert.equal(consensus.totalAttestations, 2);
-assert.equal(consensus.opinionCounts.valid, 1);
+assert.equal(consensus.totalAttestations, 1);
+assert.equal(consensus.opinionCounts.valid, 0);
 assert.equal(consensus.opinionCounts['partially-valid'], 1);
-assert.equal(consensus.score, 0.675);
+assert.equal(consensus.score, 0.4);
+assert.equal(consensus.rawAttestations, 2);
+assert.equal(consensus.scoreComponents.length, 1);
+
+const scoredConsensus = consensusScore([
+  { id: 'old-a', targetId: 'v2', targetKey: 'subject/test', opinion: 'valid', confidence: 0.8, agentId: 'agent:a', createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'new-a', targetId: 'v2', targetKey: 'subject/test', opinion: 'invalid', confidence: 1, agentId: 'agent:a', createdAt: '2026-01-02T00:00:00.000Z' },
+  { id: 'old-version-b', targetId: 'v1', targetKey: 'subject/test', opinion: 'valid', confidence: 1, agentId: 'agent:b', createdAt: '2026-01-02T00:00:00.000Z' }
+], { latestArticleId: 'v2', now: '2026-01-10T00:00:00.000Z' });
+assert.equal(scoredConsensus.consideredAttestations.length, 2);
+assert.equal(Number(scoredConsensus.score.toFixed(6)), -0.333333);
+assert.equal(scoredConsensus.components.find((component) => component.id === 'old-version-b').targetVersionWeight, 0.5);
 
 result = run(['sync', '--json'], { env: cliEnv });
 assert.equal(result.status, 0, result.stderr);
