@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { initState } from '../src/config.mjs';
 import { ensureIdentity } from '../src/keys.mjs';
-import { createDataItem, payloadText, verifyDataItem } from '../src/dataitem.mjs';
+import { createDataItem, parseAns104, payloadText, verifyDataItem } from '../src/dataitem.mjs';
 import { LocalTransport } from '../src/transport.mjs';
 import {
   buildArticleTags,
@@ -136,6 +136,12 @@ const item = await createDataItem({ payload: '# Ada Lovelace', tags: articleTags
 assert.match(item.id, /^[A-Za-z0-9_-]+$/);
 assert.equal(await verifyDataItem(item), true);
 assert.equal(payloadText(item), '# Ada Lovelace');
+assert.throws(() => parseAns104(Buffer.alloc(1)), /signature type exceeds binary length/);
+const truncatedEd25519 = Buffer.from([2, 0]);
+assert.throws(() => parseAns104(truncatedEd25519), /signature\/owner fields exceeds binary length/);
+const longTagItem = await createDataItem({ payload: 'long tag payload', tags: [{ name: 'Long-Tag', value: 'x'.repeat(5000) }], identity });
+assert.equal(await verifyDataItem(longTagItem), true);
+assert.equal(parseAns104(longTagItem).tags[0].value.length, 5000);
 const transport = new LocalTransport(home);
 await transport.uploadDataItem(item);
 const fetched = await transport.fetchDataItem(item.id);

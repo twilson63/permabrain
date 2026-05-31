@@ -1,18 +1,28 @@
 # PermaBrain
 
-PermaBrain is a public, permanent, cryptographically signed “third brain” for agents and humans: a Wikipedia-like knowledge graph where contributors publish immutable articles about subjects, famous people, organizations, events, news, and concepts, then publish separate signed attestations about article validity.
+PermaBrain is a public knowledge graph for people and agents.
 
-Phase 1 provides a local-first CLI and pi skill backed by HyperBEAM at `http://localhost:10000` where available. It can also run against a local test transport for development. Public/bundler uploads must use real serialized ANS-104 DataItems; JSON envelopes are only for local tests/cache fixtures.
+You publish articles. Other people or agents publish signed attestations saying whether those articles are valid, stale, disputed, or wrong. Nothing gets quietly overwritten. Every version keeps its author, source metadata, timestamp, and signature.
 
-## Core Idea
+Think Wikipedia-style pages, but with permanent versions and public receipts.
 
-PermaBrain does not ask for one centralized canonical truth. It preserves:
+Phase 1 is a local-first CLI and pi skill. It can talk to HyperBEAM at `http://localhost:10000` when you have it running, or use a local test transport for development.
 
-- who published an article;
-- what content and source metadata they published;
-- when each immutable version was published;
-- which agents/humans attested to validity, freshness, or disputes;
-- a simple consensus score over attestations.
+Public uploads use real serialized ANS-104 DataItems. The JSON wrapper exists only for local tests and cache files.
+
+## What it tracks
+
+PermaBrain does not try to crown one final truth. It keeps the evidence trail:
+
+- who published an article
+- what they published
+- which sources they cited
+- when each version appeared
+- who attested to it later
+- whether those attestations call it valid, outdated, disputed, or wrong
+- a simple consensus score over the attestations
+
+That is the point: fewer vibes, more receipts.
 
 ## CLI Quick Start
 
@@ -44,7 +54,7 @@ permabrain consensus <canonical-key> [--json]
 permabrain sync
 ```
 
-Canonical keys look like:
+Canonical keys look like this:
 
 ```text
 person/ada-lovelace
@@ -56,7 +66,7 @@ news/2026/example-story
 
 ## Local State
 
-By default PermaBrain writes local state to `.permabrain/`; tests and agents can override this with `PERMABRAIN_HOME`.
+By default PermaBrain writes local state to `.permabrain/`. Tests and agents can override this with `PERMABRAIN_HOME`.
 
 ```text
 .permabrain/
@@ -70,7 +80,7 @@ By default PermaBrain writes local state to `.permabrain/`; tests and agents can
 └── logs/
 ```
 
-Private keys are local only and must never be printed or committed. On first run, `permabrain init` also writes `identity-init.json`, a public-safe local event recording the agent id, key type, and creation time without private key material.
+Private keys stay local. Do not print them. Do not commit them. On first run, `permabrain init` also writes `identity-init.json`, which records only public identity metadata: agent id, key type, and creation time.
 
 Supported ANS-104 signing key types:
 
@@ -80,13 +90,17 @@ permabrain init --key-type ed25519
 PERMABRAIN_KEY_TYPE=ed25519 permabrain init
 ```
 
-## ANS-104 Upload Requirement
+## ANS-104 Uploads
 
-Bundler-compatible endpoints such as HyperBEAM upload surfaces and `https://up.arweave.net` expect serialized ANS-104 DataItem bytes. PermaBrain's public upload path must therefore create and sign real ANS-104 DataItems containing the `Article-*` and `Attestation-*` tags.
+Bundler-compatible endpoints, including HyperBEAM upload surfaces and `https://up.arweave.net`, expect serialized ANS-104 DataItem bytes.
+
+PermaBrain creates and signs real ANS-104 DataItems with `Article-*` and `Attestation-*` tags. Local JSON files are just cache/test artifacts.
 
 ## Safety
 
-Publishing is public and intended to be permanent. Do not publish private, secret, personal, or sensitive data. Prefer public-source material with source URLs and attribution.
+Publishing is public and meant to be permanent. Do not publish secrets, private data, sensitive personal data, or anything you would regret seeing mirrored forever.
+
+Use public sources. Include source URLs. Attribution matters.
 
 ## Tests
 
@@ -98,7 +112,7 @@ npm run test:arweave
 npm run test:public-upload
 ```
 
-HyperBEAM/Wikipedia/Arweave integration tests skip cleanly when dependencies are unavailable unless required environment flags are set.
+HyperBEAM, Wikipedia, and Arweave integration tests skip cleanly when dependencies are unavailable unless required environment flags are set.
 
 `test:arweave` is read-only. `test:public-upload` never publishes unless explicitly enabled:
 
