@@ -3,6 +3,8 @@ import * as ed25519 from '@noble/ed25519';
 
 ed25519.hashes.sha512 = (message) => crypto.createHash('sha512').update(message).digest();
 
+// PermaBrain intentionally supports only the key types it can create: Arweave RSA-4096 and Ed25519.
+// ANS-104 also defines other signature types, but accepting them here would imply verification support we do not have.
 export const SIG_CONFIG = {
   1: { sigLength: 512, pubLength: 512, name: 'arweave-rsa4096' },
   2: { sigLength: 64, pubLength: 32, name: 'ed25519' }
@@ -31,6 +33,12 @@ function byteArrayToLong(bytes) {
   let value = 0;
   for (let i = bytes.length - 1; i >= 0; i--) value = value * 256 + bytes[i];
   return value;
+}
+
+function requireBytes(binary, start, length, label) {
+  if (start < 0 || length < 0 || start + length > binary.length) {
+    throw new Error(`Invalid ANS-104 DataItem: ${label} exceeds binary length (${binary.length} bytes)`);
+  }
 }
 
 function avroWriteLongParts(value) {
@@ -79,9 +87,7 @@ function serializeTags(tags = []) {
     parts.push(avroWriteString(tag.name), avroWriteString(tag.value));
   }
   parts.push(avroWriteLongParts(0));
-  const bytes = Buffer.concat(parts);
-  if (bytes.length > 4096) throw new Error(`Too many tag bytes (${bytes.length} > 4096)`);
-  return bytes;
+  return Buffer.concat(parts);
 }
 
 function deserializeTags(buffer) {
@@ -117,12 +123,43 @@ async function deepHash(data) {
 class MiniDataItem {
   constructor(binary) {
     this.binary = Buffer.from(binary);
+    this.validateLayout();
+  }
+
+  validateLayout() {
+    requireBytes(this.binary, 0, 2, 'signature type');
+    const type = byteArrayToLong(this.binary.subarray(0, 2));
+    const config = SIG_CONFIG[type];
+    if (!config) throw new Error(`Unsupported ANS-104 signature type: ${type}. Supported types: ${Object.keys(SIG_CONFIG).join(', ')}`);
+
+    requireBytes(this.binary, 2, config.sigLength + config.pubLength, 'signature/owner fields');
+    const targetStart = 2 + config.sigLength + config.pubLength;
+    const targetPresent = this.readPresenceFlag(targetStart, 'target');
+    if (targetPresent) requireBytes(this.binary, targetStart + 1, 32, 'target');
+
+    const anchorStart = targetStart + (targetPresent ? 33 : 1);
+    const anchorPresent = this.readPresenceFlag(anchorStart, 'anchor');
+    if (anchorPresent) requireBytes(this.binary, anchorStart + 1, 32, 'anchor');
+
+    const tagsStart = anchorStart + (anchorPresent ? 33 : 1);
+    requireBytes(this.binary, tagsStart, 16, 'tag header');
+    const tagCount = byteArrayToLong(this.binary.subarray(tagsStart, tagsStart + 8));
+    const tagBytesLength = byteArrayToLong(this.binary.subarray(tagsStart + 8, tagsStart + 16));
+    requireBytes(this.binary, tagsStart + 16, tagBytesLength, 'tag bytes');
+
+    const tags = tagBytesLength ? deserializeTags(this.binary.subarray(tagsStart + 16, tagsStart + 16 + tagBytesLength)) : [];
+    if (tags.length !== tagCount) throw new Error(`Invalid ANS-104 DataItem: tag count mismatch (${tags.length} decoded, ${tagCount} declared)`);
+  }
+
+  readPresenceFlag(start, label) {
+    requireBytes(this.binary, start, 1, `${label} presence flag`);
+    const flag = this.binary[start];
+    if (flag !== 0 && flag !== 1) throw new Error(`Invalid ANS-104 DataItem: ${label} presence flag must be 0 or 1`);
+    return flag === 1;
   }
 
   get signatureType() {
-    const type = byteArrayToLong(this.binary.subarray(0, 2));
-    if (!SIG_CONFIG[type]) throw new Error(`Unknown signature type: ${type}`);
-    return type;
+    return byteArrayToLong(this.binary.subarray(0, 2));
   }
 
   get signatureLength() { return SIG_CONFIG[this.signatureType].sigLength; }
@@ -132,10 +169,10 @@ class MiniDataItem {
   get rawOwner() { return this.binary.subarray(2 + this.signatureLength, 2 + this.signatureLength + this.ownerLength); }
   get owner() { return b64url(this.rawOwner); }
   getTargetStart() { return 2 + this.signatureLength + this.ownerLength; }
-  getAnchorStart() { return this.getTargetStart() + (this.binary[this.getTargetStart()] === 1 ? 33 : 1); }
-  getTagsStart() { return this.getAnchorStart() + (this.binary[this.getAnchorStart()] === 1 ? 33 : 1); }
-  get rawTarget() { const start = this.getTargetStart(); return this.binary[start] === 1 ? this.binary.subarray(start + 1, start + 33) : Buffer.alloc(0); }
-  get rawAnchor() { const start = this.getAnchorStart(); return this.binary[start] === 1 ? this.binary.subarray(start + 1, start + 33) : Buffer.alloc(0); }
+  getAnchorStart() { return this.getTargetStart() + (this.readPresenceFlag(this.getTargetStart(), 'target') ? 33 : 1); }
+  getTagsStart() { return this.getAnchorStart() + (this.readPresenceFlag(this.getAnchorStart(), 'anchor') ? 33 : 1); }
+  get rawTarget() { const start = this.getTargetStart(); return this.readPresenceFlag(start, 'target') ? this.binary.subarray(start + 1, start + 33) : Buffer.alloc(0); }
+  get rawAnchor() { const start = this.getAnchorStart(); return this.readPresenceFlag(start, 'anchor') ? this.binary.subarray(start + 1, start + 33) : Buffer.alloc(0); }
   get rawTags() {
     const start = this.getTagsStart();
     const size = byteArrayToLong(this.binary.subarray(start + 8, start + 16));
