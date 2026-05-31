@@ -4,9 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { initState } from '../src/config.mjs';
+import { queryArticles } from '../src/article.mjs';
 import { ensureIdentity } from '../src/keys.mjs';
 import { createDataItem, parseAns104, payloadText, verifyDataItem } from '../src/dataitem.mjs';
 import { HyperbeamTransport, LocalTransport } from '../src/transport.mjs';
+import { summarizeArticle, writeIndex } from '../src/cache.mjs';
 import {
   buildArticleTags,
   buildAttestationTags,
@@ -187,6 +189,45 @@ try {
   assert.equal(new Set(all.map((node) => node.id)).size, 151);
 } finally {
   globalThis.fetch = pagedFetch;
+}
+
+const oldPermabrainHome = process.env.PERMABRAIN_HOME;
+const oldPermabrainTransport = process.env.PERMABRAIN_TRANSPORT;
+process.env.PERMABRAIN_HOME = localHome;
+process.env.PERMABRAIN_TRANSPORT = 'local';
+writeIndex(localHome, {
+  articles: {
+    [summarizeArticle(item).key]: summarizeArticle(item),
+    'subject/cached-only': {
+      id: 'cached-only-id',
+      key: 'subject/cached-only',
+      kind: 'subject',
+      title: 'Cached Only',
+      slug: 'cached-only',
+      topic: 'computing',
+      language: 'en',
+      version: 1,
+      previousId: null,
+      rootId: null,
+      sourceName: 'test',
+      sourceUrl: 'https://example.invalid/cached-only',
+      contentHash: contentHash('cached'),
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      authorAgentId: 'agent:test'
+    }
+  },
+  attestations: {},
+  updatedAt: new Date().toISOString()
+});
+try {
+  const merged = await queryArticles({ topic: 'computing' });
+  assert.equal(merged.length, 2);
+  assert.deepEqual(merged.map((article) => article.key), ['person/ada-lovelace', 'subject/cached-only']);
+} finally {
+  if (oldPermabrainHome === undefined) delete process.env.PERMABRAIN_HOME;
+  else process.env.PERMABRAIN_HOME = oldPermabrainHome;
+  if (oldPermabrainTransport === undefined) delete process.env.PERMABRAIN_TRANSPORT;
+  else process.env.PERMABRAIN_TRANSPORT = oldPermabrainTransport;
 }
 
 result = run(['probe-hyperbeam', '--url', 'http://127.0.0.1:9', '--json']);

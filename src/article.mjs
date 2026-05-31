@@ -57,6 +57,25 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   return { item, summary: summarizeArticle(item) };
 }
 
+
+function articleIsNewer(candidate, current) {
+  const candidateVersion = Number(candidate.version || 0);
+  const currentVersion = Number(current.version || 0);
+  if (candidateVersion !== currentVersion) return candidateVersion > currentVersion;
+  return String(candidate.updatedAt || '') > String(current.updatedAt || '');
+}
+
+function mergeArticleSummaries(remote, cached) {
+  const byKey = new Map();
+  for (const article of cached) if (article?.key) byKey.set(article.key, article);
+  for (const article of remote) {
+    if (!article?.key) continue;
+    const current = byKey.get(article.key);
+    if (!current || articleIsNewer(article, current) || (!articleIsNewer(current, article) && article.id)) byKey.set(article.key, article);
+  }
+  return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
 export async function queryArticles(filters = {}) {
   const home = getHome();
   const config = loadConfig(home);
@@ -68,8 +87,7 @@ export async function queryArticles(filters = {}) {
   if (filters.sourceName) tagFilters['Article-Source-Name'] = filters.sourceName;
   if (filters.sourceUrl) tagFilters['Article-Source-Url'] = filters.sourceUrl;
   const items = await transport.queryByTags(tagFilters);
-  const remote = [...latestByArticleKey(items).values()].map(summarizeArticle).sort((a, b) => a.key.localeCompare(b.key));
-  if (remote.length) return remote;
+  const remote = [...latestByArticleKey(items).values()].map(summarizeArticle);
   const cached = Object.values(loadIndex(home).articles || {}).filter((article) => {
     if (filters.topic && article.topic !== filters.topic) return false;
     if (filters.kind && article.kind !== filters.kind) return false;
@@ -78,7 +96,7 @@ export async function queryArticles(filters = {}) {
     if (filters.sourceUrl && article.sourceUrl !== filters.sourceUrl) return false;
     return true;
   });
-  return cached.sort((a, b) => a.key.localeCompare(b.key));
+  return mergeArticleSummaries(remote, cached);
 }
 
 export async function resolveLatestArticle(key) {
