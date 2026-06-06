@@ -155,28 +155,39 @@ export class ArweaveTransport {
   }
 
   async fetchDataItem(id) {
-    const res = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
-    if (!res.ok) throw new Error(`Arweave fetch failed for ${id}: HTTP ${res.status}`);
-    const bytes = Buffer.from(await res.arrayBuffer());
-    const text = bytes.toString('utf8');
-    try { return JSON.parse(text); }
-    catch {
-      const parsed = parseAns104(bytes);
-      return {
-        format: 'ans104@1.0',
-        id: parsed.id,
-        owner: parsed.owner,
-        tags: parsed.tags,
-        payloadBase64: Buffer.from(parsed.rawData).toString('base64url'),
-        ans104Base64: bytes.toString('base64url'),
-        signature: parsed.signature,
-        publicKey: parsed.owner
-      };
-    }
+    // Arweave gateways serve decoded content, not raw ANS-104 binary.
+    // Strategy: fetch tags from GraphQL, fetch content from gateway, reconstruct item.
+    const contentRes = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
+    if (!contentRes.ok) throw new Error(`Arweave content fetch failed for ${id}: HTTP ${contentRes.status}`);
+    const content = await contentRes.text();
+
+    // Fetch tags from GraphQL
+    const tagQuery = `query($id: ID!) { transaction(id: $id) { id owner { address } tags { name value } } }`;
+    const tagRes = await fetch(this.graphqlUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: tagQuery, variables: { id } })
+    });
+    if (!tagRes.ok) throw new Error(`Arweave GraphQL tag fetch failed for ${id}: HTTP ${tagRes.status}`);
+    const tagJson = await tagRes.json();
+    if (tagJson.errors?.length) throw new Error(`Arweave GraphQL error: ${tagJson.errors.map((e) => e.message || String(e)).join('; ')}`);
+    const txNode = tagJson.data?.transaction;
+    if (!txNode) throw new Error(`Arweave transaction not found: ${id}`);
+
+    return {
+      id: txNode.id,
+      owner: txNode.owner?.address || txNode.owner || '',
+      timestamp: '', // Not available from GraphQL without block data
+      tags: txNode.tags || [],
+      payloadBase64: Buffer.from(content, 'utf8').toString('base64url'),
+      // No ans104Base64 since we don't have the raw binary
+    };
   }
 
   async fetchData(id) {
-    return payloadBuffer(await this.fetchDataItem(id));
+    const res = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error(`Arweave data fetch failed for ${id}: HTTP ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
   }
 
   async queryByTags(filters = {}) {
