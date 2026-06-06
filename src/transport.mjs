@@ -6,6 +6,7 @@ import { tagsToObject } from './tags.mjs';
 
 export function getTransport(config, home) {
   if (config.transport === 'local' || config.gateway?.type === 'local' || config.bundler?.type === 'local') return new LocalTransport(home);
+  if (config.transport === 'arweave' || config.gateway?.type === 'arweave') return new ArweaveTransport(config);
   return new HyperbeamTransport(config);
 }
 
@@ -131,6 +132,84 @@ export class HyperbeamTransport {
       if (!after) throw new Error('HyperBEAM GraphQL pagination failed: missing endCursor');
     }
     throw new Error(`HyperBEAM GraphQL pagination exceeded ${maxPages} pages`);
+  }
+}
+
+export class ArweaveTransport {
+  constructor(config) {
+    this.config = config;
+    this.graphqlUrl = config.gateway?.graphqlUrl || 'https://arweave.net/graphql';
+    this.dataUrl = config.gateway?.dataUrl || 'https://arweave.net';
+    this.uploadUrl = config.bundler?.uploadUrl || 'https://up.arweave.net/tx';
+  }
+
+  async uploadDataItem(item) {
+    const bytes = rawDataItemBytes(item);
+    const res = await fetch(this.uploadUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: new Blob([bytes], { type: 'application/octet-stream' })
+    });
+    if (!res.ok) throw new Error(`Arweave upload failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+    return { id: item.id, status: 'uploaded', response: await res.text().catch(() => '') };
+  }
+
+  async fetchDataItem(id) {
+    const res = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error(`Arweave fetch failed for ${id}: HTTP ${res.status}`);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const text = bytes.toString('utf8');
+    try { return JSON.parse(text); }
+    catch {
+      const parsed = parseAns104(bytes);
+      return {
+        format: 'ans104@1.0',
+        id: parsed.id,
+        owner: parsed.owner,
+        tags: parsed.tags,
+        payloadBase64: Buffer.from(parsed.rawData).toString('base64url'),
+        ans104Base64: bytes.toString('base64url'),
+        signature: parsed.signature,
+        publicKey: parsed.owner
+      };
+    }
+  }
+
+  async fetchData(id) {
+    return payloadBuffer(await this.fetchDataItem(id));
+  }
+
+  async queryByTags(filters = {}) {
+    const tags = Object.entries(filters).map(([name, value]) => ({ name, values: [String(value)] }));
+    const first = Number(this.config.gateway?.pageSize || 100);
+    const maxPages = Number(this.config.gateway?.maxPages || 100);
+    // Arweave GraphQL does NOT support `endCursor` in pageInfo or `order` on transactions.
+    // Use edge cursors for pagination instead.
+    const query = `query($tags: [TagFilter!], $first: Int!, $after: String) { transactions(first: $first, after: $after, tags: $tags) { edges { cursor node { id tags { name value } } } pageInfo { hasNextPage } } }`;
+    const nodes = [];
+    const seen = new Set();
+    let after = null;
+    for (let page = 0; page < maxPages; page++) {
+      const res = await fetch(this.graphqlUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query, variables: { tags, first, after } })
+      });
+      if (!res.ok) throw new Error(`Arweave GraphQL failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+      const json = await res.json();
+      if (json.errors?.length) throw new Error(`Arweave GraphQL error: ${json.errors.map((e) => e.message || String(e)).join('; ')}`);
+      const transactions = json.data?.transactions;
+      const edges = transactions?.edges || [];
+      for (const edge of edges) {
+        if (!edge.node?.id || seen.has(edge.node.id)) continue;
+        seen.add(edge.node.id);
+        nodes.push(edge.node);
+      }
+      if (!transactions?.pageInfo?.hasNextPage || edges.length === 0) return nodes;
+      after = edges[edges.length - 1].cursor;
+      if (!after) return nodes;
+    }
+    throw new Error(`Arweave GraphQL pagination exceeded ${maxPages} pages`);
   }
 }
 
