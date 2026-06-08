@@ -1,13 +1,26 @@
 {
   "name": "permabrain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Public signed third brain knowledge graph on Arweave/HyperBEAM.",
+  "description": "Public signed third brain knowledge graph on Arweave/HyperBEAM. Importable by other agents.",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./api": "./src/agent-api.mjs",
+    "./crypto": "./src/crypto.mjs",
+    "./article": "./src/article.mjs",
+    "./attestation": "./src/attestation.mjs",
+    "./consensus": "./src/consensus.mjs",
+    "./config": "./src/config.mjs",
+    "./keys": "./src/keys.mjs",
+    "./tags": "./src/tags.mjs",
+    "./dataitem": "./src/dataitem.mjs"
+  },
   "bin": {
     "permabrain": "./scripts/cli.mjs"
   },
   "scripts": {
-    "test": "node test/test.mjs && node test/ao-process.mjs && node test/ao-transport.mjs && node test/composite-transport.mjs && node test/ao-deploy.mjs && node test/ao.mjs && node test/multi-agent.mjs && node test/crypto.mjs",
+    "test": "node test/test.mjs && node test/ao-process.mjs && node test/ao-transport.mjs && node test/composite-transport.mjs && node test/ao-deploy.mjs && node test/ao.mjs && node test/multi-agent.mjs && node test/crypto.mjs && node test/module-import.mjs",
     "test:unit": "node test/test.mjs",
     "test:ao-process": "node test/ao-process.mjs",
     "test:ao-transport": "node test/ao-transport.mjs",
@@ -15,7 +28,8 @@
     "test:ao-deploy": "node test/ao-deploy.mjs",
     "test:ao": "node test/ao.mjs",
     "test:multi-agent": "node test/multi-agent.mjs",
-    "test:hyperbeam": "node test/hyperbeam.mjs",
+    "test:module-import": "node test/module-import.mjs",
+"test:hyperbeam": "node test/hyperbeam.mjs",
     "test:wikipedia": "node test/wikipedia.mjs",
     "test:arweave": "node test/arweave.mjs",
     "test:public-upload": "node test/public-upload.mjs"

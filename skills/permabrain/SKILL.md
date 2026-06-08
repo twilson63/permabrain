@@ -18,10 +18,26 @@ Before publishing:
 
 ## Agent API (Preferred)
 
-The primary interface is the programmatic API at `/home/node/.openclaw/workspace/permabrain-project/src/agent-api.mjs`. Use it directly — no CLI shelling needed.
+The primary interface is the programmatic API. Use it directly — no CLI shelling needed.
+
+### Import as Module
 
 ```javascript
-import { api } from '/home/node/.openclaw/workspace/permabrain-project/src/agent-api.mjs';
+// Full barrel import
+import { api, crypto } from '/home/node/.openclaw/workspace/permabrain/src/index.mjs';
+
+// Or sub-path imports
+import { api } from '/home/node/.openclaw/workspace/permabrain/src/agent-api.mjs';
+import * as crypto from '/home/node/.openclaw/workspace/permabrain/src/crypto.mjs';
+
+// Lower-level modules
+import { publishArticle, queryArticles } from '/home/node/.openclaw/workspace/permabrain/src/index.mjs';
+```
+
+### Quick Start
+
+```javascript
+import { api } from '/home/node/.openclaw/workspace/permabrain/src/index.mjs';
 
 // Initialize (only needed once; auto-inits on first call)
 await api.init({ keyType: 'ed25519' }); // or 'arweave-rsa4096'
@@ -70,6 +86,24 @@ const wiki = await api.importWikipedia({
   kind: 'person',
   topic: 'computing',
 });
+
+// Batch attest to multiple articles
+const batch = await api.batchAttest({
+  attestations: [
+    { key: 'subject/ai', opinion: 'valid', confidence: 0.9, reason: 'Accurate overview' },
+    { key: 'person/ada-lovelace', opinion: 'valid', confidence: 0.95, reason: 'Well-sourced' },
+  ],
+});
+// { results: [{key, status, summary?}], succeeded, failed }
+
+// Auto-import articles from URLs
+const imported = await api.autoImport({
+  articles: [
+    { url: 'https://example.com/ai-overview', kind: 'subject', topic: 'ai' },
+    { url: 'https://example.com/quantum-intro', kind: 'subject', topic: 'physics' },
+  ],
+});
+// { results: [{key, status, summary?}], succeeded, failed }
 
 // Get current identity
 const { agentId, keyType } = api.identity;

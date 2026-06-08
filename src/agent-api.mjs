@@ -22,9 +22,28 @@ import { attestArticle } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
 import { loadIndex } from './cache.mjs';
+import * as pbcrypto from './crypto.mjs';
+import { slugify } from './tags.mjs';
 
 function requireInit(home) {
   if (!home) throw new Error('PermaBrain not initialized. Call api.init() first.');
+}
+
+function deriveTitleFromUrl(url, content) {
+  // Try to extract title from content (first heading or first line)
+  const headingMatch = content.match(/^#{1,2}\s+(.+)/m);
+  if (headingMatch) return headingMatch[1].trim();
+  const firstLine = content.split('\n').find(l => l.trim());
+  if (firstLine && firstLine.length < 120) return firstLine.trim();
+  // Fall back to URL path
+  try {
+    const pathname = new URL(url).pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    const last = segments[segments.length - 1] || segments[0] || 'untitled';
+    return last.replace(/[-_]/g, ' ').replace(/\.[^.]+$/, '');
+  } catch {
+    return 'untitled';
+  }
 }
 
 const api = {
@@ -320,6 +339,171 @@ const api = {
    */
   getKnownAgent(name) {
     return getKnownAgent(name);
+  },
+
+  /**
+   * Encrypt content for specific recipients.
+   * Uses X25519 ECDH + AES-256-GCM with forward secrecy.
+   * @param {string} content - Plaintext content
+   * @param {string[]} recipientPublicKeysB64url - X25519 public keys of recipients
+   * @returns {Promise<{envelope: object, encryptedPayload: string}>}
+   */
+  async encrypt(content, recipientPublicKeysB64url) {
+    return pbcrypto.encrypt(content, recipientPublicKeysB64url);
+  },
+
+  /**
+   * Decrypt content as a specific recipient.
+   * @param {string|object} encryptedPayload - JSON string or parsed envelope
+   * @param {Buffer} recipientSeed - X25519 private key seed (32 bytes)
+   * @returns {Promise<{content: string, envelope: object}>}
+   */
+  async decrypt(encryptedPayload, recipientSeed) {
+    return pbcrypto.decrypt(encryptedPayload, recipientSeed);
+  },
+
+  /**
+   * Check if a payload is an encrypted envelope.
+   * @param {string} payload
+   * @returns {boolean}
+   */
+  isEncrypted(payload) {
+    return pbcrypto.isEncryptedEnvelope(payload);
+  },
+
+  /**
+   * List recipient fingerprints from an encrypted envelope.
+   * @param {string|object} encryptedPayload
+   * @returns {string[]}
+   */
+  listRecipients(encryptedPayload) {
+    return pbcrypto.listRecipients(encryptedPayload);
+  },
+
+  /**
+   * Generate an X25519 encryption keypair for private article storage.
+   * @returns {{type, seed, publicKey, fingerprint}}
+   */
+  generateEncryptionKeypair() {
+    return pbcrypto.generateEncryptionKeypair();
+  },
+
+  /**
+   * Derive X25519 encryption keypair from an Ed25519 seed.
+   * @param {Buffer|string} ed25519Seed - 32-byte seed
+   * @returns {{type, seed, publicKey, fingerprint}}
+   */
+  deriveEncryptionKey(ed25519Seed) {
+    return pbcrypto.deriveEncryptionKeyFromEd25519(ed25519Seed);
+  },
+
+  /**
+   * Batch attest to multiple articles in one call.
+   * Each attestation is signed independently — failures don't block others.
+   *
+   * @param {Object} params
+   * @param {Array<{key, opinion, confidence, reason, sourceUrl?}>} params.attestations
+   * @returns {Promise<{results: Array<{key, status: 'ok'|'error', summary?, error?}>, succeeded: number, failed: number}>}
+   */
+  async batchAttest(params = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!params.attestations?.length) throw new Error('attestations array is required');
+
+    const results = [];
+    let succeeded = 0, failed = 0;
+    for (const att of params.attestations) {
+      try {
+        if (!att.key) throw new Error('key is required');
+        if (!att.opinion) throw new Error('opinion is required');
+        if (att.confidence === undefined) throw new Error('confidence is required');
+        if (!att.reason) throw new Error('reason is required');
+
+        const result = await attestArticle({
+          key: att.key,
+          opinion: att.opinion,
+          confidence: att.confidence,
+          reason: att.reason,
+          sourceUrl: att.sourceUrl || ''
+        });
+        results.push({ key: att.key, status: 'ok', summary: result.summary });
+        succeeded++;
+      } catch (err) {
+        results.push({ key: att.key, status: 'error', error: err.message });
+        failed++;
+      }
+    }
+
+    return { results, succeeded, failed };
+  },
+
+  /**
+   * Auto-import articles from URLs. Fetches content from each URL,
+   * converts to markdown-ish text, and publishes to PermaBrain.
+   *
+   * @param {Object} params
+   * @param {Array<{url, kind, topic, title?, key?}>} params.articles
+   * @returns {Promise<{results: Array<{key, status: 'ok'|'error', summary?, error?}>, succeeded: number, failed: number}>}
+   */
+  async autoImport(params = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!params.articles?.length) throw new Error('articles array is required');
+
+    const results = [];
+    let succeeded = 0, failed = 0;
+    for (const item of params.articles) {
+      try {
+        if (!item.url) throw new Error('url is required');
+        if (!item.kind) throw new Error('kind is required');
+        if (!item.topic) throw new Error('topic is required');
+
+        // Fetch content from URL
+        const response = await fetch(item.url);
+        if (!response.ok) throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
+        const contentType = response.headers.get('content-type') || '';
+        let content = await response.text();
+
+        // Basic HTML-to-text stripping if HTML
+        if (contentType.includes('html')) {
+          content = content
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n\n')
+            .replace(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi, (_, t) => `\n## ${t.replace(/<[^>]+>/g, '')}\n`)
+            .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, t) => `- ${t.replace(/<[^>]+>/g, '')}\n`)
+            .replace(/<[^>]+>/g, '')
+            .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        }
+
+        const title = item.title || deriveTitleFromUrl(item.url, content);
+        const key = item.key || `${item.kind}/${slugify(title)}`;
+
+        const result = await publishArticle({
+          content,
+          kind: item.kind,
+          topic: item.topic,
+          key,
+          title,
+          sourceUrl: item.url,
+          sourceName: new URL(item.url).hostname,
+          sourceLicense: '',
+          language: 'en'
+        });
+
+        results.push({ key: result.summary.key, status: 'ok', summary: result.summary });
+        succeeded++;
+      } catch (err) {
+        results.push({ key: item.key || item.url, status: 'error', error: err.message });
+        failed++;
+      }
+    }
+
+    return { results, succeeded, failed };
   },
 
   /**
