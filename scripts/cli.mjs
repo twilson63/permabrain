@@ -18,7 +18,9 @@ const COMMANDS = [
   'ao-consensus',
   'attest-for-agent',
   'list-agents',
-  'provision-agent'
+  'provision-agent',
+  'batch-attest',
+  'auto-import'
 ];
 
 function printHelp(command = null) {
@@ -47,6 +49,8 @@ Commands:
   attest-for-agent             Attest on behalf of another agent
   list-agents                  List known external agents
   provision-agent              Generate identity for an external agent
+  batch-attest                 Batch attest to multiple articles from a JSON file
+  auto-import                  Auto-import articles from URLs via a JSON file
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -117,7 +121,22 @@ The identity file should be a JSON file with the agent's keys (ed25519 or arweav
 Lists known external PermaBrain agents (Sage, Relay, etc.).`,
     'provision-agent': `Usage: permabrain provision-agent <name> [--key-type ed25519] [--json]
 
-Generates a provisional identity for an external agent. The secret key is shown once — store securely!`
+Generates a provisional identity for an external agent. The secret key is shown once — store securely!`,
+    'batch-attest': `Usage: permabrain batch-attest --file <path> [--json]
+
+Batch attest to multiple articles from a JSON file.
+The file should contain a JSON array of objects:
+  [{"key": "subject/ai", "opinion": "valid", "confidence": 0.9, "reason": "Accurate"}, ...]
+
+Each attestation is processed independently — failures don't block others.`,
+    'auto-import': `Usage: permabrain auto-import --file <path> [--json]
+
+Auto-import articles from URLs and publish to PermaBrain.
+The file should contain a JSON array of objects:
+  [{"url": "https://...", "kind": "subject", "topic": "ai"}, ...]
+
+Each URL is fetched, HTML is stripped to text, and the result is published.
+Title is derived from content or URL if not provided.`
   };
   console.log(help[command] || `Unknown command: ${command}`);
 }

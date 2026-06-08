@@ -12,6 +12,8 @@ import { loadIdentity } from './keys.mjs';
 import { getTransport } from './transport.mjs';
 import { spawn as aoSpawn, loadLua as aoLoadLua, saveProcessId as aoSaveProcessId, waitForProcess } from './ao-deploy.mjs';
 
+import fs from 'node:fs';
+
 function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
 }
@@ -35,6 +37,8 @@ export async function runCommand(command, args) {
   if (command === 'attest-for-agent') return attestForAgentCommand(args);
   if (command === 'list-agents') return listAgentsCommand(args);
   if (command === 'provision-agent') return provisionAgentCommand(args);
+  if (command === 'batch-attest') return batchAttestCommand(args);
+  if (command === 'auto-import') return autoImportCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -396,4 +400,91 @@ async function provisionAgentCommand(args) {
     console.log('  ⚠ Secret key shown once — store securely!');
   }
   return identity;
+}
+
+async function batchAttestCommand(args) {
+  const filePath = args.file;
+  if (!filePath) throw new Error('batch-attest requires --file <path> (JSON array of attestations)');
+
+  let attestations;
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    attestations = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Failed to read/parse attestation file: ${err.message}`);
+  }
+
+  if (!Array.isArray(attestations)) throw new Error('Attestation file must contain a JSON array');
+  if (attestations.length === 0) throw new Error('Attestation array is empty');
+
+  // Validate required fields
+  for (let i = 0; i < attestations.length; i++) {
+    const att = attestations[i];
+    if (!att.key) throw new Error(`attestations[${i}]: key is required`);
+    if (!att.opinion) throw new Error(`attestations[${i}]: opinion is required`);
+    if (att.confidence === undefined) throw new Error(`attestations[${i}]: confidence is required`);
+    if (!att.reason) throw new Error(`attestations[${i}]: reason is required`);
+  }
+
+  // Use agent API directly
+  const { api } = await import('./agent-api.mjs');
+  await api.ensureInit();
+  const result = await api.batchAttest({ attestations });
+
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(`Batch attest: ${result.succeeded} succeeded, ${result.failed} failed`);
+    for (const r of result.results) {
+      if (r.status === 'ok') {
+        console.log(`  ✓ ${r.key}: ${r.summary.opinion} (${r.summary.confidence})`);
+      } else {
+        console.log(`  ✗ ${r.key}: ${r.error}`);
+      }
+    }
+  }
+  return result;
+}
+
+async function autoImportCommand(args) {
+  const filePath = args.file;
+  if (!filePath) throw new Error('auto-import requires --file <path> (JSON array of articles)');
+
+  let articles;
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    articles = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Failed to read/parse import file: ${err.message}`);
+  }
+
+  if (!Array.isArray(articles)) throw new Error('Import file must contain a JSON array');
+  if (articles.length === 0) throw new Error('Articles array is empty');
+
+  // Validate required fields
+  for (let i = 0; i < articles.length; i++) {
+    const art = articles[i];
+    if (!art.url) throw new Error(`articles[${i}]: url is required`);
+    if (!art.kind) throw new Error(`articles[${i}]: kind is required`);
+    if (!art.topic) throw new Error(`articles[${i}]: topic is required`);
+  }
+
+  // Use agent API directly
+  const { api } = await import('./agent-api.mjs');
+  await api.ensureInit();
+  const result = await api.autoImport({ articles });
+
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(`Auto-import: ${result.succeeded} succeeded, ${result.failed} failed`);
+    for (const r of result.results) {
+      if (r.status === 'ok') {
+        console.log(`  ✓ ${r.key}: ${r.summary.title || r.key} (v${r.summary.version})`);
+      } else {
+        console.log(`  ✗ ${r.key}: ${r.error}`);
+      }
+    }
+  }
+  return result;
 }
