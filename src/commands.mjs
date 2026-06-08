@@ -9,6 +9,7 @@ import { attestArticle, opinionFromArgs } from './attestation.mjs';
 import { consensusForArticle } from './consensus.mjs';
 import { loadIdentity } from './keys.mjs';
 import { getTransport } from './transport.mjs';
+import { spawn as aoSpawn, loadLua as aoLoadLua, saveProcessId as aoSaveProcessId, waitForProcess } from './ao-deploy.mjs';
 
 function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
@@ -24,6 +25,8 @@ export async function runCommand(command, args) {
   if (command === 'attest') return attestCommand(args);
   if (command === 'consensus') return consensusCommand(args);
   if (command === 'sync') return syncCommand(args);
+  if (command === 'ao-deploy') return aoDeployCommand(args);
+  if (command === 'ao-bootstrap') return aoBootstrapCommand(args);
   if (command === 'ao-sync') return aoSyncCommand(args);
   if (command === 'ao-query') return aoQueryCommand(args);
   if (command === 'ao-get') return aoGetCommand(args);
@@ -235,4 +238,93 @@ async function aoConsensusCommand(args) {
     console.log(`Score: ${result.score}`);
   }
   return result;
+}
+
+async function aoDeployCommand(args) {
+  const home = getHome();
+  const config = loadConfig(home);
+
+  // Spawn the AO process
+  console.log('Spawning AO process...');
+  const { processId, moduleId, schedulerId } = await aoSpawn({
+    cwd: process.cwd(),
+    module: args.module,
+    scheduler: args.scheduler,
+    ao: config.ao
+  });
+
+  if (args.json) {
+    printJson({ processId, moduleId, schedulerId });
+  } else {
+    console.log(`AO process spawned: ${processId}`);
+    console.log(`Module: ${moduleId}`);
+    console.log(`Scheduler: ${schedulerId}`);
+  }
+
+  // Save the process ID to config
+  aoSaveProcessId(processId, home);
+  if (!args.json) console.log(`Process ID saved to config.`);
+
+  // Load process.lua into the new process
+  console.log('Loading process.lua...');
+  const { messageId } = await aoLoadLua({
+    processId,
+    cwd: process.cwd(),
+    ao: config.ao
+  });
+
+  if (args.json) {
+    printJson({ processId, messageId, moduleId, schedulerId });
+  } else {
+    console.log(`Process loaded. Eval message: ${messageId}`);
+    console.log('');
+    console.log('The process is initializing. Wait ~30 seconds, then use:');
+    console.log(`  permabrain ao-sync         # Bootstrap with existing Arweave data`);
+    console.log(`  permabrain ao-query         # Query articles via AO`);
+    console.log(`  permabrain ao-consensus <key>  # Get consensus via AO`);
+  }
+
+  return { processId, messageId, moduleId, schedulerId };
+}
+
+async function aoBootstrapCommand(args) {
+  const home = getHome();
+  const config = loadConfig(home);
+  const processId = args.process || config.ao?.processId || process.env.PERMABRAIN_AO_PROCESS_ID;
+  if (!processId) throw new Error('AO bootstrap requires --process <id> or config.ao.processId. Run `permabrain ao-deploy` first.');
+
+  // Step 1: Wait for process to be ready
+  console.log('Waiting for AO process to be ready...');
+  const ready = await waitForProcess({ processId, ao: config.ao, timeoutMs: 180000 });
+  if (!ready) {
+    throw new Error('AO process is not responding. It may still be initializing. Try again in 30-60 seconds.');
+  }
+  if (!args.json) console.log('Process is ready.');
+
+  // Step 2: Load process.lua
+  console.log('Loading process.lua...');
+  const { messageId: luaMessageId } = await aoLoadLua({
+    processId,
+    cwd: process.cwd(),
+    ao: config.ao
+  });
+  if (!args.json) console.log(`Lua loaded: ${luaMessageId}`);
+
+  // Step 3: Sync existing data from Arweave
+  console.log('Syncing existing articles and attestations from Arweave...');
+  const identity = loadIdentity(home);
+  const transport = new AOTransport({ ...config, ao: { ...config.ao, processId } });
+  const syncResult = await transport.syncFromArweave(identity);
+
+  if (args.json) {
+    printJson({ processId, luaMessageId, ...syncResult });
+  } else {
+    console.log(`Bootstrap complete.`);
+    console.log(`  Lua loaded: ${luaMessageId}`);
+    console.log(`  Articles synced: ${syncResult.articles}`);
+    console.log(`  Attestations synced: ${syncResult.attestations}`);
+    console.log(`  Sync message: ${syncResult.messageId}`);
+  }
+
+  return { processId, luaMessageId, ...syncResult };
 }

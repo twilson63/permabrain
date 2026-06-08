@@ -10,6 +10,8 @@ const COMMANDS = [
   'attest',
   'consensus',
   'sync',
+  'ao-deploy',
+  'ao-bootstrap',
   'ao-sync',
   'ao-query',
   'ao-get',
@@ -33,9 +35,11 @@ Commands:
   attest <canonical-key>       Publish a signed validity attestation
   consensus <canonical-key>    Compute attestation consensus
   sync                         Sync local cache
-  ao-sync                      Bootstrap AO process from Arweave data
-  ao-query                     Query articles via AO process (dryrun)
-  ao-get                       Get article metadata via AO process (dryrun)
+  ao-deploy                    Spawn a new AO process and load process.lua
+  ao-bootstrap                 Bootstrap an AO process (load Lua + sync data)
+  ao-sync                      Sync Arweave data into the AO process
+  ao-query                    Query articles via AO process (dryrun)
+  ao-get                      Get article metadata via AO process (dryrun)
   ao-consensus                 Compute consensus via AO process (dryrun)
 
 Environment:
@@ -75,10 +79,20 @@ Aggregates attestations and computes MVP consensus score.`,
     sync: `Usage: permabrain sync [--json]
 
 Queries articles and attestations and writes local cache index.`,
+    'ao-deploy': `Usage: permabrain ao-deploy [--module <module-id>] [--scheduler <scheduler-id>] [--json]
+
+Spawns a new AO process running PermaBrain process.lua.
+The process ID is saved to config.json for subsequent AO commands.
+Optionally specify module and scheduler IDs (defaults to AOS).`,
+    'ao-bootstrap': `Usage: permabrain ao-bootstrap [--process <process-id>] [--json]
+
+Bootstraps an AO process: waits for it to be ready, loads process.lua,
+and syncs existing articles/attestations from Arweave.
+Uses config.ao.processId by default, or pass --process to override.`,
     'ao-sync': `Usage: permabrain ao-sync [--json]
 
-Bootstraps the AO process with articles and attestations from Arweave.
-Requires PERMABRAIN_AO_PROCESS_ID to be set.`,
+Syncs articles and attestations from Arweave into the AO process.
+Requires config.ao.processId (set by ao-deploy or PERMABRAIN_AO_PROCESS_ID).`,
     'ao-query': `Usage: permabrain ao-query [--topic <topic>] [--kind <kind>] [--key <key>] [--source-name <name>] [--json]
 
 Queries articles via AO dryrun (instant, free). Falls back to Arweave GraphQL.`,
