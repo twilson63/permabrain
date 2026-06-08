@@ -60,7 +60,9 @@ export class HyperbeamTransport {
     async function check(name, endpoint, options) {
       try {
         const res = await fetch(endpoint, options);
-        checks.push({ name, endpoint, ok: res.ok, status: res.status });
+        // Accept redirects (3xx) as healthy for HyperBEAM (dashboard redirect is normal)
+        const ok = res.ok || (res.status >= 300 && res.status < 400);
+        checks.push({ name, endpoint, ok, status: res.status });
       } catch (err) {
         checks.push({ name, endpoint, ok: false, error: err.message });
       }

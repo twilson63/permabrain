@@ -33,7 +33,10 @@ try {
 
 const check = (name) => probeJson.checks.find((c) => c.name === name);
 if (!check('health')?.ok) skip(`HyperBEAM health check failed at ${url}`);
-if (!check('graphql')?.ok || !check('upload')?.ok) skip(`HyperBEAM is reachable but required GraphQL/upload routes are not compatible yet`);
+if (!check('upload')?.ok) skip(`HyperBEAM is reachable but upload route is not compatible`);
+
+const hasGraphql = check('graphql')?.ok;
+if (!hasGraphql) console.log('HyperBEAM GraphQL not available; skipping GraphQL query test');
 
 const { home } = initState({ env: { ...process.env, PERMABRAIN_HOME: tempHome } });
 const { identity } = await ensureIdentity(home);
@@ -56,23 +59,30 @@ const tags = buildArticleTags({
 });
 const item = await createDataItem({ payload: content, tags, identity });
 await transport.uploadDataItem(item);
-let queried = [];
-const deadline = Date.now() + Number(process.env.PERMABRAIN_HYPERBEAM_GRAPHQL_TIMEOUT_MS || 30000);
-let lastQueryError = null;
-while (Date.now() < deadline) {
-  try {
-    queried = await transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article', 'Article-Key': 'subject/hyperbeam-probe' });
-    if (queried.some((node) => node.id === item.id)) break;
-  } catch (err) {
-    lastQueryError = err;
+console.log(`Uploaded DataItem ${item.id} to HyperBEAM`);
+
+if (hasGraphql) {
+  let queried = [];
+  const deadline = Date.now() + Number(process.env.PERMABRAIN_HYPERBEAM_GRAPHQL_TIMEOUT_MS || 30000);
+  let lastQueryError = null;
+  while (Date.now() < deadline) {
+    try {
+      queried = await transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article', 'Article-Key': 'subject/hyperbeam-probe' });
+      if (queried.some((node) => node.id === item.id)) break;
+    } catch (err) {
+      lastQueryError = err;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  assert.ok(Array.isArray(queried), 'GraphQL query did not return an array');
+  assert.ok(
+    queried.some((node) => node.id === item.id),
+    `Uploaded item ${item.id} was not found by GraphQL tag query. Results: ${JSON.stringify(queried)}${lastQueryError ? ` Last error: ${lastQueryError.message}` : ''}`
+  );
+} else {
+  console.log('Skipping GraphQL query test (no GraphQL endpoint)');
 }
-assert.ok(Array.isArray(queried), 'GraphQL query did not return an array');
-assert.ok(
-  queried.some((node) => node.id === item.id),
-  `Uploaded item ${item.id} was not found by GraphQL tag query. Results: ${JSON.stringify(queried)}${lastQueryError ? ` Last error: ${lastQueryError.message}` : ''}`
-);
+
 const fetched = await transport.fetchDataItem(item.id);
 assert.equal(payloadText(fetched), content);
-console.log(`HyperBEAM upload/graphql/fetch passed for ${item.id}`);
+console.log(`HyperBEAM upload/fetch passed for ${item.id}${hasGraphql ? ' (with GraphQL)' : ' (no GraphQL)'}`);
