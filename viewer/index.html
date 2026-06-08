@@ -4,31 +4,63 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PermaBrain</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#fff;--surface:#f6f8fa;--text:#1f2328;--muted:#656d76;--accent:#0969da;--green:#1a7f37;--orange:#9a6700;--border:#d0d7de;--card:#eef1f4;--sidebar:300px}
+:root{
+  --bg:#fff;--surface:#f6f8fa;--text:#1f2328;--muted:#656d76;
+  --accent:#0969da;--green:#1a7f37;--orange:#9a6700;--red:#cf222e;
+  --border:#d0d7de;--card:#eef1f4;--sidebar:320px;
+  --shadow:0 1px 3px rgba(0,0,0,0.08);
+  --radius:8px;
+}
+[data-theme="dark"]{
+  --bg:#0d1117;--surface:#161b22;--text:#e6edf3;--muted:#8b949e;
+  --accent:#58a6ff;--green:#3fb950;--orange:#d29922;--red:#f85149;
+  --border:#30363d;--card:#21262d;
+  --shadow:0 1px 3px rgba(0,0,0,0.3);
+}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
 .app{display:flex;min-height:100vh}
+
+/* Sidebar */
 .sidebar{width:var(--sidebar);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:transform .2s}
 .sidebar-header{padding:1rem 1rem 0.5rem;border-bottom:1px solid var(--border)}
-.sidebar-header h1{font-size:1.1rem;margin-bottom:0.1rem}
+.sidebar-header h1{font-size:1.1rem;margin-bottom:0.1rem;display:flex;align-items:center;gap:0.4rem}
 .sidebar-header h1 span{color:var(--accent)}
 .sidebar-header .subtitle{font-size:0.75rem;color:var(--muted)}
+.header-actions{display:flex;gap:0.5rem;margin-top:0.5rem;align-items:center}
+.btn-icon{background:none;border:1px solid var(--border);border-radius:6px;padding:0.3rem 0.5rem;cursor:pointer;color:var(--muted);font-size:0.85rem;transition:all .15s;line-height:1}
+.btn-icon:hover{border-color:var(--accent);color:var(--accent)}
+.btn-icon.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .search{width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text);margin-top:0.5rem}
 .search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(9,105,218,0.2)}
+[data-theme="dark"] .search:focus{box-shadow:0 0 0 2px rgba(88,166,255,0.2)}
 .filters{display:flex;flex-wrap:wrap;gap:0.35rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border)}
 .filter-btn{padding:0.2rem 0.6rem;border:1px solid var(--border);border-radius:12px;font-size:0.72rem;background:var(--bg);color:var(--muted);cursor:pointer;transition:all .15s}
 .filter-btn:hover{border-color:var(--accent);color:var(--accent)}
 .filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.status-bar{padding:0.4rem 1rem;font-size:0.72rem;color:var(--muted);border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.sort-bar{display:flex;gap:0.35rem;padding:0.4rem 1rem;border-bottom:1px solid var(--border);align-items:center;font-size:0.72rem;color:var(--muted)}
+.sort-bar label{margin-right:0.3rem}
+.sort-btn{padding:0.15rem 0.5rem;border:1px solid var(--border);border-radius:4px;font-size:0.7rem;background:var(--bg);color:var(--muted);cursor:pointer;transition:all .15s}
+.sort-btn:hover{border-color:var(--accent);color:var(--accent)}
+.sort-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.status-bar{padding:0.4rem 1rem;font-size:0.72rem;color:var(--muted);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.status-bar .refresh-btn{background:none;border:none;cursor:pointer;color:var(--accent);font-size:0.72rem;padding:0.1rem 0.3rem}
+.status-bar .refresh-btn:hover{text-decoration:underline}
 .article-list{flex:1;overflow-y:auto;padding:0.5rem 0}
 .article-item{padding:0.6rem 1rem;cursor:pointer;border-left:3px solid transparent;transition:all .15s}
 .article-item:hover{background:var(--card)}
-.article-item.selected{background:#ddf4ff;border-left-color:var(--accent)}
+.article-item.selected{background:rgba(9,105,218,0.08);border-left-color:var(--accent)}
+[data-theme="dark"] .article-item.selected{background:rgba(88,166,255,0.12)}
 .article-item .key{font-family:monospace;font-size:0.72rem;color:var(--accent)}
 .article-item .title{font-size:0.9rem;font-weight:600;margin:0.15rem 0}
-.article-item .meta{font-size:0.72rem;color:var(--muted)}
-.main{flex:1;overflow-y:auto;padding:2rem 2.5rem;max-width:820px}
+.article-item .meta{font-size:0.72rem;color:var(--muted);display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center}
+.article-item .att-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
+.article-item .att-dot.unattested{background:var(--border)}
+
+/* Main content */
+.main{flex:1;overflow-y:auto;padding:2rem 2.5rem;max-width:860px}
 .article-header{margin-bottom:1.5rem}
 .article-header .badges{display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem}
 .badge{display:inline-block;padding:0.15rem 0.6rem;border-radius:12px;font-size:0.72rem;font-weight:600}
@@ -36,12 +68,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .badge-topic{background:var(--card);color:var(--muted)}
 .badge-valid{background:rgba(26,127,55,0.15);color:var(--green)}
 .badge-pending{background:rgba(207,143,36,0.15);color:var(--orange)}
+[data-theme="dark"] .badge-valid{background:rgba(63,185,80,0.15);color:var(--green)}
+[data-theme="dark"] .badge-pending{background:rgba(210,153,34,0.15);color:var(--orange)}
 .article-header h1{font-size:1.6rem;margin-bottom:0.25rem}
 .article-header .canonical{font-family:monospace;font-size:0.8rem;color:var(--muted)}
 .article-header .version{font-size:0.8rem;color:var(--muted)}
 .links{display:flex;gap:1rem;margin:0.75rem 0;flex-wrap:wrap}
 .links a{color:var(--accent);font-family:monospace;font-size:0.8rem;text-decoration:none}
 .links a:hover{text-decoration:underline}
+
+/* Tabs */
 .tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1.5rem}
 .tab{padding:0.5rem 1rem;cursor:pointer;font-size:0.85rem;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
 .tab:hover{color:var(--text)}
@@ -52,47 +88,77 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .tab-content h3{font-size:1.1rem;margin:1rem 0 0.4rem}
 .tab-content p{margin-bottom:0.8rem}
 .tab-content a{color:var(--accent)}
-.tab-content blockquote{border-left:3px solid var(--orange);padding:0.5rem 1rem;margin:0.8rem 0;background:#fff8c5;border-radius:0 6px 6px 0}
+.tab-content blockquote{border-left:3px solid var(--orange);padding:0.5rem 1rem;margin:0.8rem 0;background:rgba(154,103,0,0.06);border-radius:0 6px 6px 0}
+[data-theme="dark"] .tab-content blockquote{background:rgba(210,153,34,0.08)}
 .tab-content code{background:var(--card);padding:0.1rem 0.3rem;border-radius:4px;font-size:0.9em}
+.tab-content pre{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;overflow-x:auto;margin:0.8rem 0}
+.tab-content pre code{background:none;padding:0;font-size:0.85em}
 .tab-content ul,.tab-content ol{padding-left:1.5rem;margin-bottom:0.8rem}
 .tab-content strong{color:var(--text)}
-.attestation-card{background:var(--surface);border-radius:6px;padding:0.8rem 1rem;margin-bottom:0.5rem}
+.tab-content table{border-collapse:collapse;width:100%;margin:0.8rem 0}
+.tab-content th,.tab-content td{border:1px solid var(--border);padding:0.4rem 0.8rem;text-align:left;font-size:0.85rem}
+.tab-content th{background:var(--surface);font-weight:600}
+
+/* Attestation cards */
+.attestation-card{background:var(--surface);border-radius:var(--radius);padding:0.8rem 1rem;margin-bottom:0.5rem;border:1px solid var(--border)}
 .attestation-card .opinion{font-weight:600;font-size:0.85rem}
 .opinion-valid{color:var(--green)}
-.opinion-invalid{color:#cf222e}
+.opinion-invalid{color:var(--red)}
 .opinion-partially-valid{color:var(--orange)}
 .opinion-outdated{color:var(--muted)}
-.opinion-disputed{color:#cf8f24}
+.opinion-disputed{color:var(--orange)}
 .attestation-card .confidence{font-size:0.85rem;margin-left:0.5rem}
 .attestation-card .reason{color:var(--muted);font-size:0.85rem;margin-top:0.3rem}
 .attestation-card .agent{color:var(--muted);font-size:0.72rem;margin-top:0.2rem;font-family:monospace}
-.consensus-box{background:var(--surface);border-radius:8px;padding:1.5rem;text-align:center}
-.consensus-box .score{font-size:2.5rem;font-weight:700;color:var(--green)}
+.attestation-card .date{color:var(--muted);font-size:0.7rem;margin-left:0.5rem}
+
+/* Consensus */
+.consensus-box{background:var(--surface);border-radius:var(--radius);padding:1.5rem;text-align:center;border:1px solid var(--border)}
+.consensus-box .score{font-size:2.5rem;font-weight:700}
+.consensus-box .score.good{color:var(--green)}
+.consensus-box .score.moderate{color:var(--orange)}
+.consensus-box .score.low{color:var(--red)}
 .consensus-box .label{font-size:0.85rem;color:var(--muted)}
 .consensus-box .breakdown{display:flex;gap:1rem;justify-content:center;margin-top:1rem;flex-wrap:wrap}
 .breakdown-item{text-align:center}
 .breakdown-item .count{font-size:1.2rem;font-weight:600}
 .breakdown-item .name{font-size:0.72rem;color:var(--muted)}
-.empty-state{text-align:center;padding:4rem 2rem;color:var(--muted)}
-.empty-state h2{font-size:1.3rem;color:var(--text);margin-bottom:0.5rem}
-.empty-state p{font-size:0.9rem}
+
+/* Home / stats */
 .home{padding-bottom:2rem}
 .home h1{font-size:1.8rem;margin-bottom:0.25rem}
 .home h1 span{color:var(--accent)}
 .home-subtitle{color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;margin-bottom:1.5rem}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;text-align:center}
+.stat-card .stat-value{font-size:1.8rem;font-weight:700;color:var(--accent)}
+.stat-card .stat-label{font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em}
 .home-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
-.home-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.25rem;cursor:pointer;transition:border-color .15s,box-shadow .15s}
-.home-card:hover{border-color:var(--accent);box-shadow:0 2px 8px rgba(9,105,218,0.12)}
+.home-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.home-card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
 .home-card-header{display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.5rem}
 .home-card h3{font-size:1.05rem;font-weight:600;margin-bottom:0.25rem}
 .home-card-meta{color:var(--muted);font-size:0.8rem;margin-bottom:0.3rem}
 .home-card-atts{color:var(--green);font-size:0.8rem}
 .home-card-key{font-family:monospace;font-size:0.72rem;color:var(--accent);margin-top:0.4rem}
 .home-more{color:var(--muted);font-size:0.85rem;text-align:center;margin-top:1rem}
+
+/* Loading / error */
 .loading{display:flex;align-items:center;justify-content:center;padding:2rem;color:var(--muted);font-size:0.85rem}
 .loading .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-right:0.5rem}
-@keyframes spin{to{transform:rotate(360deg)}}
-.error-box{background:#fff8c5;border:1px solid #e3b341;border-radius:6px;padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:#7a5900}
+.error-box{background:rgba(154,103,0,0.08);border:1px solid var(--orange);border-radius:var(--radius);padding:0.8rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:var(--orange)}
+[data-theme="dark"] .error-box{background:rgba(210,153,34,0.1);color:var(--orange)}
+
+/* Version history */
+.version-list{list-style:none;padding:0}
+.version-item{display:flex;gap:0.75rem;padding:0.5rem 0;border-bottom:1px solid var(--border);font-size:0.85rem;align-items:center}
+.version-item:last-child{border-bottom:none}
+.version-num{font-weight:600;color:var(--accent);min-width:2rem}
+.version-date{color:var(--muted);font-size:0.8rem}
+.version-link{color:var(--accent);font-family:monospace;font-size:0.75rem;text-decoration:none}
+.version-link:hover{text-decoration:underline}
+
+/* Mobile */
 .mobile-toggle{display:none;position:fixed;top:0.75rem;left:0.75rem;z-index:100;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.7rem;cursor:pointer;font-size:1.2rem}
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:90}
 @media(max-width:768px){
@@ -101,6 +167,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   .overlay.show{display:block}
   .mobile-toggle{display:block}
   .main{padding:1.5rem 1rem;padding-top:3rem}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .home-cards{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -110,37 +178,70 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 <div class="app">
 <div class="sidebar" id="sidebar">
 <div class="sidebar-header">
-<h1>&#x1F9E0; <span>PermaBrain</span></h1>
-<div class="subtitle">Public signed knowledge graph</div>
-<input type="text" class="search" id="search" placeholder="Search articles..." oninput="renderList()">
-<div class="filters" id="filters"></div>
+  <h1>&#x1F9E0; <span>PermaBrain</span></h1>
+  <div class="subtitle">Public signed knowledge graph</div>
+  <div class="header-actions">
+    <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
+  </div>
+  <input type="text" class="search" id="search" placeholder="Search articles..." oninput="renderList()">
+  <div class="filters" id="filters"></div>
 </div>
-<div class="status-bar" id="statusBar"><span id="statusText">Loading...</span><span id="statusCount"></span></div>
+<div class="sort-bar">
+  <label>Sort:</label>
+  <button class="sort-btn active" data-sort="date" onclick="window.setSort('date')">Date</button>
+  <button class="sort-btn" data-sort="title" onclick="window.setSort('title')">Title</button>
+  <button class="sort-btn" data-sort="consensus" onclick="window.setSort('consensus')">Score</button>
+</div>
+<div class="status-bar" id="statusBar">
+  <span id="statusText">Loading...</span>
+  <span id="statusCount"></span>
+</div>
 <div class="article-list" id="articleList"></div>
 </div>
 <div class="main" id="main">
 <div class="empty-state" id="emptyState">
-<h2>&#x1F9E0; PermaBrain Viewer</h2>
-<p>Select an article from the sidebar to view its content, attestations, and consensus.</p>
-<p style="margin-top:0.5rem;font-size:0.8rem;color:var(--muted)">Articles are signed ANS-104 DataItems on Arweave. Attestations are separate signed validity records.</p>
-<div class="loading" id="loadingIndicator"><div class="spinner"></div> Fetching articles from Arweave...</div>
+  <h2>&#x1F9E0; PermaBrain Viewer</h2>
+  <p>Select an article from the sidebar to view its content, attestations, and consensus.</p>
+  <p style="margin-top:0.5rem;font-size:0.8rem;color:var(--muted)">Articles are signed ANS-104 DataItems on Arweave. Attestations are separate signed validity records.</p>
+  <div class="loading" id="loadingIndicator"><div class="spinner"></div> Fetching articles from Arweave...</div>
 </div>
 </div>
 </div>
 <script>
 (function(){
-  var GATEWAY = '';
-  var articles = [];
-  var attestations = {};
+  // --- Config ---
+  var GATEWAY = 'https://arweave.net';
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    GATEWAY = 'https://arweave.net';
+  }
+
+  // --- State ---
+  var articles = [];         // deduped latest versions
+  var allVersions = {};       // key -> [{id, version, tags}]
+  var attestations = {};     // key -> [{...}]
   var selectedKey = null;
   var activeTab = 'content';
   var activeFilter = 'all';
+  var activeSort = 'date';
   var loading = true;
   var error = null;
+  var lastSync = null;
+  var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
-  // --- IndexedDB cache (Karpathy wiki index pattern) ---
+  // --- Theme ---
+  function applyTheme(t) {
+    theme = t;
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('permabrain-theme', t);
+    var btn = document.getElementById('themeToggle');
+    if (btn) btn.innerHTML = t === 'dark' ? '&#9788;' : '&#9790;';
+  }
+  applyTheme(theme);
+  window.toggleTheme = function() { applyTheme(theme === 'dark' ? 'light' : 'dark'); };
+
+  // --- IndexedDB cache ---
   var DB_NAME = 'permabrain-viewer';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;
   var db = null;
 
   function openDB() {
@@ -148,12 +249,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       var req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = function(e) {
         var d = e.target.result;
-        if (!d.objectStoreNames.contains('index')) {
-          d.createObjectStore('index', { keyPath: 'id' });
-        }
-        if (!d.objectStoreNames.contains('content')) {
-          d.createObjectStore('content', { keyPath: 'id' });
-        }
+        if (!d.objectStoreNames.contains('index')) d.createObjectStore('index', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('content')) d.createObjectStore('content', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'key' });
       };
       req.onsuccess = function(e) { db = e.target.result; resolve(db); };
       req.onerror = function(e) { reject(e.target.error); };
@@ -169,7 +267,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       r.onerror = function() { reject(r.error); };
     });
   }
-
   function dbPut(store, val) {
     return new Promise(function(resolve, reject) {
       var tx = db.transaction(store, 'readwrite');
@@ -179,7 +276,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       r.onerror = function() { reject(r.error); };
     });
   }
-
   function dbGetAll(store) {
     return new Promise(function(resolve, reject) {
       var tx = db.transaction(store, 'readonly');
@@ -190,17 +286,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     });
   }
 
-  function dbClear(store) {
-    return new Promise(function(resolve, reject) {
-      var tx = db.transaction(store, 'readwrite');
-      var s = tx.objectStore(store);
-      var r = s.clear();
-      r.onsuccess = function() { resolve(); };
-      r.onerror = function() { reject(r.error); };
-    });
-  }
-
-  // --- GraphQL with cursor pagination ---
+  // --- GraphQL ---
   function gql(query, vars) {
     var body = vars ? {query: query, variables: vars} : {query: query};
     return fetch(GATEWAY + '/graphql', {
@@ -216,23 +302,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     return obj;
   }
 
-  // --- Fetch all PermaBrain txs, paginate with cursor ---
+  // --- Fetch all PermaBrain txs with cursor pagination ---
   async function fetchAllPages() {
     var allEdges = [];
     var after = null;
     var hasMore = true;
     var pages = 0;
-    while (hasMore && pages < 10) {
+    while (hasMore && pages < 20) {
       var q = '{ transactions(first: 100, tags: [{name: "App-Name", values: ["PermaBrain"]}]' +
         (after ? ', after: "' + after + '"' : '') +
-        ') { edges { cursor node { id tags { name value } } } pageInfo { hasNextPage } } }';
+        ') { edges { cursor node { id owner { address } tags { name value } } } pageInfo { hasNextPage } } }';
       var data = await gql(q);
       if (data.errors) throw new Error(data.errors.map(function(e){return e.message}).join('; '));
       var tx = data.data.transactions;
       var edges = tx.edges || [];
       allEdges = allEdges.concat(edges);
       hasMore = tx.pageInfo && tx.pageInfo.hasNextPage;
-      // Use last edge's cursor for next page
       if (edges.length > 0) {
         after = edges[edges.length - 1].cursor;
       } else {
@@ -246,15 +331,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   // --- Process edges into articles + attestations, dedup by key+version ---
   function processEdges(edges) {
     var articleItems = {};
+    allVersions = {};
+    attestations = {};
+
     edges.forEach(function(e) {
       var t = tagsToObject(e.node.tags);
       var type = t['PermaBrain-Type'];
-      // Store raw tx in IndexedDB
-      dbPut('index', { id: e.node.id, tags: e.node.tags, type: type, cursor: e.cursor }).catch(function(){});
+
+      // Cache index entries
+      dbPut('index', { id: e.node.id, tags: e.node.tags, type: type, cursor: e.cursor, owner: e.node.owner }).catch(function(){});
+
       if (type === 'article') {
         var k = t['Article-Key'];
         if (!k) return;
         var v = Number(t['Article-Version'] || 0);
+
+        // Track all versions
+        if (!allVersions[k]) allVersions[k] = [];
+        allVersions[k].push({ id: e.node.id, version: v, tags: e.node.tags, updatedAt: t['Article-Updated-At'] || '' });
+
+        // Keep latest version
         if (!articleItems[k] || v > Number(tagsToObject(articleItems[k].tags)['Article-Version'] || 0)) {
           articleItems[k] = { id: e.node.id, tags: e.node.tags };
         }
@@ -262,7 +358,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         var targetKey = t['Attestation-Target-Key'];
         if (!targetKey) return;
         if (!attestations[targetKey]) attestations[targetKey] = [];
-        // Dedup by id
         if (attestations[targetKey].some(function(a){ return a.id === e.node.id; })) return;
         attestations[targetKey].push({
           id: e.node.id,
@@ -272,36 +367,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
           confidence: Number(t['Attestation-Confidence'] || 0),
           reason: t['Attestation-Reason'] || '',
           agentId: t['Attestation-Agent-Id'] || '',
+          sourceUrl: t['Attestation-Source-Url'] || '',
           createdAt: t['Attestation-Created-At'] || ''
         });
       }
     });
+
+    // Sort version lists
+    Object.keys(allVersions).forEach(function(k) {
+      allVersions[k].sort(function(a, b) { return b.version - a.version; });
+    });
+
     return articleItems;
   }
 
-  // --- Main sync: load cache, then fetch new, merge, save cursor ---
+  // --- Main sync ---
   async function syncAll() {
     loading = true;
     error = null;
     renderStatus();
 
-    // 1. Load cached index from IndexedDB
-    var savedCursor = null;
-    try {
-      var metaRow = await dbGet('index', '__meta__');
-      if (metaRow) savedCursor = metaRow.cursor || null;
-    } catch(e) {}
-
-    // 2. Load cached articles/attestations from IndexedDB
+    // Load cached index from IndexedDB
     try {
       var allRows = await dbGetAll('index');
       var cachedEdges = allRows
-        .filter(function(r){ return r.id && r.id !== '__meta__' && r.tags; })
-        .map(function(r){ return { node: { id: r.id, tags: r.tags }, cursor: r.cursor }; });
+        .filter(function(r){ return r.id && r.type && r.tags; })
+        .map(function(r){ return { node: { id: r.id, tags: r.tags, owner: r.owner || { address: '' } }, cursor: r.cursor }; });
       if (cachedEdges.length) processEdges(cachedEdges);
     } catch(e) {}
 
-    // 3. Fetch ALL PermaBrain txs from GraphQL (with pagination)
+    // Fetch from Arweave
     var allEdges = [];
     try {
       allEdges = await fetchAllPages();
@@ -309,28 +404,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       error = 'GraphQL fetch failed: ' + e.message;
       loading = false;
       renderStatus();
+      renderHome();
       return;
     }
 
-    // 4. Merge all edges into cache + articles/attestations
-    processEdges(allEdges);
+    // Process and deduplicate
+    var articleItems = processEdges(allEdges);
 
-    // 5. Build articles array from merged data
-    var articleItems = {};
-    articles = [];
-    // Combine cached + fresh edges
-    allEdges.forEach(function(e) {
-      var t = tagsToObject(e.node.tags);
-      if (t['PermaBrain-Type'] === 'article') {
-        var k = t['Article-Key'];
-        if (!k) return;
-        var v = Number(t['Article-Version'] || 0);
-        if (!articleItems[k] || v > Number(tagsToObject(articleItems[k].tags)['Article-Version'] || 0)) {
-          articleItems[k] = { id: e.node.id, tags: e.node.tags };
-        }
-      }
-    });
-
+    // Build articles array
     articles = Object.keys(articleItems).map(function(k) {
       var item = articleItems[k];
       var t = tagsToObject(item.tags);
@@ -355,9 +436,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       };
     });
 
-    // 6. Save cursor from last edge
-    var lastCursor = allEdges.length ? allEdges[allEdges.length - 1].cursor : null;
-    try { await dbPut('index', { id: '__meta__', cursor: lastCursor, updatedAt: new Date().toISOString(), articleCount: articles.length }); } catch(e) {}
+    // Save meta
+    lastSync = new Date();
+    try { await dbPut('meta', { key: 'lastSync', value: lastSync.toISOString() }); } catch(e) {}
 
     loading = false;
     renderFilters();
@@ -367,60 +448,67 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     else renderHome();
   }
 
-  // --- Content caching in IndexedDB ---
+  // --- Content fetching ---
   function fetchContent(article) {
-    if (article._content !== null || article._contentLoading) return;
-    // Try cache first
+    if (article._content !== null || article._contentLoading || article._contentError) return;
+
+    // Try IndexedDB cache first
     dbGet('content', article.id).then(function(cached) {
       if (cached && cached.text) {
         article._content = cached.text;
         if (selectedKey === article.key) renderArticle(selectedKey);
         return;
       }
-      // Not cached — fetch from Arweave
-      article._contentLoading = true;
-      fetch(GATEWAY + '/' + article.id)
-      .then(function(r) { return r.text(); })
-      .then(function(text) {
-        if (text.trimStart().startsWith('<')) {
-          article._content = null;
-          article._contentError = 'Content not available on gateway';
-        } else {
-          article._content = text;
-          // Cache it
-          dbPut('content', { id: article.id, text: text, fetchedAt: new Date().toISOString() }).catch(function(){});
-        }
-        article._contentLoading = false;
-        if (selectedKey === article.key) renderArticle(selectedKey);
-      })
-      .catch(function(err) {
-        article._contentLoading = false;
-        article._contentError = err.message;
-        if (selectedKey === article.key) renderArticle(selectedKey);
-      });
+      doFetchContent(article);
     }).catch(function() {
-      // IndexedDB error — just fetch
-      article._contentLoading = true;
-      fetch(GATEWAY + '/' + article.id)
-      .then(function(r) { return r.text(); })
+      doFetchContent(article);
+    });
+  }
+
+  function doFetchContent(article) {
+    article._contentLoading = true;
+
+    // Strategy 1: Direct gateway fetch (works for most data items)
+    fetch(GATEWAY + '/' + article.id, { headers: { 'Accept': 'text/plain' } })
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(function(text) {
+      // Check if we got HTML (gateway error page)
+      if (text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html')) {
+        throw new Error('Gateway returned HTML');
+      }
+      article._content = text;
+      article._contentLoading = false;
+      dbPut('content', { id: article.id, text: text, fetchedAt: new Date().toISOString() }).catch(function(){});
+      if (selectedKey === article.key) renderArticle(selectedKey);
+    })
+    .catch(function() {
+      // Strategy 2: Try arweave.net raw endpoint
+      fetch(GATEWAY + '/raw/' + article.id)
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
       .then(function(text) {
-        if (text.trimStart().startsWith('<')) {
-          article._content = null;
-          article._contentError = 'Content not available on gateway';
-        } else {
-          article._content = text;
+        if (text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html')) {
+          throw new Error('Content not available');
         }
+        article._content = text;
         article._contentLoading = false;
+        dbPut('content', { id: article.id, text: text, fetchedAt: new Date().toISOString() }).catch(function(){});
         if (selectedKey === article.key) renderArticle(selectedKey);
       })
       .catch(function(err) {
         article._contentLoading = false;
-        article._contentError = err.message;
+        article._contentError = err.message === 'Content not available' ? err.message : 'Could not load content';
         if (selectedKey === article.key) renderArticle(selectedKey);
       });
     });
   }
 
+  // --- Consensus ---
   function getConsensus(key) {
     var atts = attestations[key] || [];
     if (!atts.length) return { score: null, totalAttestations: 0, status: 'unattested', breakdown: {} };
@@ -443,100 +531,150 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
   function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
-  function getKinds(){
-    var kinds = new Set();
-    articles.forEach(function(a){kinds.add(a.kind)});
-    return ['all'].concat(Array.from(kinds).sort());
+  // --- Render helpers ---
+  function getTopics() {
+    var topics = new Set();
+    articles.forEach(function(a){ if(a.topic) topics.add(a.topic) });
+    return ['all'].concat(Array.from(topics).sort());
   }
 
-  function renderFilters(){
-    var kinds = getKinds();
+  function getKinds() {
+    var kinds = new Set();
+    articles.forEach(function(a){ kinds.add(a.kind) });
+    return kinds;
+  }
+
+  function renderFilters() {
+    var topics = getTopics();
     var el = document.getElementById('filters');
-    el.innerHTML = kinds.map(function(k){
-      return '<button class="filter-btn'+(activeFilter===k?' active':'')+'" onclick="window.setFilter(\''+k+'\')">'+esc(k==='all'?'All':k)+'</button>';
+    el.innerHTML = topics.map(function(k) {
+      var label = k === 'all' ? 'All' : k;
+      var count = k === 'all' ? articles.length : articles.filter(function(a){ return a.topic === k }).length;
+      return '<button class="filter-btn' + (activeFilter === k ? ' active' : '') + '" onclick="window.setFilter(\'' + k + '\')">' + esc(label) + ' <span style="opacity:0.6">(' + count + ')</span></button>';
     }).join('');
   }
 
-  function renderStatus(){
+  function renderStatus() {
     var statusEl = document.getElementById('statusText');
     var countEl = document.getElementById('statusCount');
     if (loading) {
       statusEl.innerHTML = '<span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px"></span> Syncing...';
     } else if (error) {
-      statusEl.textContent = 'Error: ' + error;
+      statusEl.innerHTML = '<span style="color:var(--red)">Error</span> <button class="refresh-btn" onclick="window.refresh()">Retry</button>';
     } else {
-      statusEl.textContent = 'Cached';
+      var syncTime = lastSync ? 'Updated ' + lastSync.toLocaleTimeString() : 'Cached';
+      statusEl.innerHTML = syncTime + ' <button class="refresh-btn" onclick="window.refresh()">&#x21BB;</button>';
     }
     countEl.textContent = articles.length + ' article' + (articles.length !== 1 ? 's' : '');
   }
 
-  function renderHome(){
+  function sortedArticles() {
+    var filtered = articles.filter(function(a) {
+      if (activeFilter !== 'all' && a.topic !== activeFilter) return false;
+      var q = (document.getElementById('search').value || '').toLowerCase();
+      if (q && a.title.toLowerCase().indexOf(q) === -1 && a.key.toLowerCase().indexOf(q) === -1 && a.topic.toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+    if (activeSort === 'date') {
+      filtered.sort(function(a, b) { return (b.updatedAt || '').localeCompare(a.updatedAt || ''); });
+    } else if (activeSort === 'title') {
+      filtered.sort(function(a, b) { return a.title.localeCompare(b.title); });
+    } else if (activeSort === 'consensus') {
+      filtered.sort(function(a, b) {
+        var ca = getConsensus(a.key).score;
+        var cb = getConsensus(b.key).score;
+        return (cb === null ? -1 : cb) - (ca === null ? -1 : ca);
+      });
+    }
+    return filtered;
+  }
+
+  function renderHome() {
     var main = document.getElementById('main');
     if (error) {
-      main.innerHTML = '<div class="empty-state"><h2>Could not load articles</h2><p>' + esc(error) + '</p></div>';
+      main.innerHTML = '<div class="empty-state"><h2>Could not load articles</h2><p>' + esc(error) + '</p><button class="btn-icon" onclick="window.refresh()">Retry</button></div>';
       return;
     }
     if (articles.length === 0) {
       main.innerHTML = '<div class="empty-state"><h2>No articles found</h2><p>No PermaBrain articles discovered on Arweave yet.</p></div>';
       return;
     }
-    // Sort by updatedAt descending
+
+    // Stats
+    var totalAtts = Object.values(attestations).reduce(function(s, a){ return s + a.length; }, 0);
+    var kinds = getKinds();
+    var topicSet = new Set();
+    articles.forEach(function(a){ if(a.topic) topicSet.add(a.topic) });
+    var avgScore = 0;
+    var scored = 0;
+    articles.forEach(function(a) {
+      var c = getConsensus(a.key);
+      if (c.score !== null) { avgScore += c.score; scored++; }
+    });
+    if (scored > 0) avgScore = Math.round(avgScore / scored * 100) / 100;
+
+    var statsHtml = '<div class="stats-row">' +
+      '<div class="stat-card"><div class="stat-value">' + articles.length + '</div><div class="stat-label">Articles</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + totalAtts + '</div><div class="stat-label">Attestations</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + kinds.size + '</div><div class="stat-label">Kinds</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + topicSet.size + '</div><div class="stat-label">Topics</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (scored > 0 ? avgScore : '—') + '</div><div class="stat-label">Avg Score</div></div>' +
+      '</div>';
+
+    // Sort by updated date
     var sorted = articles.slice().sort(function(a, b) { return (b.updatedAt || '').localeCompare(a.updatedAt || ''); });
-    var recent = sorted.slice(0, 10);
+    var recent = sorted.slice(0, 12);
     var cards = recent.map(function(a) {
-      var atts = attestations[a.key] || [];
       var cons = getConsensus(a.key);
       var badgeClass = cons.status === 'attested' ? 'badge-valid' : 'badge-pending';
       var badgeLabel = cons.status === 'attested' ? '\u2713 Attested' : (cons.status === 'unattested' ? 'Unattested' : 'Mixed');
-      return '<div class="home-card" data-key="' + esc(a.key) + '" onclick="window.selectArticle(\'' + esc(a.key) + '\')"\u003e' +
+      var atts = attestations[a.key] || [];
+      return '<div class="home-card" data-key="' + esc(a.key) + '" onclick="window.selectArticle(\'' + esc(a.key) + '\')">' +
         '<div class="home-card-header">' +
-        '<span class="badge badge-kind">' + esc(a.kind) + '</span\u003e' +
-        '<span class="badge badge-topic">' + esc(a.topic) + '</span\u003e' +
-        '<span class="badge ' + badgeClass + '">' + badgeLabel + '</span\u003e' +
+        '<span class="badge badge-kind">' + esc(a.kind) + '</span>' +
+        '<span class="badge badge-topic">' + esc(a.topic) + '</span>' +
+        '<span class="badge ' + badgeClass + '">' + badgeLabel + '</span>' +
         '</div>' +
         '<h3>' + esc(a.title) + '</h3>' +
         '<div class="home-card-meta">v' + a.version + ' &middot; ' + esc(a.sourceName) + (a.updatedAt ? ' &middot; ' + new Date(a.updatedAt).toLocaleDateString() : '') + '</div>' +
-        (atts.length ? '<div class="home-card-atts">\u2713 ' + esc(atts[0].opinion) + ' (' + atts[0].confidence + ')</div>' : '') +
+        (atts.length ? '<div class="home-card-atts">\u2713 ' + esc(atts[0].opinion) + ' (' + atts[0].confidence + ')' + (atts.length > 1 ? ' +' + (atts.length - 1) + ' more' : '') + '</div>' : '') +
         '<div class="home-card-key">' + esc(a.key) + '</div>' +
         '</div>';
     }).join('');
+
     main.innerHTML = '<div class="home">' +
       '<h1>\uD83E\uDDE0 PermaBrain</h1>' +
       '<p class="home-subtitle">Public signed knowledge graph on Arweave</p>' +
+      statsHtml +
       '<div class="home-cards">' + cards + '</div>' +
-      (sorted.length > 10 ? '<p class="home-more">Showing 10 of ' + sorted.length + ' articles</p>' : '') +
+      (sorted.length > 12 ? '<p class="home-more">Showing 12 of ' + sorted.length + ' articles. Use sidebar to browse all.</p>' : '') +
       '</div>';
   }
 
-  function renderEmptyState(){ renderHome(); }
-
-  function renderList(){
-    var q = (document.getElementById('search').value||'').toLowerCase();
-    var filtered = articles.filter(function(a){
-      if(activeFilter!=='all' && a.kind!==activeFilter) return false;
-      if(q && a.title.toLowerCase().indexOf(q)===-1 && a.key.toLowerCase().indexOf(q)===-1 && a.topic.toLowerCase().indexOf(q)===-1) return false;
-      return true;
-    });
+  function renderList() {
+    var filtered = sortedArticles();
     var el = document.getElementById('articleList');
-    if(!filtered.length && !loading){
-      el.innerHTML='<div style="padding:1rem;text-align:center;color:var(--muted);font-size:0.85rem">No articles match</div>';
+    if (!filtered.length && !loading) {
+      el.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:0.85rem">No articles match</div>';
       return;
     }
-    el.innerHTML = filtered.map(function(a){
+    el.innerHTML = filtered.map(function(a) {
       var atts = attestations[a.key] || [];
-      var attBadge = atts.length ? '<span style="color:var(--green);font-size:0.72rem">&#10003; '+esc(atts[0].opinion)+'</span>' : '';
-      return '<div class="article-item'+(selectedKey===a.key?' selected':'')+'" data-key="'+esc(a.key)+'" onclick="window.selectArticle(\''+esc(a.key)+'\')">'
-        +'<div class="key">'+esc(a.key)+'</div>'
-        +'<div class="title">'+esc(a.title)+'</div>'
-        +'<div class="meta">'+esc(a.kind)+' &middot; '+esc(a.topic)+' &middot; v'+a.version+' '+attBadge+'</div>'
-        +'</div>';
+      var cons = getConsensus(a.key);
+      var attDot = atts.length ? '<span class="att-dot"></span>' : '<span class="att-dot unattested"></span>';
+      var attLabel = atts.length ? '<span style="color:var(--green);font-size:0.72rem">\u2713 ' + atts.length + '</span>' : '';
+      return '<div class="article-item' + (selectedKey === a.key ? ' selected' : '') + '" data-key="' + esc(a.key) + '" onclick="window.selectArticle(\'' + esc(a.key) + '\')">' +
+        '<div class="key">' + esc(a.key) + '</div>' +
+        '<div class="title">' + esc(a.title) + '</div>' +
+        '<div class="meta">' + attDot + ' ' + esc(a.kind) + ' &middot; ' + esc(a.topic) + ' &middot; v' + a.version + ' ' + attLabel + '</div>' +
+        '</div>';
     }).join('');
   }
 
-  function renderArticle(key){
-    var a = articles.find(function(x){return x.key===key});
-    if(!a){
-      document.getElementById('main').innerHTML='<div class="empty-state"><h2>Article not found</h2></div>';
+  function renderArticle(key) {
+    var a = articles.find(function(x){ return x.key === key });
+    if (!a) {
+      document.getElementById('main').innerHTML = '<div class="empty-state"><h2>Article not found</h2></div>';
       return;
     }
     selectedKey = key;
@@ -553,7 +691,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     } else if (a._contentError) {
       contentHtml = '<div class="error-box">Could not load article content: ' + esc(a._contentError) + '</div>';
     } else if (a._content) {
-      contentHtml = (typeof marked !== 'undefined' && marked.parse) ? marked.parse(a._content) : '<pre>' + esc(a._content) + '</pre>';
+      try {
+        contentHtml = (typeof marked !== 'undefined' && marked.parse) ? marked.parse(a._content) : '<pre>' + esc(a._content) + '</pre>';
+      } catch(e) {
+        contentHtml = '<pre>' + esc(a._content) + '</pre>';
+      }
     } else {
       contentHtml = '<p style="color:var(--muted)">Content not yet available.</p>';
     }
@@ -564,103 +706,133 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     var badgeClass = consensus.status === 'attested' ? 'badge-valid' : 'badge-pending';
     var badgeLabel = consensus.status === 'attested' ? '&#10003; Attested' : (consensus.status === 'unattested' ? 'Unattested' : 'Mixed');
 
-    var attCards = atts.map(function(att){
+    // Version history
+    var versions = allVersions[a.key] || [];
+    var versionHtml = '';
+    if (versions.length > 1) {
+      versionHtml = '<h2>Version History</h2><ul class="version-list">' +
+        versions.map(function(v) {
+          var isCurrent = v.id === a.id;
+          return '<li class="version-item">' +
+            '<span class="version-num">v' + v.version + '</span>' +
+            (isCurrent ? '<strong>current</strong>' : '<a class="version-link" href="' + GATEWAY + '/' + v.id + '" target="_blank">' + v.id.substring(0, 12) + '...</a>') +
+            '<span class="version-date">' + (v.updatedAt ? new Date(v.updatedAt).toLocaleDateString() : '') + '</span>' +
+            '</li>';
+        }).join('') +
+        '</ul>';
+    }
+
+    // Attestation cards
+    var attCards = atts.map(function(att) {
       var opClass = 'opinion-' + att.opinion.replace(' ', '-');
-      return '<div class="attestation-card">'
-        +'<span class="opinion '+opClass+'">'+esc(att.opinion.toUpperCase())+'</span>'
-        +'<span class="confidence">confidence: '+att.confidence+'</span>'
-        +'<div class="reason">'+esc(att.reason)+'</div>'
-        +'<div class="agent">by '+esc(att.agentId.substring(0,40))+'</div>'
-        +'</div>';
+      var shortAgent = att.agentId.length > 30 ? att.agentId.substring(0, 30) + '...' : att.agentId;
+      return '<div class="attestation-card">' +
+        '<span class="opinion ' + opClass + '">' + esc(att.opinion.toUpperCase()) + '</span>' +
+        '<span class="confidence">confidence: ' + att.confidence + '</span>' +
+        (att.createdAt ? '<span class="date">' + new Date(att.createdAt).toLocaleDateString() + '</span>' : '') +
+        '<div class="reason">' + esc(att.reason) + '</div>' +
+        '<div class="agent">by ' + esc(shortAgent) + '</div>' +
+        (att.sourceUrl ? '<a href="' + esc(att.sourceUrl) + '" target="_blank" style="font-size:0.72rem;color:var(--accent)">source</a>' : '') +
+        '</div>';
     }).join('');
 
+    // Consensus breakdown
     var breakdown = '';
     if (consensus.breakdown && Object.keys(consensus.breakdown).length) {
       breakdown = '<div class="breakdown">';
-      Object.keys(consensus.breakdown).forEach(function(op){
-        breakdown += '<div class="breakdown-item"><div class="count">'+consensus.breakdown[op]+'</div><div class="name">'+esc(op)+'</div></div>';
+      Object.keys(consensus.breakdown).forEach(function(op) {
+        breakdown += '<div class="breakdown-item"><div class="count">' + consensus.breakdown[op] + '</div><div class="name">' + esc(op) + '</div></div>';
       });
       breakdown += '</div>';
     }
 
-    var html = '<div class="article-header">'
-      +'<div class="badges">'
-      +'<span class="badge badge-kind">'+esc(a.kind)+'</span>'
-      +'<span class="badge badge-topic">'+esc(a.topic)+'</span>'
-      +'<span class="badge '+badgeClass+'">'+badgeLabel+'</span>'
-      +'</div>'
-      +'<h1>'+esc(a.title)+'</h1>'
-      +'<div class="canonical">'+esc(a.key)+'</div>'
-      +'<div class="version">v'+a.version+' &middot; '+esc(a.sourceName)+' &middot; '+(a.updatedAt ? new Date(a.updatedAt).toLocaleDateString() : '')+'</div>'
-      +'<div class="links">'
-      +'<a href="https://arweave.net/'+a.id+'" target="_blank">&#x1F517; Arweave</a>'
-      +(a.sourceUrl ? '<a href="'+esc(a.sourceUrl)+'" target="_blank">&#x1F4C4; Source</a>' : '')
-      +'</div></div>'
-      +'<div class="tabs">'
-      +'<div class="tab'+(activeTab==='content'?' active':'')+'" onclick="window.setTab(\'content\')">Content</div>'
-      +'<div class="tab'+(activeTab==='attestations'?' active':'')+'" onclick="window.setTab(\'attestations\')">Attestations ('+consensus.totalAttestations+')</div>'
-      +'<div class="tab'+(activeTab==='consensus'?' active':'')+'" onclick="window.setTab(\'consensus\')">Consensus</div>'
-      +'</div>'
-      +'<div class="tab-content'+(activeTab==='content'?' active':'')+'" id="tab-content">'+contentHtml+'</div>'
-      +'<div class="tab-content'+(activeTab==='attestations'?' active':'')+'" id="tab-attestations">'
-      +(attCards || '<p style="color:var(--muted)">No attestations yet.</p>')
-      +'</div>'
-      +'<div class="tab-content'+(activeTab==='consensus'?' active':'')+'" id="tab-consensus">'
-      +'<div class="consensus-box">'
-      +'<div class="score">'+(consensus.score !== null ? consensus.score : 'N/A')+'</div>'
-      +'<div class="label">Consensus Score</div>'
-      +breakdown
-      +'</div></div>';
+    var scoreClass = consensus.score === null ? '' : (consensus.score >= 0.8 ? 'good' : (consensus.score >= 0.5 ? 'moderate' : 'low'));
+
+    var html = '<div class="article-header">' +
+      '<div class="badges">' +
+      '<span class="badge badge-kind">' + esc(a.kind) + '</span>' +
+      '<span class="badge badge-topic">' + esc(a.topic) + '</span>' +
+      '<span class="badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+      '</div>' +
+      '<h1>' + esc(a.title) + '</h1>' +
+      '<div class="canonical">' + esc(a.key) + '</div>' +
+      '<div class="version">v' + a.version + ' &middot; ' + esc(a.sourceName) + (a.updatedAt ? ' &middot; ' + new Date(a.updatedAt).toLocaleDateString() : '') + '</div>' +
+      '<div class="links">' +
+      '<a href="https://arweave.net/' + a.id + '" target="_blank">&#x1F517; Arweave</a>' +
+      '<a href="https://viewblock.io/arweave/tx/' + a.id + '" target="_blank">&#x1F4CA; Viewblock</a>' +
+      (a.sourceUrl ? '<a href="' + esc(a.sourceUrl) + '" target="_blank">&#x1F4C4; Source</a>' : '') +
+      '</div></div>' +
+      '<div class="tabs">' +
+      '<div class="tab' + (activeTab === 'content' ? ' active' : '') + '" onclick="window.setTab(\'content\')">Content</div>' +
+      '<div class="tab' + (activeTab === 'attestations' ? ' active' : '') + '" onclick="window.setTab(\'attestations\')">Attestations (' + consensus.totalAttestations + ')</div>' +
+      '<div class="tab' + (activeTab === 'consensus' ? ' active' : '') + '" onclick="window.setTab(\'consensus\')">Consensus</div>' +
+      (versions.length > 1 ? '<div class="tab' + (activeTab === 'versions' ? ' active' : '') + '" onclick="window.setTab(\'versions\')">Versions (' + versions.length + ')</div>' : '') +
+      '</div>' +
+      '<div class="tab-content' + (activeTab === 'content' ? ' active' : '') + '" id="tab-content">' + contentHtml + '</div>' +
+      '<div class="tab-content' + (activeTab === 'attestations' ? ' active' : '') + '" id="tab-attestations">' +
+      (attCards || '<p style="color:var(--muted)">No attestations yet.</p>') +
+      '</div>' +
+      '<div class="tab-content' + (activeTab === 'consensus' ? ' active' : '') + '" id="tab-consensus">' +
+      '<div class="consensus-box">' +
+      '<div class="score ' + scoreClass + '">' + (consensus.score !== null ? consensus.score : 'N/A') + '</div>' +
+      '<div class="label">Consensus Score</div>' +
+      breakdown +
+      '</div></div>' +
+      (versions.length > 1 ? '<div class="tab-content' + (activeTab === 'versions' ? ' active' : '') + '" id="tab-versions">' + versionHtml + '</div>' : '');
 
     document.getElementById('main').innerHTML = html;
 
     // Close sidebar on mobile
-    if(window.innerWidth <= 768){
+    if (window.innerWidth <= 768) {
       document.getElementById('sidebar').classList.remove('open');
       document.getElementById('overlay').classList.remove('show');
     }
   }
 
-  window.selectArticle = function(key){
+  // --- Public API ---
+  window.selectArticle = function(key) {
     activeTab = 'content';
     renderArticle(key);
   };
 
-  window.setTab = function(tab){
+  window.setTab = function(tab) {
     activeTab = tab;
-    if(selectedKey) renderArticle(selectedKey);
+    if (selectedKey) renderArticle(selectedKey);
   };
 
-  window.setFilter = function(kind){
-    activeFilter = kind;
+  window.setFilter = function(topic) {
+    activeFilter = topic;
     renderFilters();
     renderList();
   };
 
-  window.toggleSidebar = function(){
+  window.setSort = function(sort) {
+    activeSort = sort;
+    document.querySelectorAll('.sort-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.sort === sort);
+    });
+    renderList();
+  };
+
+  window.toggleSidebar = function() {
     document.getElementById('sidebar').classList.toggle('open');
     document.getElementById('overlay').classList.toggle('show');
   };
 
-  // Detect gateway from current hostname
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    GATEWAY = 'https://arweave.net';
-  } else if (window.location.hostname.endsWith('.arweave.net') || window.location.hostname === 'arweave.net') {
-    GATEWAY = '';
-  } else {
-    GATEWAY = 'https://arweave.net';
-  }
+  window.refresh = function() {
+    syncAll();
+  };
 
+  // --- Boot ---
   renderFilters();
   renderList();
   openDB().then(function() {
     syncAll();
   }).catch(function(err) {
     console.error('IndexedDB open failed:', err);
-    syncAll(); // Fall back to no-cache mode
+    syncAll();
   });
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </body>
 </html>
