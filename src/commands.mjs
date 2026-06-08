@@ -1,10 +1,14 @@
-import { initState, loadConfig, getHome } from './config.mjs';
+import { initState, loadConfig, getHome, defaultConfig } from './config.mjs';
 import { ensureIdentity, publicIdentity } from './keys.mjs';
 import { HyperbeamTransport } from './transport.mjs';
+import { AOTransport } from './ao-transport.mjs';
+import { CompositeTransport } from './composite-transport.mjs';
 import { getArticle, publishArticle, queryArticles, syncArticlesAndAttestations } from './article.mjs';
 import { importWikipediaArticle } from './wikipedia.mjs';
 import { attestArticle, opinionFromArgs } from './attestation.mjs';
 import { consensusForArticle } from './consensus.mjs';
+import { loadIdentity } from './keys.mjs';
+import { getTransport } from './transport.mjs';
 
 function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
@@ -20,6 +24,10 @@ export async function runCommand(command, args) {
   if (command === 'attest') return attestCommand(args);
   if (command === 'consensus') return consensusCommand(args);
   if (command === 'sync') return syncCommand(args);
+  if (command === 'ao-sync') return aoSyncCommand(args);
+  if (command === 'ao-query') return aoQueryCommand(args);
+  if (command === 'ao-get') return aoGetCommand(args);
+  if (command === 'ao-consensus') return aoConsensusCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -162,4 +170,69 @@ async function syncCommand(args) {
     console.log(`Synced ${Object.keys(index.articles).length} articles and ${Object.values(index.attestations).reduce((n, xs) => n + xs.length, 0)} attestations.`);
   }
   return index;
+}
+
+async function aoSyncCommand(args) {
+  const home = getHome();
+  const config = loadConfig(home);
+  if (!config.ao?.processId) throw new Error('AO sync requires config.ao.processId. Run `permabrain init` and set PERMABRAIN_AO_PROCESS_ID.');
+  const identity = loadIdentity(home);
+  const transport = new AOTransport(config);
+  const result = await transport.syncFromArweave(identity);
+  if (args.json) printJson(result);
+  else {
+    console.log(`AO sync: ${result.articles} articles, ${result.attestations} attestations`);
+    console.log(`Message ID: ${result.messageId}`);
+  }
+  return result;
+}
+
+async function aoQueryCommand(args) {
+  const home = getHome();
+  const config = loadConfig(home);
+  if (!config.ao?.processId) throw new Error('AO query requires config.ao.processId. Run `permabrain init` and set PERMABRAIN_AO_PROCESS_ID.');
+  const transport = new AOTransport(config);
+  const articles = await transport.queryArticles({
+    topic: args.topic,
+    kind: args.kind,
+    key: args.key,
+    sourceName: args['source-name']
+  });
+  if (args.json) printJson(articles);
+  else {
+    if (!articles.length) console.log('No articles found.');
+    for (const article of articles) console.log(`${article.key}\tv${article.version}\t${article.title}\t${article.topic}`);
+  }
+  return articles;
+}
+
+async function aoGetCommand(args) {
+  const home = getHome();
+  const config = loadConfig(home);
+  if (!config.ao?.processId) throw new Error('AO get requires config.ao.processId. Run `permabrain init` and set PERMABRAIN_AO_PROCESS_ID.');
+  const transport = new AOTransport(config);
+  const key = args._[0];
+  if (!key) throw new Error('ao-get requires <canonical-key>');
+  const result = await transport.getArticle(key);
+  if (!result) throw new Error(`Article not found via AO: ${key}`);
+  if (args.json) printJson(result);
+  else console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+async function aoConsensusCommand(args) {
+  const home = getHome();
+  const config = loadConfig(home);
+  if (!config.ao?.processId) throw new Error('AO consensus requires config.ao.processId. Run `permabrain init` and set PERMABRAIN_AO_PROCESS_ID.');
+  const transport = new AOTransport(config);
+  const key = args._[0];
+  if (!key) throw new Error('ao-consensus requires <canonical-key>');
+  const result = await transport.getConsensus(key);
+  if (!result) throw new Error(`Consensus not available via AO for: ${key}`);
+  if (args.json) printJson(result);
+  else {
+    console.log(`${result.key}: ${result.status}`);
+    console.log(`Score: ${result.score}`);
+  }
+  return result;
 }

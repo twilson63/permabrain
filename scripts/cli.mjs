@@ -9,25 +9,85 @@ const COMMANDS = [
   'get',
   'attest',
   'consensus',
-  'sync'
+  'sync',
+  'ao-sync',
+  'ao-query',
+  'ao-get',
+  'ao-consensus'
 ];
 
 function printHelp(command = null) {
   if (!command) {
-    console.log(`PermaBrain — public signed third brain\n\nUsage:\n  permabrain <command> [options]\n\nCommands:\n  init                         Initialize local PermaBrain state\n  probe-hyperbeam              Probe local HyperBEAM endpoints\n  publish <file>               Publish a public knowledge article\n  import-wikipedia <title>     Import and publish a Wikipedia summary\n  query                        Query public articles\n  get <canonical-key>          Fetch latest article content\n  attest <canonical-key>       Publish a signed validity attestation\n  consensus <canonical-key>    Compute attestation consensus\n  sync                         Sync local cache\n\nRun 'permabrain <command> --help' for command-specific help.`);
+    console.log(`PermaBrain — public signed third brain
+
+Usage:
+  permabrain <command> [options]
+
+Commands:
+  init                         Initialize local PermaBrain state
+  probe-hyperbeam              Probe local HyperBEAM endpoints
+  publish <file>               Publish a public knowledge article
+  import-wikipedia <title>     Import and publish a Wikipedia summary
+  query                        Query public articles
+  get <canonical-key>          Fetch latest article content
+  attest <canonical-key>       Publish a signed validity attestation
+  consensus <canonical-key>    Compute attestation consensus
+  sync                         Sync local cache
+  ao-sync                      Bootstrap AO process from Arweave data
+  ao-query                     Query articles via AO process (dryrun)
+  ao-get                       Get article metadata via AO process (dryrun)
+  ao-consensus                 Compute consensus via AO process (dryrun)
+
+Environment:
+  PERMABRAIN_HOME              State directory (default: .permabrain)
+  PERMABRAIN_TRANSPORT         Transport: local|hyperbeam|arweave|ao|composite
+  PERMABRAIN_AO_PROCESS_ID    AO process ID for ao/composite transport
+
+Run 'permabrain <command> --help' for command-specific help.`);
     return;
   }
 
   const help = {
-    init: `Usage: permabrain init [--key-type arweave-rsa4096|ed25519] [--json]\n\nCreates .permabrain/ or PERMABRAIN_HOME state, config, keys, identity-init event, cache, and logs. Defaults to arweave-rsa4096; can also use PERMABRAIN_KEY_TYPE=ed25519.`,
-    'probe-hyperbeam': `Usage: permabrain probe-hyperbeam [--url http://localhost:10000] [--json]\n\nChecks local HyperBEAM health, GraphQL, upload, and fetch endpoints.`,
-    publish: `Usage: permabrain publish <file> --kind <kind> --topic <topic> [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]\n\nPublishes a signed public article DataItem.`,
-    'import-wikipedia': `Usage: permabrain import-wikipedia "<title>" --kind <kind> --topic <topic> [--language en] [--json]\n\nFetches a Wikipedia summary, generates sourced markdown, and publishes it.`,
-    query: `Usage: permabrain query [--topic <topic>] [--kind <kind>] [--key <key>] [--source-name <name>] [--source-url <url>] [--json]\n\nQueries public articles by tags.`,
-    get: `Usage: permabrain get <canonical-key> [--json]\n\nFetches latest article content by canonical key and verifies content hash.`,
-    attest: `Usage: permabrain attest <canonical-key> --valid|--invalid|--partially-valid|--outdated|--disputed --confidence <0..1> --reason <text> [--source-url <url>] [--json]\n\nPublishes a signed attestation against the latest article version.`,
-    consensus: `Usage: permabrain consensus <canonical-key> [--json]\n\nAggregates attestations and computes MVP consensus score.`,
-    sync: `Usage: permabrain sync [--json]\n\nQueries articles and attestations and writes local cache index.`
+    init: `Usage: permabrain init [--key-type arweave-rsa4096|ed25519] [--json]
+
+Creates .permabrain/ or PERMABRAIN_HOME state, config, keys, identity-init event, cache, and logs. Defaults to arweave-rsa4096; can also use PERMABRAIN_KEY_TYPE=ed25519.`,
+    'probe-hyperbeam': `Usage: permabrain probe-hyperbeam [--url http://localhost:10000] [--json]
+
+Checks local HyperBEAM health, GraphQL, upload, and fetch endpoints.`,
+    publish: `Usage: permabrain publish <file> --kind <kind> --topic <topic> [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
+
+Publishes a signed public article DataItem.`,
+    'import-wikipedia': `Usage: permabrain import-wikipedia "<title>" --kind <kind> --topic <topic> [--language en] [--json]
+
+Fetches a Wikipedia summary, generates sourced markdown, and publishes it.`,
+    query: `Usage: permabrain query [--topic <topic>] [--kind <kind>] [--key <key>] [--source-name <name>] [--source-url <url>] [--json]
+
+Queries public articles by tags.`,
+    get: `Usage: permabrain get <canonical-key> [--json]
+
+Fetches latest article content by canonical key and verifies content hash.`,
+    attest: `Usage: permabrain attest <canonical-key> --valid|--invalid|--partially-valid|--outdated|--disputed --confidence <0..1> --reason <text> [--source-url <url>] [--json]
+
+Publishes a signed attestation against the latest article version.`,
+    consensus: `Usage: permabrain consensus <canonical-key> [--json]
+
+Aggregates attestations and computes MVP consensus score.`,
+    sync: `Usage: permabrain sync [--json]
+
+Queries articles and attestations and writes local cache index.`,
+    'ao-sync': `Usage: permabrain ao-sync [--json]
+
+Bootstraps the AO process with articles and attestations from Arweave.
+Requires PERMABRAIN_AO_PROCESS_ID to be set.`,
+    'ao-query': `Usage: permabrain ao-query [--topic <topic>] [--kind <kind>] [--key <key>] [--source-name <name>] [--json]
+
+Queries articles via AO dryrun (instant, free). Falls back to Arweave GraphQL.`,
+    'ao-get': `Usage: permabrain ao-get <canonical-key> [--json]
+
+Gets article metadata from the AO process via dryrun.`,
+    'ao-consensus': `Usage: permabrain ao-consensus <canonical-key> [--json]
+
+Computes attestation consensus score from the AO process via dryrun.`
   };
   console.log(help[command] || `Unknown command: ${command}`);
 }
