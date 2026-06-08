@@ -88,6 +88,40 @@ export class HyperbeamTransport {
   async fetchDataItem(id) {
     const res = await fetch(`${this.config.gateway.dataUrl}/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error(`HyperBEAM fetch failed for ${id}: HTTP ${res.status}`);
+    const contentType = res.headers.get('content-type') || '';
+
+    // HyperBEAM returns data items as HTTP messages with tags as headers
+    // and content in the body (not raw ANS-104 binary).
+    // Detect this format: headers contain PermaBrain/Arweave tags.
+    const headerTags = [];
+    for (const [key, value] of res.headers.entries()) {
+      // Convert lowercase HTTP headers to original tag names
+      // e.g., 'article-key' -> 'Article-Key', 'app-name' -> 'App-Name'
+      const knownPrefixes = ['article-', 'app-', 'permabrain-', 'content-', 'data-protocol', 'type', 'module', 'scheduler', 'visibility', 'author-agent-id'];
+      if (knownPrefixes.some(p => key.startsWith(p) || key === p)) {
+        // Convert kebab-case to Title-Case tag name
+        const tagName = key.split('-').map((s, i) => {
+          // Preserve known acronyms
+          if (['id', 'url', 'api'].includes(s)) return s.toUpperCase();
+          return s.charAt(0).toUpperCase() + s.slice(1);
+        }).join('-');
+        headerTags.push({ name: tagName, value });
+      }
+    }
+
+    // If we found tags in headers, this is a HyperBEAM HTTP-SIG response
+    if (headerTags.length > 0) {
+      const body = await res.text();
+      return {
+        format: 'httpsig@1.0',
+        id,
+        tags: headerTags,
+        payload: body,
+        payloadBase64: Buffer.from(body).toString('base64url'),
+      };
+    }
+
+    // Fall back to binary ANS-104 parsing
     const bytes = Buffer.from(await res.arrayBuffer());
     const text = bytes.toString('utf8');
     try { return JSON.parse(text); }

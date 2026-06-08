@@ -288,6 +288,10 @@ export function parseAns104(itemOrBytes) {
 }
 
 export function payloadBuffer(item) {
+  if (item.format === 'httpsig@1.0' && typeof item.payload === 'string') {
+    // HyperBEAM HTTP-SIG format: payload is already a string (the body content)
+    return Buffer.from(item.payload, 'utf8');
+  }
   if (item.ans104Base64) return Buffer.from(parseAns104(item).rawData);
   return fromB64url(item.payloadBase64);
 }
