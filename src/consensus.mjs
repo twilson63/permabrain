@@ -62,7 +62,12 @@ export function consensusScore(attestations, { latestArticleId = null, now = new
 export async function consensusForArticle(key) {
   const latestArticle = (await resolveLatestArticle(key)).summary;
   const items = await queryAttestationsForKey(key);
-  const attestations = items.length ? items.map(summarizeAttestationItem) : (loadIndex(getHome()).attestations?.[key] || []);
+  const rawAttestations = items.length ? items.map(summarizeAttestationItem) : (loadIndex(getHome()).attestations?.[key] || []);
+  // For proxy attestations, the effective agent is the requester, not the proxy signer
+  const attestations = rawAttestations.map((a) => {
+    if (a.proxy) return { ...a, agentId: a.requesterId || a.agentId };
+    return a;
+  });
   const scored = consensusScore(attestations, { latestArticleId: latestArticle?.id || null });
   const consideredAttestations = scored.consideredAttestations || attestations;
   const opinionCounts = { valid: 0, invalid: 0, 'partially-valid': 0, outdated: 0, disputed: 0 };

@@ -6,6 +6,7 @@ import { CompositeTransport } from './composite-transport.mjs';
 import { getArticle, publishArticle, queryArticles, syncArticlesAndAttestations } from './article.mjs';
 import { importWikipediaArticle } from './wikipedia.mjs';
 import { attestArticle, opinionFromArgs } from './attestation.mjs';
+import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
 import { loadIdentity } from './keys.mjs';
 import { getTransport } from './transport.mjs';
@@ -31,6 +32,9 @@ export async function runCommand(command, args) {
   if (command === 'ao-query') return aoQueryCommand(args);
   if (command === 'ao-get') return aoGetCommand(args);
   if (command === 'ao-consensus') return aoConsensusCommand(args);
+  if (command === 'attest-for-agent') return attestForAgentCommand(args);
+  if (command === 'list-agents') return listAgentsCommand(args);
+  if (command === 'provision-agent') return provisionAgentCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -327,4 +331,69 @@ async function aoBootstrapCommand(args) {
   }
 
   return { processId, luaMessageId, ...syncResult };
+}
+
+async function attestForAgentCommand(args) {
+  const key = args._[0];
+  if (!key) throw new Error('attest-for-agent requires <canonical-key>');
+  const agentName = args.agent;
+  if (!agentName) throw new Error('--agent is required (agent name or identity JSON path)');
+
+  let agentIdentity;
+  const fs = await import('fs');
+  const agentPath = args['identity-file'];
+  if (agentPath && fs.existsSync(agentPath)) {
+    agentIdentity = JSON.parse(fs.readFileSync(agentPath, 'utf8'));
+  } else {
+    throw new Error('Agent identity required. Use --identity-file <path> to provide an agent keys.json file.');
+  }
+
+  const opinion = opinionFromArgs(args);
+  const result = await attestForAgent({
+    agentIdentity,
+    key,
+    opinion,
+    confidence: args.confidence,
+    reason: args.reason,
+    sourceUrl: args['source-url'] || '',
+    targetId: args['target-id']
+  });
+
+  if (args.json) printJson(result);
+  else {
+    console.log(`Attested ${result.targetKey}: ${result.opinion} (${result.confidence})`);
+    console.log(`Agent: ${result.agentId}`);
+    console.log(`ID: ${result.id}`);
+  }
+  return result;
+}
+
+async function listAgentsCommand(args) {
+  const agents = listKnownAgents();
+  if (args.json) printJson(agents);
+  else {
+    console.log('Known PermaBrain agents:');
+    for (const agent of agents) {
+      console.log(`  ${agent.name} (${agent.id})`);
+      console.log(`    Fingerprint: ${agent.publicKeyFingerprint}`);
+      if (agent.keyId) console.log(`    Key ID: ${agent.keyId}`);
+    }
+  }
+  return agents;
+}
+
+async function provisionAgentCommand(args) {
+  const agentName = args._[0];
+  if (!agentName) throw new Error('provision-agent requires <agent-name>');
+  const keyType = args['key-type'] || 'ed25519';
+  const identity = await provisionAgentIdentity(agentName, { keyType });
+  if (args.json) printJson(identity);
+  else {
+    console.log(`Provisioned identity for '${agentName}':`);
+    console.log(`  Agent ID: ${identity.agentId}`);
+    console.log(`  Key Type: ${identity.type}`);
+    console.log(`  Public Key: ${identity.publicKey}`);
+    console.log('  ⚠ Secret key shown once — store securely!');
+  }
+  return identity;
 }

@@ -19,6 +19,7 @@ import { initState, getHome, loadConfig } from './config.mjs';
 import { ensureIdentity, loadIdentity } from './keys.mjs';
 import { publishArticle, queryArticles, getArticle, syncArticlesAndAttestations } from './article.mjs';
 import { attestArticle } from './attestation.mjs';
+import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
 import { loadIndex } from './cache.mjs';
 
@@ -238,6 +239,87 @@ const api = {
     const { importWikipediaArticle } = await import('./wikipedia.mjs');
     const result = await importWikipediaArticle(params);
     return result.summary;
+  },
+
+  /**
+   * Create an attestation on behalf of an external agent using their identity.
+   * The agent's signing key is used — the attestation is directly from them.
+   * @param {Object} params
+   * @param {Object} params.agentIdentity - Agent identity with signing keys (ed25519 or arweave)
+   * @param {string} params.key - Target article key
+   * @param {string} params.opinion - Opinion value
+   * @param {number} params.confidence - Confidence 0-1
+   * @param {string} params.reason - Reason text
+   * @param {string} [params.sourceUrl] - Supporting URL
+   * @param {string} [params.targetId] - Specific article version ID
+   * @returns {Promise<{id, targetKey, targetId, opinion, confidence, reason, agentId}>}
+   */
+  async attestForAgent(params = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return attestForAgent(params);
+  },
+
+  /**
+   * Generate a provisional identity for an external agent.
+   * Returns the full identity including secret key — store securely.
+   * @param {string} agentName - Agent name label
+   * @param {Object} [options]
+   * @param {string} [options.keyType='ed25519'] - Key type
+   * @returns {Promise<{agentId, type, publicKey, secretKey, createdAt, label}>}
+   */
+  async provisionAgent(agentName, options = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return provisionAgentIdentity(agentName, options);
+  },
+
+  /**
+   * Process a CAP attestation request as a proxy attestation.
+   * Signs with our identity, tags with requester info.
+   * @param {Object} request - Parsed request from parseAttestationRequest
+   * @returns {Promise<{id, targetKey, targetId, opinion, confidence, reason, agentId, requesterId, requesterFingerprint}>}
+   */
+  async processProxyAttestation(request) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return processProxyAttestation(request);
+  },
+
+  /**
+   * Parse a CAP attestation request body.
+   * @param {Object} body - Raw request body
+   * @param {string} [senderFingerprint] - CAP sender fingerprint
+   * @returns {Object} Validated request
+   */
+  parseAttestationRequest(body, senderFingerprint) {
+    return parseAttestationRequest(body, senderFingerprint);
+  },
+
+  /**
+   * Build a CAP attestation request body for sending to another agent.
+   * @param {Object} params
+   * @returns {Object} Request body
+   */
+  buildAttestationRequest(params) {
+    return buildAttestationRequestBody(params);
+  },
+
+  /**
+   * List known external agents (Sage, Relay, etc.).
+   * @returns {Array<{id, name, keyId, publicKeyFingerprint}>}
+   */
+  listKnownAgents() {
+    return listKnownAgents();
+  },
+
+  /**
+   * Get a known agent by name.
+   * @param {string} name - Agent name
+   * @returns {{id, name, keyId, publicKeyFingerprint}|null}
+   */
+  getKnownAgent(name) {
+    return getKnownAgent(name);
   },
 
   /**

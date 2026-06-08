@@ -58,6 +58,9 @@ export function summarizeAttestationItem(item) {
     reason: tags['Attestation-Reason'],
     agentId: tags['Attestation-Agent-Id'],
     sourceUrl: tags['Attestation-Source-Url'] || null,
-    createdAt: tags['Attestation-Created-At'] || item.timestamp
+    createdAt: tags['Attestation-Created-At'] || item.timestamp,
+    proxy: tags['Attestation-Proxy'] === 'true',
+    requesterId: tags['Attestation-Requester-Id'] || null,
+    requesterFingerprint: tags['Attestation-Requester-Fingerprint'] || null
   };
 }
