@@ -3,9 +3,11 @@ import path from 'node:path';
 import { statePaths } from './config.mjs';
 import { parseAns104, payloadBuffer, payloadText, rawDataItemBytes } from './dataitem.mjs';
 import { tagsToObject } from './tags.mjs';
+import { AOTransport } from './ao-transport.mjs';
 
 export function getTransport(config, home) {
   if (config.transport === 'local' || config.gateway?.type === 'local' || config.bundler?.type === 'local') return new LocalTransport(home);
+  if (config.transport === 'ao' || config.ao?.processId) return new AOTransport(config);
   if (config.transport === 'arweave' || config.gateway?.type === 'arweave') return new ArweaveTransport(config);
   return new HyperbeamTransport(config);
 }
