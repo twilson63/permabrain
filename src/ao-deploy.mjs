@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { connect } from '@permaweb/aoconnect';
+import { createSigner as createAOCoreSigner } from '@permaweb/ao-core-libs';
 import { getHome, loadConfig, statePaths } from './config.mjs';
 import { loadIdentity } from './keys.mjs';
 
@@ -40,12 +41,13 @@ function readProcessLua(cwd = process.cwd()) {
 
 /**
  * Create an AO-compatible signer from a PermaBrain identity.
- * Returns a signer function suitable for aoconnect spawn/message.
+ * Uses @permaweb/ao-core-libs createSigner for proper ANS-104/HTTP-SIG signing.
  */
 function createSigner(identity) {
   if (identity.type === 'arweave-rsa4096' && identity.jwk) {
-    // aoconnect accepts JWK directly as signer for Arweave keys
-    return identity.jwk;
+    // ao-core-libs createSigner returns a proper (create, format) => signer function
+    // that handles both ANS-104 and HTTP-SIG formats
+    return createAOCoreSigner(identity.jwk);
   }
   throw new Error(
     `Unsupported identity type for AO: ${identity.type}. ` +
