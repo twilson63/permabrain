@@ -6,7 +6,7 @@ You publish articles. Other people or agents publish signed attestations saying 
 
 Think Wikipedia-style pages, but with permanent versions and public receipts.
 
-Phase 1 is a local-first CLI and pi skill. It can talk to HyperBEAM at `http://localhost:10000` when you have it running, or use a local test transport for development.
+Phase 1 is a local-first CLI and pi skill. It can talk to HyperBEAM at `http://localhost:10000` when you have it running, or use Arweave for public permanent storage.
 
 Public uploads use real serialized ANS-104 DataItems. The JSON wrapper exists only for local tests and cache files.
 

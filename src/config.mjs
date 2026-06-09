@@ -9,35 +9,20 @@ export function getHome(cwd = process.cwd(), env = process.env) {
 
 export function defaultConfig(env = process.env) {
   const baseUrl = env.PERMABRAIN_HYPERBEAM_URL || 'http://localhost:10000';
-  const transport = env.PERMABRAIN_TRANSPORT || 'hyperbeam';
+  const transport = env.PERMABRAIN_TRANSPORT || 'arweave';
   const config = {
     version: APP_VERSION,
     transport,
     gateway: {
       type: transport,
-      graphqlUrl: env.PERMABRAIN_GRAPHQL_URL || `${baseUrl}/graphql`,
-      dataUrl: env.PERMABRAIN_DATA_URL || baseUrl
+      graphqlUrl: env.PERMABRAIN_GRAPHQL_URL || (transport === 'hyperbeam' ? `${baseUrl}/graphql` : 'https://arweave.net/graphql'),
+      dataUrl: env.PERMABRAIN_DATA_URL || (transport === 'hyperbeam' ? baseUrl : 'https://arweave.net')
     },
     bundler: {
       type: transport,
-      uploadUrl: env.PERMABRAIN_UPLOAD_URL || (transport === 'hyperbeam' ? `${baseUrl}/~bundler@1.0/tx?codec-device=ans104@1.0` : baseUrl)
+      uploadUrl: env.PERMABRAIN_UPLOAD_URL || (transport === 'hyperbeam' ? `${baseUrl}/~bundler@1.0/tx?codec-device=ans104@1.0` : 'https://up.arweave.net/tx')
     }
   };
-  // AO transport config (optional — only set when transport is 'ao')
-  if (transport === 'ao' || env.PERMABRAIN_AO_PROCESS_ID) {
-    config.ao = {
-      processId: env.PERMABRAIN_AO_PROCESS_ID || '',
-      muUrl: env.PERMABRAIN_AO_MU_URL || undefined,
-      cuUrl: env.PERMABRAIN_AO_CU_URL || undefined,
-      gatewayUrl: env.PERMABRAIN_AO_GATEWAY_URL || undefined,
-      graphqlUrl: env.PERMABRAIN_AO_GRAPHQL_URL || undefined
-    };
-    // When transport is 'ao', default the Arweave gateway for fallback
-    if (!config.gateway.dataUrl || config.gateway.dataUrl === baseUrl) {
-      config.gateway.dataUrl = env.PERMABRAIN_DATA_URL || 'https://arweave.net';
-      config.gateway.graphqlUrl = env.PERMABRAIN_GRAPHQL_URL || 'https://arweave.net/graphql';
-    }
-  }
   return config;
 }
 

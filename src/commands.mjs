@@ -1,8 +1,6 @@
 import { initState, loadConfig, getHome, defaultConfig } from './config.mjs';
 import { ensureIdentity, publicIdentity } from './keys.mjs';
 import { HyperbeamTransport } from './transport.mjs';
-import { AOTransport } from './ao-transport.mjs';
-import { CompositeTransport } from './composite-transport.mjs';
 import { getArticle, publishArticle, queryArticles, syncArticlesAndAttestations } from './article.mjs';
 import { importWikipediaArticle } from './wikipedia.mjs';
 import { attestArticle, opinionFromArgs } from './attestation.mjs';
@@ -10,7 +8,6 @@ import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, proces
 import { consensusForArticle } from './consensus.mjs';
 import { loadIdentity } from './keys.mjs';
 import { getTransport } from './transport.mjs';
-import { spawn as aoSpawn, loadLua as aoLoadLua, saveProcessId as aoSaveProcessId, waitForProcess } from './ao-deploy.mjs';
 
 import fs from 'node:fs';
 
@@ -28,12 +25,6 @@ export async function runCommand(command, args) {
   if (command === 'attest') return attestCommand(args);
   if (command === 'consensus') return consensusCommand(args);
   if (command === 'sync') return syncCommand(args);
-  if (command === 'ao-deploy') return aoDeployCommand(args);
-  if (command === 'ao-bootstrap') return aoBootstrapCommand(args);
-  if (command === 'ao-sync') return aoSyncCommand(args);
-  if (command === 'ao-query') return aoQueryCommand(args);
-  if (command === 'ao-get') return aoGetCommand(args);
-  if (command === 'ao-consensus') return aoConsensusCommand(args);
   if (command === 'attest-for-agent') return attestForAgentCommand(args);
   if (command === 'list-agents') return listAgentsCommand(args);
   if (command === 'provision-agent') return provisionAgentCommand(args);
@@ -183,159 +174,8 @@ async function syncCommand(args) {
   return index;
 }
 
-async function aoSyncCommand(args) {
-  const home = getHome();
-  const config = loadConfig(home);
-  if (!config.ao?.processId) throw new Error('AO sync requires config.ao.processId. Run `permabrain init` and set PERMABRAIN_AO_PROCESS_ID.');
-  const identity = loadIdentity(home);
-  const transport = new AOTransport(config);
-  const result = await transport.syncFromArweave(identity);
-  if (args.json) printJson(result);
-  else {
-    console.log(`AO sync: ${result.articles} articles, ${result.attestations} attestations`);
-    console.log(`Message ID: ${result.messageId}`);
-  }
-  return result;
-}
-
-async function aoQueryCommand(args) {
-  const home = getHome();
-  const config = loadConfig(home);
-  if (!config.ao?.processId) throw new Error('AO query requires config.ao.processId. Run `permabrain init` and set PERMABRAIN_AO_PROCESS_ID.');
-  const transport = new AOTransport(config);
-  const articles = await transport.queryArticles({
-    topic: args.topic,
-    kind: args.kind,
-    key: args.key,
-    sourceName: args['source-name']
-  });
-  if (args.json) printJson(articles);
-  else {
-    if (!articles.length) console.log('No articles found.');
-    for (const article of articles) console.log(`${article.key}\tv${article.version}\t${article.title}\t${article.topic}`);
-  }
-  return articles;
-}
-
-async function aoGetCommand(args) {
-  const home = getHome();
-  const config = loadConfig(home);
-  if (!config.ao?.processId) throw new Error('AO get requires config.ao.processId. Run `permabrain init` and set PERMABRAIN_AO_PROCESS_ID.');
-  const transport = new AOTransport(config);
-  const key = args._[0];
-  if (!key) throw new Error('ao-get requires <canonical-key>');
-  const result = await transport.getArticle(key);
-  if (!result) throw new Error(`Article not found via AO: ${key}`);
-  if (args.json) printJson(result);
-  else console.log(JSON.stringify(result, null, 2));
-  return result;
-}
-
-async function aoConsensusCommand(args) {
-  const home = getHome();
-  const config = loadConfig(home);
-  if (!config.ao?.processId) throw new Error('AO consensus requires config.ao.processId. Run `permabrain init` and set PERMABRAIN_AO_PROCESS_ID.');
-  const transport = new AOTransport(config);
-  const key = args._[0];
-  if (!key) throw new Error('ao-consensus requires <canonical-key>');
-  const result = await transport.getConsensus(key);
-  if (!result) throw new Error(`Consensus not available via AO for: ${key}`);
-  if (args.json) printJson(result);
-  else {
-    console.log(`${result.key}: ${result.status}`);
-    console.log(`Score: ${result.score}`);
-  }
-  return result;
-}
-
-async function aoDeployCommand(args) {
-  const home = getHome();
-  const config = loadConfig(home);
-
-  // Spawn the AO process
-  console.log('Spawning AO process...');
-  const { processId, moduleId, schedulerId } = await aoSpawn({
-    cwd: process.cwd(),
-    module: args.module,
-    scheduler: args.scheduler,
-    ao: config.ao
-  });
-
-  if (args.json) {
-    printJson({ processId, moduleId, schedulerId });
-  } else {
-    console.log(`AO process spawned: ${processId}`);
-    console.log(`Module: ${moduleId}`);
-    console.log(`Scheduler: ${schedulerId}`);
-  }
-
-  // Save the process ID to config
-  aoSaveProcessId(processId, home);
-  if (!args.json) console.log(`Process ID saved to config.`);
-
-  // Load process.lua into the new process
-  console.log('Loading process.lua...');
-  const { messageId } = await aoLoadLua({
-    processId,
-    cwd: process.cwd(),
-    ao: config.ao
-  });
-
-  if (args.json) {
-    printJson({ processId, messageId, moduleId, schedulerId });
-  } else {
-    console.log(`Process loaded. Eval message: ${messageId}`);
-    console.log('');
-    console.log('The process is initializing. Wait ~30 seconds, then use:');
-    console.log(`  permabrain ao-sync         # Bootstrap with existing Arweave data`);
-    console.log(`  permabrain ao-query         # Query articles via AO`);
-    console.log(`  permabrain ao-consensus <key>  # Get consensus via AO`);
-  }
-
-  return { processId, messageId, moduleId, schedulerId };
-}
-
-async function aoBootstrapCommand(args) {
-  const home = getHome();
-  const config = loadConfig(home);
-  const processId = args.process || config.ao?.processId || process.env.PERMABRAIN_AO_PROCESS_ID;
-  if (!processId) throw new Error('AO bootstrap requires --process <id> or config.ao.processId. Run `permabrain ao-deploy` first.');
-
-  // Step 1: Wait for process to be ready
-  console.log('Waiting for AO process to be ready...');
-  const ready = await waitForProcess({ processId, ao: config.ao, timeoutMs: 180000 });
-  if (!ready) {
-    throw new Error('AO process is not responding. It may still be initializing. Try again in 30-60 seconds.');
-  }
-  if (!args.json) console.log('Process is ready.');
-
-  // Step 2: Load process.lua
-  console.log('Loading process.lua...');
-  const { messageId: luaMessageId } = await aoLoadLua({
-    processId,
-    cwd: process.cwd(),
-    ao: config.ao
-  });
-  if (!args.json) console.log(`Lua loaded: ${luaMessageId}`);
-
-  // Step 3: Sync existing data from Arweave
-  console.log('Syncing existing articles and attestations from Arweave...');
-  const identity = loadIdentity(home);
-  const transport = new AOTransport({ ...config, ao: { ...config.ao, processId } });
-  const syncResult = await transport.syncFromArweave(identity);
-
-  if (args.json) {
-    printJson({ processId, luaMessageId, ...syncResult });
-  } else {
-    console.log(`Bootstrap complete.`);
-    console.log(`  Lua loaded: ${luaMessageId}`);
-    console.log(`  Articles synced: ${syncResult.articles}`);
-    console.log(`  Attestations synced: ${syncResult.attestations}`);
-    console.log(`  Sync message: ${syncResult.messageId}`);
-  }
-
-  return { processId, luaMessageId, ...syncResult };
-}
+// AO commands removed — PermaBrain now uses Arweave GraphQL + local cache directly.
+// See docs/refactor-ao-to-research-publish.md for rationale.
 
 async function attestForAgentCommand(args) {
   const key = args._[0];
