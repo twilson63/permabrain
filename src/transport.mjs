@@ -3,117 +3,21 @@ import path from 'node:path';
 import { statePaths } from './config.mjs';
 import { parseAns104, payloadBuffer, payloadText, rawDataItemBytes } from './dataitem.mjs';
 import { tagsToObject } from './tags.mjs';
-
-// AO transport removed — PermaBrain now uses Arweave GraphQL + local cache directly.
-// See docs/refactor-ao-to-research-publish.md for rationale.
-// CompositeTransport removed — no longer needed without AO layer.
+import { HyperbeamQuery } from './hb-query.mjs';
+import { HyperbeamConsensus } from './hb-consensus.mjs';
+import {
+  DEVICES, FORMATTERS,
+  bundlerUploadUrl, fetchUrl, pushUrl, processUrl, metaUrl,
+  parseHttpsigtHeaders, kebabToTitleCase, titleToKebabCase,
+  buildPermaBrainFilters,
+} from './hb-devices.mjs';
 
 export function getTransport(config, home) {
   if (config.transport === 'local' || config.gateway?.type === 'local' || config.bundler?.type === 'local') return new LocalTransport(home);
   if (config.transport === 'arweave' || config.gateway?.type === 'arweave') return new ArweaveTransport(config);
   if (config.transport === 'hyperbeam') return new HyperbeamTransport(config);
-  // Default fallback: try Arweave
+  // Default fallback: Arweave
   return new ArweaveTransport(config);
-}
-
-// ============================================================================
-// HyperBEAM Devices & Formatters
-// ============================================================================
-
-/**
- * HyperBEAM device paths and formatter identifiers.
- *
- * In the HyperBEAM architecture, devices are named services that handle
- * specific operations. Formatters define how data is encoded/decoded.
- * PermaBrain uses these devices for its publish/query/attest pipeline:
- *
- * Publish pipeline:
- *   Article/Attestation DataItem → ~bundler@1.0/tx (persist + index)
- *   AO Process message → ~push@1.0 (submit, no retrieval)
- *
- * Query pipeline:
- *   GET /{id} → HTTP-SIG formatter (httpsig@1.0) returns tags as headers
- *   GET /{scheduler}~process@1.0/now → process resolution (when compute available)
- *   POST /graphql → GraphQL query for tag-based searches
- *
- * GET canonical string for signing: path only, no query params.
- * POST canonical string: full path including page ID.
- */
-const HB_DEVICES = {
-  /** Bundler device — persists data items and makes them fetchable */
-  bundler: '~bundler@1.0',
-  /** Push device — submits messages to AO processes (no auto-index) */
-  push: '~push@1.0',
-  /** Process device — resolves AO process state */
-  process: '~process@1.0',
-  /** Meta device — node metadata */
-  meta: '~meta@1.0',
-};
-
-const HB_FORMATTERS = {
-  /** ANS-104 codec for bundler uploads */
-  ans104: 'ans104@1.0',
-  /** HTTP-SIG format for data item responses */
-  httpsig: 'httpsig@1.0',
-};
-
-/**
- * Build a HyperBEAM bundler upload URL from a base URL.
- * Format: {base}/~bundler@1.0/tx?codec-device=ans104@1.0
- */
-function bundlerUrl(baseUrl) {
-  return `${baseUrl}/${HB_DEVICES.bundler}/tx?codec-device=${HB_FORMATTERS.ans104}`;
-}
-
-/**
- * Build a HyperBEAM push URL for a given scheduler/process.
- * Format: {base}/{scheduler}~push@1.0
- */
-function pushUrl(baseUrl, scheduler) {
-  return `${baseUrl}/${scheduler}${HB_DEVICES.push}`;
-}
-
-/**
- * Build a HyperBEAM process resolution URL.
- * Format: {base}/{process}~process@1.0/now
- */
-function processUrl(baseUrl, processId) {
-  return `${baseUrl}/${processId}${HB_DEVICES.process}/now`;
-}
-
-/**
- * Build a HyperBEAM meta info URL.
- * Format: {base}/~meta@1.0/info
- */
-function metaUrl(baseUrl) {
-  return `${baseUrl}/${HB_DEVICES.meta}/info`;
-}
-
-/**
- * Parse HTTP-SIG response headers into PermaBrain tags.
- * HyperBEAM returns data items via the HTTP-SIG formatter: tags become
- * response headers (lowercase kebab-case), content in the body.
- *
- * Known PermaBrain/Arweave tag prefixes are converted from kebab-case
- * to Title-Case (e.g., 'article-key' → 'Article-Key').
- */
-function parseHttpsigtHeaders(headers) {
-  const knownPrefixes = [
-    'article-', 'app-', 'permabrain-', 'content-', 'data-protocol',
-    'type', 'module', 'scheduler', 'visibility', 'author-agent-id',
-    'attestation-', 'perma-brain'
-  ];
-  const tags = [];
-  for (const [key, value] of headers.entries()) {
-    if (knownPrefixes.some(p => key.startsWith(p) || key === p)) {
-      const tagName = key.split('-').map((s) => {
-        if (['id', 'url', 'api'].includes(s)) return s.toUpperCase();
-        return s.charAt(0).toUpperCase() + s.slice(1);
-      }).join('-');
-      tags.push({ name: tagName, value });
-    }
-  }
-  return tags;
 }
 
 // ============================================================================
@@ -157,22 +61,40 @@ export class LocalTransport {
 }
 
 // ============================================================================
-// HyperBEAM Transport
+// HyperBEAM Transport — Device-Model Architecture
 // ============================================================================
 
+/**
+ * HyperBEAM Transport using native devices for all operations.
+ *
+ * Publish pipeline:  ~bundler@1.0 (ANS-104 codec) → match index auto-built
+ * Query pipeline:   ~query@1.0 (tag-based search) + ~match@1.0 (reverse index)
+ * Fetch pipeline:    GET /{id} via httpsig@1.0 formatter (tags as headers)
+ * Consensus:        lua@5.3a device (on-node compute) with query fallback
+ * Push:             ~push@1.0 (message routing to processes)
+ * Attestations:     ~match@1.0/Attestation-Target={id} (reverse lookup)
+ * Node info:        ~meta@1.0/info
+ *
+ * Arweave serves as the underlying persistence layer; HyperBEAM
+ * devices provide indexing, querying, and compute on top.
+ */
 export class HyperbeamTransport {
   constructor(config) {
     this.config = config;
     this.baseUrl = config.gateway?.dataUrl || 'http://localhost:10000';
-    // Pre-compute device URLs from base
-    this._bundlerUploadUrl = config.bundler?.uploadUrl || bundlerUrl(this.baseUrl);
+    this.graphqlUrl = config.gateway?.graphqlUrl || `${this.baseUrl}/graphql`;
+    this._bundlerUploadUrl = config.bundler?.uploadUrl || bundlerUploadUrl(this.baseUrl);
+    this.query = new HyperbeamQuery(this.baseUrl);
+    this.consensus = new HyperbeamConsensus(this.baseUrl, {
+      consensusProcessId: config.consensus?.processId,
+    });
   }
 
-  // --- Device routing helpers ---
+  // --- Device: ~bundler@1.0 ---
 
   /**
    * Probe HyperBEAM node health and device availability.
-   * Checks: health, GraphQL, bundler upload, fetch-by-id, meta info.
+   * Checks: health, bundler, fetch-by-id, query, match, meta, GraphQL.
    */
   async probe(url = this.baseUrl) {
     const checks = [];
@@ -185,28 +107,28 @@ export class HyperbeamTransport {
         checks.push({ name, endpoint, ok: false, error: err.message });
       }
     }
-    // Health check
+
     await check('health', url, { method: 'GET' });
-    // GraphQL device
-    await check('graphql', this.config.gateway?.graphqlUrl || `${url}/graphql`, {
+    await check('bundler-upload', this._bundlerUploadUrl, { method: 'OPTIONS' });
+    await check('fetch-by-id', fetchUrl(url, '__permabrain_probe_missing__'), { method: 'GET' });
+    await check('query-device', `${url}/${DEVICES.query}?App-Name=PermaBrain&return=boolean`, { method: 'GET' });
+    await check('match-device', `${url}/${DEVICES.match}/App-Name=PermaBrain`, { method: 'GET' });
+    await check('meta-info', metaUrl(url), { method: 'GET' });
+    await check('graphql', this.graphqlUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ query: '{ transactions(first: 1) { edges { node { id } } } }' })
     });
-    // Fetch-by-id (404 is fine — proves gateway responds)
-    await check('fetch-by-id', `${url}/__permabrain_probe_missing__`, { method: 'GET' });
-    // Bundler device upload
-    await check('bundler-upload', this._bundlerUploadUrl, { method: 'OPTIONS' });
-    // Meta device
-    await check('meta-info', metaUrl(url), { method: 'GET' });
+
     return { url, checks, ok: checks.some((c) => c.name === 'health' && c.ok) };
   }
-
-  // --- Publish pipeline: ~bundler@1.0 ---
 
   /**
    * Upload a DataItem via the bundler device.
    * Uses ANS-104 codec: POST /~bundler@1.0/tx?codec-device=ans104@1.0
+   *
+   * After upload, the bundler auto-indexes all tags into the match device,
+   * making the item queryable by any tag key-value pair.
    */
   async uploadDataItem(item) {
     const bytes = rawDataItemBytes(item);
@@ -219,7 +141,7 @@ export class HyperbeamTransport {
     return { id: item.id, status: 'uploaded', response: await res.text().catch(() => '') };
   }
 
-  // --- Query pipeline: GET /{id} with httpsig@1.0 formatter ---
+  // --- Device: message@1.0 (fetch via httpsig@1.0 formatter) ---
 
   /**
    * Fetch a data item by ID. HyperBEAM returns items via the HTTP-SIG formatter:
@@ -227,17 +149,17 @@ export class HyperbeamTransport {
    * Falls back to ANS-104 binary parsing for non-HyperBEAM responses.
    */
   async fetchDataItem(id) {
-    const res = await fetch(`${this.config.gateway.dataUrl}/${encodeURIComponent(id)}`);
+    const url = fetchUrl(this.baseUrl, id);
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`HyperBEAM fetch failed for ${id}: HTTP ${res.status}`);
 
     // Try HTTP-SIG formatter: tags as response headers
     const headerTags = parseHttpsigtHeaders(res.headers);
 
     if (headerTags.length > 0) {
-      // HyperBEAM returned the item via httpsig@1.0 formatter
       const body = await res.text();
       return {
-        format: HB_FORMATTERS.httpsig,
+        format: FORMATTERS.httpsig,
         id,
         tags: headerTags,
         payload: body,
@@ -245,14 +167,14 @@ export class HyperbeamTransport {
       };
     }
 
-    // Fall back to ANS-104 binary parsing (gateway returned raw binary)
+    // Fall back to ANS-104 binary parsing
     const bytes = Buffer.from(await res.arrayBuffer());
     const text = bytes.toString('utf8');
     try { return JSON.parse(text); }
     catch {
       const parsed = parseAns104(bytes);
       return {
-        format: HB_FORMATTERS.ans104,
+        format: FORMATTERS.ans104,
         id: parsed.id,
         owner: parsed.owner,
         tags: parsed.tags,
@@ -265,19 +187,52 @@ export class HyperbeamTransport {
   }
 
   /**
-   * Fetch raw content by ID. Returns the payload buffer.
+   * Fetch raw content by ID.
    */
   async fetchData(id) {
     return payloadBuffer(await this.fetchDataItem(id));
   }
 
-  // --- Query pipeline: GraphQL ---
+  // --- Device: ~query@1.0 + ~match@1.0 ---
 
   /**
-   * Query by tags via GraphQL. Uses edge cursor pagination
-   * (Arweave/HyperBEAM GraphQL doesn't support endCursor in pageInfo).
+   * Query by tags. Uses HyperBEAM's query device by default when available,
+   * falls back to GraphQL.
+   *
+   * @param {Object} filters - Key-value tag filters
+   * @param {Object} [opts] - Options
+   * @param {boolean} [opts.useQueryDevice=true] - Use ~query@1.0 device (falls back to GraphQL)
    */
-  async queryByTags(filters = {}) {
+  async queryByTags(filters = {}, opts = {}) {
+    const useQueryDevice = opts.useQueryDevice !== false && this.config.gateway?.dataUrl;
+
+    if (useQueryDevice) {
+      try {
+        const results = await this.query.findArticles(filters);
+        if (Array.isArray(results)) {
+          return results.map(r => {
+            if (typeof r === 'string') return { id: r };
+            if (r.tags) {
+              const tagMap = tagsToObject(r.tags);
+              return { id: r.id || tagMap.id, tags: r.tags, ...tagMap };
+            }
+            return r;
+          });
+        }
+        return results;
+      } catch (err) {
+        console.warn(`HyperBEAM query device failed, falling back to GraphQL: ${err.message}`);
+      }
+    }
+
+    return this.queryByTagsGraphQL(filters);
+  }
+
+  /**
+   * GraphQL fallback for tag-based queries.
+   * Used when HyperBEAM's query device is not available or returns errors.
+   */
+  async queryByTagsGraphQL(filters = {}) {
     const tags = Object.entries(filters).map(([name, value]) => ({ name, values: [String(value)] }));
     const first = Number(this.config.gateway?.pageSize || 100);
     const maxPages = Number(this.config.gateway?.maxPages || 1000);
@@ -286,14 +241,14 @@ export class HyperbeamTransport {
     const seen = new Set();
     let after = null;
     for (let page = 0; page < maxPages; page++) {
-      const res = await fetch(this.config.gateway.graphqlUrl, {
+      const res = await fetch(this.graphqlUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ query, variables: { tags, first, after } })
       });
-      if (!res.ok) throw new Error(`HyperBEAM GraphQL failed: HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`GraphQL failed: HTTP ${res.status}`);
       const json = await res.json();
-      if (json.errors?.length) throw new Error(`HyperBEAM GraphQL failed: ${json.errors.map((err) => err.message || String(err)).join('; ')}`);
+      if (json.errors?.length) throw new Error(`GraphQL error: ${json.errors.map((err) => err.message || String(err)).join('; ')}`);
       const transactions = json.data?.transactions;
       for (const edge of transactions?.edges || []) {
         if (!edge.node?.id || seen.has(edge.node.id)) continue;
@@ -302,54 +257,98 @@ export class HyperbeamTransport {
       }
       if (!transactions?.pageInfo?.hasNextPage) return nodes;
       after = transactions.pageInfo.endCursor || transactions.edges?.at(-1)?.cursor;
-      if (!after) throw new Error('HyperBEAM GraphQL pagination failed: missing endCursor');
+      if (!after) throw new Error('GraphQL pagination: missing endCursor');
     }
-    throw new Error(`HyperBEAM GraphQL pagination exceeded ${maxPages} pages`);
+    throw new Error(`GraphQL pagination exceeded ${maxPages} pages`);
   }
 
-  // --- Future: ~push@1.0 for AO process messages ---
+  /**
+   * Find attestations for a specific article via the match device.
+   */
+  async findAttestations(articleId) {
+    return this.query.findAttestations(articleId);
+  }
+
+  // --- Device: lua@5.3a (consensus) ---
+
+  /**
+   * Compute consensus for an article.
+   * Uses Lua device if available, falls back to query-based computation.
+   */
+  async computeConsensus(articleId) {
+    return this.consensus.compute(articleId);
+  }
+
+  // --- Device: ~push@1.0 ---
 
   /**
    * Push a message to an AO process via the push device.
    * Format: POST /{scheduler}~push@1.0
    *
-   * NOTE: This is reserved for future use when HyperBEAM process computation
-   * is available. Currently, ~process@1.0/now returns 500 on most nodes
-   * because WASM runtime is not enabled.
+   * The push device routes messages to the specified process/scheduler.
+   * It handles initialization of new processes and recursive message
+   * forwarding (fan-out to downstream processes).
    */
   async pushMessage({ scheduler, data, tags, signer }) {
-    // Will be implemented when process compute is available
-    throw new Error('HyperBEAM pushMessage not yet implemented. Use bundler upload for articles/attestations.');
+    const url = pushUrl(this.baseUrl, scheduler);
+
+    // Build the push request as an HTTP-SIG message
+    const headers = { 'content-type': 'application/octet-stream' };
+    for (const tag of tags || []) {
+      headers[titleToKebabCase(tag.name)] = tag.value;
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: data,
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`HyperBEAM push failed: HTTP ${res.status} ${body}`);
+    }
+
+    const result = await res.json().catch(() => ({}));
+    return { status: 'pushed', response: result };
   }
 
-  // --- Future: ~process@1.0 for process resolution ---
+  // --- Device: ~process@1.0 ---
 
   /**
    * Resolve an AO process via the process device.
-   * Format: GET /{processId}~process@1.0/now
-   *
-   * NOTE: Requires WASM runtime on the HyperBEAM node. Most nodes don't
-   * have this enabled, so this will return 500 until compute is available.
+   * Format: GET /{processId}~process@1.0/{key}
    */
-  async resolveProcess(processId) {
-    const url = processUrl(this.baseUrl, processId);
+  async resolveProcess(processId, key = 'now') {
+    const url = processUrl(this.baseUrl, processId, key);
     const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`HyperBEAM process resolution failed for ${processId}: HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`Process resolution failed for ${processId}: HTTP ${res.status}`);
     return res.json();
   }
 
-  // --- Future: ~meta@1.0 for node info ---
+  // --- Device: ~meta@1.0 ---
 
   /**
-   * Get HyperBEAM node metadata via the meta device.
+   * Get HyperBEAM node metadata.
    * Format: GET /~meta@1.0/info
    */
   async metaInfo() {
     const url = metaUrl(this.baseUrl);
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`HyperBEAM meta info failed: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`Meta info failed: HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // --- Node info / whois ---
+
+  /**
+   * Look up an agent's identity via the whois device.
+   * Format: GET /~whois@1.0/{address}
+   */
+  async whois(address) {
+    const url = `${this.baseUrl}/${DEVICES.whois}/${encodeURIComponent(address)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Whois failed for ${address}: HTTP ${res.status}`);
     return res.json();
   }
 }
@@ -378,13 +377,10 @@ export class ArweaveTransport {
   }
 
   async fetchDataItem(id) {
-    // Arweave gateways serve decoded content, not raw ANS-104 binary.
-    // Strategy: fetch tags from GraphQL, fetch content from gateway, reconstruct item.
     const contentRes = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
     if (!contentRes.ok) throw new Error(`Arweave content fetch failed for ${id}: HTTP ${contentRes.status}`);
     const content = await contentRes.text();
 
-    // Fetch tags from GraphQL
     const tagQuery = `query($id: ID!) { transaction(id: $id) { id owner { address } tags { name value } } }`;
     const tagRes = await fetch(this.graphqlUrl, {
       method: 'POST',
@@ -400,10 +396,9 @@ export class ArweaveTransport {
     return {
       id: txNode.id,
       owner: txNode.owner?.address || txNode.owner || '',
-      timestamp: '', // Not available from GraphQL without block data
+      timestamp: '',
       tags: txNode.tags || [],
       payloadBase64: Buffer.from(content, 'utf8').toString('base64url'),
-      // No ans104Base64 since we don't have the raw binary
     };
   }
 
@@ -417,8 +412,6 @@ export class ArweaveTransport {
     const tags = Object.entries(filters).map(([name, value]) => ({ name, values: [String(value)] }));
     const first = Number(this.config.gateway?.pageSize || 100);
     const maxPages = Number(this.config.gateway?.maxPages || 100);
-    // Arweave GraphQL does NOT support `endCursor` in pageInfo or `order` on transactions.
-    // Use edge cursors for pagination instead.
     const query = `query($tags: [TagFilter!], $first: Int!, $after: String) { transactions(first: $first, after: $after, tags: $tags) { edges { cursor node { id tags { name value } } } pageInfo { hasNextPage } } }`;
     const nodes = [];
     const seen = new Set();
@@ -450,5 +443,3 @@ export class ArweaveTransport {
 export function itemSummary(item) {
   return { id: item.id, owner: item.owner, timestamp: item.timestamp, tags: tagsToObject(item.tags || []), text: payloadText(item) };
 }
-
-export { HB_DEVICES, HB_FORMATTERS, bundlerUrl, pushUrl, processUrl, metaUrl, parseHttpsigtHeaders };
