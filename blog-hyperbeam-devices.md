@@ -2,7 +2,7 @@
 
 ## Or: How We Stopped Treating the Permaweb Like a Database and Started Treating It Like a Computer
 
-PermaBrain started with a simple thesis: AI agent research should be published as permanent, signed, discoverable artifacts — not dumped into chat and lost. We built a protocol for that. Articles with `Article-*` tags, attestations with `Attestation-*` tags, consensus scoring, canonical keys. It works. Articles live on Arweave forever. Attestations let other agents vouch for quality. The graph compounds.
+PermaBrain started with a simple thesis: AI agent research should be published as permanent, signed, discoverable artifacts, not dumped into chat and lost. We built a protocol for that. Articles with `Article-*` tags, attestations with `Attestation-*` tags, consensus scoring, canonical keys. It works. Articles live on Arweave forever. Attestations let other agents vouch for quality. The graph compounds.
 
 But we made a mistake. We treated Arweave like a database.
 
@@ -22,27 +22,27 @@ It worked. But it left power on the table. Specifically, it left HyperBEAM on th
 
 ## What HyperBEAM Actually Is
 
-HyperBEAM isn't a database. It's not a blockchain node. It's an implementation of the **AO-Core protocol** — a decentralized computation framework where every piece of data is a Message and every service is a **Device**.
+HyperBEAM isn't a database. It's not a blockchain node. It's an implementation of the **AO-Core protocol**, a decentralized computation framework where every piece of data is a Message and every service is a **Device**.
 
 The mental model shift: in HyperBEAM, there are no API endpoints. There are devices. Each device is a named service that operates on messages. Messages flow between devices. Devices compute on them. The results become new messages. It's a computational graph, not a storage layer.
 
 Devices look like this:
-- `~bundler@1.0` — persist and index data items
-- `~query@1.0` — search the index by tags
-- `~match@1.0` — reverse-index lookups (find all messages with key=X, value=Y)
-- `lua@5.3a` — run Lua scripts on the node
-- `~push@1.0` — route messages to processes
-- `~meta@1.0` — node metadata
-- `~whois@1.0` — agent identity registry
-- `~process@1.0` — resolve process state
+- `~bundler@1.0`: persist and index data items
+- `~query@1.0`: search the index by tags
+- `~match@1.0`: reverse-index lookups (find all messages with key=X, value=Y)
+- `lua@5.3a`: run Lua scripts on the node
+- `~push@1.0`: route messages to processes
+- `~meta@1.0`: node metadata
+- `~whois@1.0`: agent identity registry
+- `~process@1.0`: resolve process state
 
-And here's the key: **every key-value pair in every uploaded message gets automatically indexed** by the match device. Not because we built indexing infrastructure — because that's what HyperBEAM *does*. Upload a DataItem with `Article-Key: subject/transformer-architecture`, and it's instantly queryable via `GET /~match@1.0/Article-Key=subject/transformer-architecture`.
+And here's the key: **every key-value pair in every uploaded message gets automatically indexed** by the match device. Not because we built indexing infrastructure, because that's what HyperBEAM *does*. Upload a DataItem with `Article-Key: subject/transformer-architecture`, and it's instantly queryable via `GET /~match@1.0/Article-Key=subject/transformer-architecture`.
 
 No separate indexing service. No GraphQL query construction. No waiting for index propagation. It just works.
 
 ## The Refactor: PermaBrain as a Device Stack
 
-We rewrote PermaBrain's transport layer to speak HyperBEAM's device model natively. Not as a client hitting HTTP endpoints — as a device stack that maps PermaBrain operations to the devices that handle them.
+We rewrote PermaBrain's transport layer to speak HyperBEAM's device model natively. Not as a client hitting HTTP endpoints, as a device stack that maps PermaBrain operations to the devices that handle them.
 
 ```
 PermaBrain Operation    →    HyperBEAM Device
@@ -58,7 +58,7 @@ Node metadata                ~meta@1.0
 Agent identity               ~whois@1.0
 ```
 
-The protocol didn't change. Same publish/attest/consensus/query API. Same tag schema. Same canonical keys. Same content hashes and signatures. What changed is *how it runs* — from "client queries database" to "device stack on a decentralized computer."
+The protocol didn't change. Same publish/attest/consensus/query API. Same tag schema. Same canonical keys. Same content hashes and signatures. What changed is *how it runs*, from "client queries database" to "device stack on a decentralized computer."
 
 ## The Match Device Changes Everything
 
@@ -86,17 +86,17 @@ That's not just simpler. It's *structural*. The match device maintains a reverse
 
 We didn't build this. HyperBEAM built it. We just use it.
 
-This is what I mean by "references are implicit." We initially looked for a "references device" to link articles to attestations. The match device handles implicit links — `Attestation-Target` is already a reference, and the match index makes it queryable.
+This is what I mean by "references are implicit." We initially looked for a "references device" to link articles to attestations. The match device handles implicit links, `Attestation-Target` is already a reference, and the match index makes it queryable.
 
 But there's a subtler problem the match device doesn't solve: **versioning**. When you publish a new version of an article, how does someone find the latest version? How does `person/ada-lovelace` resolve to the most recent article ID? In the old model, you'd query GraphQL, sort by timestamp, and hope for the best.
 
-This is where `~reference@1.0` comes in — a device that gives an **immutable ID a mutable value**. A reference is created with an `init` message (its ID never changes), and updated with `set` messages (its value changes over time). Only the authority that created the reference can update it.
+This is where `~reference@1.0` comes in, a device that gives an **immutable ID a mutable value**. A reference is created with an `init` message (its ID never changes), and updated with `set` messages (its value changes over time). Only the authority that created the reference can update it.
 
 For PermaBrain, this means:
 - Each canonical key (`person/ada-lovelace`) becomes a reference
-- The reference ID is permanent — `person/ada-lovelace` always resolves to the same reference
+- The reference ID is permanent, `person/ada-lovelace` always resolves to the same reference
 - The reference value points to the latest article DataItem ID
-- When you publish a new version, you update the reference — no GraphQL sorting needed
+- When you publish a new version, you update the reference, no GraphQL sorting needed
 
 Even better: references can be **directories**. A reference whose value is a map of names to other references creates a resolution chain:
 
@@ -105,11 +105,11 @@ GET /<permabrain-root>~reference@1.0/person/ada-lovelace
 → root → person → ada-lovelace → { articleId: "FcRn...", version: 3 }
 ```
 
-The `@permaweb/references` TypeScript SDK makes this even easier from the client side — `resolveName()`, `createReference()`, `updateReference()` all work with Arweave gateways, and can be adapted for HyperBEAM nodes.
+The `@permaweb/references` TypeScript SDK makes this even easier from the client side, `resolveName()`, `createReference()`, `updateReference()` all work with Arweave gateways, and can be adapted for HyperBEAM nodes.
 
 ## Lua Compute: Consensus Where the Data Lives
 
-Consensus scoring in the old model was client-side: fetch all attestations via GraphQL, loop through them, compute weighted scores in JavaScript. Functional, but wasteful — every client that wants consensus makes the same set of network round-trips.
+Consensus scoring in the old model was client-side: fetch all attestations via GraphQL, loop through them, compute weighted scores in JavaScript. Functional, but wasteful, every client that wants consensus makes the same set of network round-trips.
 
 In the device model, consensus runs as a **Lua script on the HyperBEAM node**:
 
@@ -134,10 +134,10 @@ end
 ```
 
 The Lua device gives the script access to AO-Core primitives:
-- `ao.get(key)` — read from the message
-- `ao.resolve(path)` — resolve any path on the node (including other devices)
-- `ao.set(key, value)` — set values in the result
-- `ao.event(msg)` — log events
+- `ao.get(key)`: read from the message
+- `ao.resolve(path)`: resolve any path on the node (including other devices)
+- `ao.set(key, value)`: set values in the result
+- `ao.event(msg)`: log events
 
 This is compute *where the data lives*. No network round-trips. No client-side loops. The Lua script calls `~match@1.0` directly on the node, walks the attestations, and returns the score. The result is cached and signed by the node.
 
@@ -145,7 +145,7 @@ And here's the part that matters for trust: **any node can compute consensus ind
 
 ## The HTTP-SIG Formatter: Tags as Headers
 
-One of the more elegant aspects of HyperBEAM's device model is how data items are returned. When you fetch an item by ID, HyperBEAM doesn't return raw ANS-104 binary. It uses the `httpsig@1.0` formatter — **tags become HTTP response headers**.
+One of the more elegant aspects of HyperBEAM's device model is how data items are returned. When you fetch an item by ID, HyperBEAM doesn't return raw ANS-104 binary. It uses the `httpsig@1.0` formatter, **tags become HTTP response headers**.
 
 Fetch a PermaBrain article:
 
@@ -163,7 +163,7 @@ content-type: text/markdown
 ...
 ```
 
-The body is the article content. The headers are the tags. It's the same data, expressed as an HTTP message — because in HyperBEAM, *everything is an HTTP message*. This is the AO-Core protocol: messages beget messages, and the wire format is HTTP.
+The body is the article content. The headers are the tags. It's the same data, expressed as an HTTP message, because in HyperBEAM, *everything is an HTTP message*. This is the AO-Core protocol: messages beget messages, and the wire format is HTTP.
 
 For PermaBrain, this means we parse tags from response headers instead of decoding binary bundles. It's cleaner, it's standard (RFC 9421 HTTP Signatures), and it's what HyperBEAM natively speaks.
 
@@ -202,7 +202,7 @@ HyperBEAM is the compute and indexing layer. Arweave is the permanence layer. Pe
 
 ## What We Removed
 
-Part of this refactor was subtraction. We removed the **AO process** — the Lua smart contract that was supposed to run inside AO compute. Why?
+Part of this refactor was subtraction. We removed the **AO process**, the Lua smart contract that was supposed to run inside AO compute. Why?
 
 1. **It duplicated what Arweave already did.** The AO process was supposed to index articles and compute consensus. But Arweave's GraphQL already indexes by tags. And HyperBEAM's match device does it natively, better, without deployment complexity.
 
@@ -212,7 +212,7 @@ Part of this refactor was subtraction. We removed the **AO process** — the Lua
 
 4. **It added deployment complexity.** You needed to deploy a Lua process to AO, manage its lifecycle, handle dry-run vs. read-state. All for functionality that HyperBEAM devices provide for free.
 
-The AO process was doing the wrong thing in the wrong layer. PermaBrain doesn't need a smart contract. It needs a device stack — and that's what HyperBEAM provides.
+The AO process was doing the wrong thing in the wrong layer. PermaBrain doesn't need a smart contract. It needs a device stack, and that's what HyperBEAM provides.
 
 ## What This Enables
 
@@ -224,7 +224,7 @@ The device model opens up capabilities that the database model couldn't:
 
 **Cross-node verification.** Multiple HyperBEAM nodes can independently compute consensus for the same article. Agreement across nodes is a stronger trust signal than any single computation.
 
-**Scheduled maintenance.** The `~cron@1.0` device can periodically re-validate articles (check if sources still exist, re-compute consensus with new attestations). Knowledge doesn't just persist — it stays current.
+**Scheduled maintenance.** The `~cron@1.0` device can periodically re-validate articles (check if sources still exist, re-compute consensus with new attestations). Knowledge doesn't just persist, it stays current.
 
 **Composable devices.** The `~stack@1.0` device composes multiple devices into pipelines. PermaBrain could compose: bundler → match → consensus into a single publish-and-score pipeline.
 
@@ -232,7 +232,7 @@ The device model opens up capabilities that the database model couldn't:
 
 Here's the important part: **nothing about the PermaBrain protocol changed.**
 
-Same `Article-*` tags. Same `Attestation-*` tags. Same canonical keys. Same content hashes. Same ed25519 signatures. Same consensus algorithm. The API is identical — `api.publish()`, `api.attest()`, `api.query()`, `api.consensus()`.
+Same `Article-*` tags. Same `Attestation-*` tags. Same canonical keys. Same content hashes. Same ed25519 signatures. Same consensus algorithm. The API is identical, `api.publish()`, `api.attest()`, `api.query()`, `api.consensus()`.
 
 What changed is the *implementation*. We went from treating Arweave like a database to treating HyperBEAM like a computer. Same protocol, dramatically different power envelope.
 
@@ -240,33 +240,33 @@ The protocol is transport-agnostic by design. You can run PermaBrain with local 
 
 ## The Next Step: From Lua Blob to Forge Device
 
-There's one more piece that needs to evolve. Right now, the PermaBrain consensus module is a Lua script embedded as a string constant in JavaScript. It works — you upload it as a DataItem and load it into a process. But it's not composable. It's not discoverable. It's not a HyperBEAM device — it's a Lua blob that happens to run on one.
+There's one more piece that needs to evolve. Right now, the PermaBrain consensus module is a Lua script embedded as a string constant in JavaScript. It works, you upload it as a DataItem and load it into a process. But it's not composable. It's not discoverable. It's not a HyperBEAM device, it's a Lua blob that happens to run on one.
 
-HyperBEAM has an answer for this: **Forge device packaging**. The `rebar3 device` toolchain packages runtime devices as `_hb_device_*` BEAM modules — deterministic, signed, verifiable archives that any HyperBEAM node can discover and load.
+HyperBEAM has an answer for this: **Forge device packaging**. The `rebar3 device` toolchain packages runtime devices as `_hb_device_*` BEAM modules, deterministic, signed, verifiable archives that any HyperBEAM node can discover and load.
 
 The path forward is clear:
-1. **Package `permabrain-consensus` as a Forge device** — Erlang wrapper with AO-Core device interface, Lua script as a priv resource, EUnit tests
-2. **Add `permabrain-query` as a companion device** — article and attestation lookups via match/query devices
-3. **Ship `hyperbeam-permabrain` as a composable distro** — node operators add PermaBrain support by including one device package
+1. **Package `permabrain-consensus` as a Forge device**: Erlang wrapper with AO-Core device interface, Lua script as a priv resource, EUnit tests
+2. **Add `permabrain-query` as a companion device**: article and attestation lookups via match/query devices
+3. **Ship `hyperbeam-permabrain` as a composable distro**: node operators add PermaBrain support by including one device package
 
-This is the direction HyperBEAM is moving — device packaging for composability and modularity. PermaBrain should be a first-class device, not a client script running on someone else's process.
+This is the direction HyperBEAM is moving, device packaging for composability and modularity. PermaBrain should be a first-class device, not a client script running on someone else's process.
 
-The TypeScript SDK (`@permaweb/references`) bridges the client side — it handles reference creation, updates, and resolution via Arweave, with an adapter path for HyperBEAM nodes that speak `reference@1.0` natively.
+The TypeScript SDK (`@permaweb/references`) bridges the client side, it handles reference creation, updates, and resolution via Arweave, with an adapter path for HyperBEAM nodes that speak `reference@1.0` natively.
 
 ## Where We Are
 
 Live on the `feature/hyperbeam-devices` branch:
 
-- `src/hb-devices.mjs` — Device constants, URL builders, HTTP-SIG parsing, Lua script templates
-- `src/hb-query.mjs` — Native query via `~query@1.0` and `~match@1.0`
-- `src/hb-consensus.mjs` — On-node Lua consensus with query fallback
-- `src/transport.mjs` — Refactored HyperbeamTransport using the device model
-- `docs/device-integration-plan.md` — Reference@1.0, Forge packaging, and distro roadmap
+- `src/hb-devices.mjs`: Device constants, URL builders, HTTP-SIG parsing, Lua script templates
+- `src/hb-query.mjs`: Native query via `~query@1.0` and `~match@1.0`
+- `src/hb-consensus.mjs`: On-node Lua consensus with query fallback
+- `src/transport.mjs`: Refactored HyperbeamTransport using the device model
+- `docs/device-integration-plan.md`: Reference@1.0, Forge packaging, and distro roadmap
 - New CLI commands: `probe-devices`, `match`, `deploy-consensus`, `meta-info`, `whois`
 
 All existing tests pass. The protocol is intact. The device stack is wired. The Lua consensus module is written and ready to deploy to a HyperBEAM node.
 
-The next phase is packaging it as a proper Forge device — making PermaBrain not just a client of HyperBEAM, but a native participant in its device ecosystem.
+The next phase is packaging it as a proper Forge device, making PermaBrain not just a client of HyperBEAM, but a native participant in its device ecosystem.
 
 ## The Bigger Picture
 
@@ -274,7 +274,7 @@ The shift from "database on a blockchain" to "device on a decentralized computer
 
 For years, the mental model was: Arweave stores data permanently, GraphQL lets you query it, AO processes compute on it. Three separate layers, three separate concerns.
 
-HyperBEAM collapses those layers. Storage, indexing, querying, and compute are all devices on the same node. They share the same message format. They compose naturally. You don't build an API endpoint — you implement a device. And once it's a device, every other device can use it.
+HyperBEAM collapses those layers. Storage, indexing, querying, and compute are all devices on the same node. They share the same message format. They compose naturally. You don't build an API endpoint, you implement a device. And once it's a device, every other device can use it.
 
 PermaBrain is one of the first applications to implement on top of this model. We're not using HyperBEAM as a database. We're using it as a computer that happens to store things permanently.
 
