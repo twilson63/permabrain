@@ -86,7 +86,26 @@ That's not just simpler. It's *structural*. The match device maintains a reverse
 
 We didn't build this. HyperBEAM built it. We just use it.
 
-This is what I mean by "references are implicit." We initially looked for a "references device" to link articles to attestations. There isn't one — because there doesn't need to be. The match device *is* the references device. `Attestation-Target` is already a reference. The match index makes it queryable. Done.
+This is what I mean by "references are implicit." We initially looked for a "references device" to link articles to attestations. The match device handles implicit links — `Attestation-Target` is already a reference, and the match index makes it queryable.
+
+But there's a subtler problem the match device doesn't solve: **versioning**. When you publish a new version of an article, how does someone find the latest version? How does `person/ada-lovelace` resolve to the most recent article ID? In the old model, you'd query GraphQL, sort by timestamp, and hope for the best.
+
+This is where `~reference@1.0` comes in — a device that gives an **immutable ID a mutable value**. A reference is created with an `init` message (its ID never changes), and updated with `set` messages (its value changes over time). Only the authority that created the reference can update it.
+
+For PermaBrain, this means:
+- Each canonical key (`person/ada-lovelace`) becomes a reference
+- The reference ID is permanent — `person/ada-lovelace` always resolves to the same reference
+- The reference value points to the latest article DataItem ID
+- When you publish a new version, you update the reference — no GraphQL sorting needed
+
+Even better: references can be **directories**. A reference whose value is a map of names to other references creates a resolution chain:
+
+```
+GET /<permabrain-root>~reference@1.0/person/ada-lovelace
+→ root → person → ada-lovelace → { articleId: "FcRn...", version: 3 }
+```
+
+The `@permaweb/references` TypeScript SDK makes this even easier from the client side — `resolveName()`, `createReference()`, `updateReference()` all work with Arweave gateways, and can be adapted for HyperBEAM nodes.
 
 ## Lua Compute: Consensus Where the Data Lives
 
@@ -219,17 +238,35 @@ What changed is the *implementation*. We went from treating Arweave like a datab
 
 The protocol is transport-agnostic by design. You can run PermaBrain with local storage (no network), with Arweave directly (database model), or with HyperBEAM (device model). The protocol works the same way. But HyperBEAM gives you the full power: native indexing, on-node compute, identity, push routing, and cross-node verification.
 
+## The Next Step: From Lua Blob to Forge Device
+
+There's one more piece that needs to evolve. Right now, the PermaBrain consensus module is a Lua script embedded as a string constant in JavaScript. It works — you upload it as a DataItem and load it into a process. But it's not composable. It's not discoverable. It's not a HyperBEAM device — it's a Lua blob that happens to run on one.
+
+HyperBEAM has an answer for this: **Forge device packaging**. The `rebar3 device` toolchain packages runtime devices as `_hb_device_*` BEAM modules — deterministic, signed, verifiable archives that any HyperBEAM node can discover and load.
+
+The path forward is clear:
+1. **Package `permabrain-consensus` as a Forge device** — Erlang wrapper with AO-Core device interface, Lua script as a priv resource, EUnit tests
+2. **Add `permabrain-query` as a companion device** — article and attestation lookups via match/query devices
+3. **Ship `hyperbeam-permabrain` as a composable distro** — node operators add PermaBrain support by including one device package
+
+This is the direction HyperBEAM is moving — device packaging for composability and modularity. PermaBrain should be a first-class device, not a client script running on someone else's process.
+
+The TypeScript SDK (`@permaweb/references`) bridges the client side — it handles reference creation, updates, and resolution via Arweave, with an adapter path for HyperBEAM nodes that speak `reference@1.0` natively.
+
 ## Where We Are
 
-This is live on the `feature/hyperbeam-devices` branch:
+Live on the `feature/hyperbeam-devices` branch:
 
 - `src/hb-devices.mjs` — Device constants, URL builders, HTTP-SIG parsing, Lua script templates
 - `src/hb-query.mjs` — Native query via `~query@1.0` and `~match@1.0`
 - `src/hb-consensus.mjs` — On-node Lua consensus with query fallback
 - `src/transport.mjs` — Refactored HyperbeamTransport using the device model
+- `docs/device-integration-plan.md` — Reference@1.0, Forge packaging, and distro roadmap
 - New CLI commands: `probe-devices`, `match`, `deploy-consensus`, `meta-info`, `whois`
 
 All existing tests pass. The protocol is intact. The device stack is wired. The Lua consensus module is written and ready to deploy to a HyperBEAM node.
+
+The next phase is packaging it as a proper Forge device — making PermaBrain not just a client of HyperBEAM, but a native participant in its device ecosystem.
 
 ## The Bigger Picture
 
