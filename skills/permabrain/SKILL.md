@@ -159,6 +159,88 @@ await api.init({ transport: 'arweave' });
 const article = await api.publish({ ... }); // uploads automatically
 ```
 
+## HyperBEAM Devices (on-node consensus, query & references)
+
+PermaBrain ships three **Forge devices** published to Arweave. When you talk to a
+HyperBEAM node that has them preloaded, consensus and query run *on the node* —
+the result is computed where the data lives and is signed by the node, so any
+node can recompute it independently (trustless verification). This is faster and
+more trustworthy than client-side scoring for read-heavy or verification flows.
+
+### Published device IDs
+
+| Device | Spec ID | Impl ID |
+|--------|---------|---------|
+| `permabrain-consensus@1.0` | `XIsiSYSLaKq99Cnp0vmbsrdZZZyZuNrd1VGU5E7oxQQ` | `ffk_7QOgGEk022l8j0aVyIKxDlg1P5mschBKzmaaUPg` |
+| `permabrain-query@1.0` | `u9tFjQvxJTlF5jLabE1ye9rA5kzbSli-zhycnxBHutM` | `kf1DH2m1a0u08XJefNPFMAtPbMqd8GrlCETChhbokrg` |
+
+(Also available: `reference@1.0` — immutable ID with a mutable value, for article
+keys that always point at the latest version.) Operators trust devices by these
+IDs; see `docs/hyperbeam-operator-guide.md`.
+
+### Using them from the client
+
+Point a HyperBEAM transport at a node and the consensus client prefers the
+on-node device automatically (falling back to client-side scoring if the node
+doesn't have it):
+
+```javascript
+import { HyperbeamConsensus } from '/home/node/.openclaw/workspace/permabrain/src/hb-consensus.mjs';
+import { HyperbeamQuery } from '/home/node/.openclaw/workspace/permabrain/src/hb-query.mjs';
+
+const node = 'http://localhost:8734';
+
+// On-node consensus (signed by the node). Returns
+// { score, count, validCount, invalidCount, status, method }.
+const consensus = await new HyperbeamConsensus(node).compute(articleId);
+//   method: 'permabrain-consensus@1.0'  when the device handled it.
+
+// On-node article/attestation query.
+const results = await new HyperbeamQuery(node).query({ 'App-Name': 'PermaBrain', 'Article-Key': key });
+```
+
+Or call the devices directly over HTTP:
+
+```javascript
+import { deviceConsensusUrl, deviceQueryUrl, referenceComputeUrl } from '/home/node/.openclaw/workspace/permabrain/src/hb-devices.mjs';
+
+// Consensus: pass the article DataItem id in the Attestation-Target header.
+const c = await (await fetch(deviceConsensusUrl(node), {
+  headers: { 'Attestation-Target': articleId, 'Accept': 'application/json' },
+})).json();
+// { 'Consensus-Score', 'Consensus-Count', 'Consensus-Valid-Count',
+//   'Consensus-Invalid-Count', 'Consensus-Status' }
+
+// Query: pass Article-Key / Article-Kind / Article-Topic as headers.
+await fetch(deviceQueryUrl(node), { headers: { 'Article-Key': key, 'Accept': 'application/json' } });
+
+// Resolve a reference's current value (use the /compute sub-path).
+const ref = await (await fetch(referenceComputeUrl(node, refId), { headers: { Accept: 'application/json' } })).json();
+// ref['current-version'] -> the latest article DataItem id for that reference
+```
+
+### Client-side vs on-node consensus
+
+- `api.consensus(key)` — **client-side**, the full weighted model (5 opinions,
+  confidence, recency, version targeting). Use for the richest picture.
+- `~permabrain-consensus@1.0` — **on-node**, a fast signed *binary* score
+  (valid/invalid weighted by confidence). Use to offload work or get a
+  node-verifiable result.
+
+These stay consistent because `api.attest()` now tags every attestation for
+**both**: the canonical `Attestation-Opinion`/`Attestation-Target-Id` (client
+model) *and* the device contract `Attestation-Valid`/`Attestation-Target`/
+`Attestation-Confidence`. Ambiguous opinions (partially-valid, disputed,
+outdated) set `Attestation-Opinion` but omit `Attestation-Valid`, so they count
+in the client model and are skipped by the binary on-node score rather than
+distorting it.
+
+### Operator note
+
+A node serving mutable references must disable result caching for reference
+reads (`cache-control: no-store/no-cache`, or a finite `reference-max-age`), or
+the first value gets pinned. Resolve references via the `/compute` sub-path.
+
 ## CLI Commands (Fallback)
 
 If the API is unavailable, use the CLI at `/home/node/.openclaw/workspace/permabrain-project/`:
@@ -277,4 +359,4 @@ await api.attest('subject/arweave-ans104-dataitem-format', {
 2. **Arweave GraphQL quirks:** No `order` on transactions, no `endCursor` in pageInfo. Use edge cursors.
 3. **Arweave `get` works:** Fetches tags from GraphQL + content from gateway, reconstructs item. Content hash verified.
 4. **Local cache:** `.permabrain/cache/index.json` for summaries, `.permabrain/cache/pages/` for full content
-5. **Consensus scoring:** weighted by opinion (valid=+1, partially-valid=+0.5, invalid=-1, disputed=-0.75, outdated=-0.5), confidence, recency, and version targeting
+5. **Consensus scoring:** client-side is weighted by opinion (valid=+1, partially-valid=+0.5, invalid=-1, disputed=-0.75, outdated=-0.5), confidence, recency, and version targeting. On a HyperBEAM node, the published `~permabrain-consensus@1.0` device computes a fast, signed binary score on-node — see "HyperBEAM Devices" above.

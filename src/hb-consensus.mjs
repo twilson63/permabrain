@@ -18,7 +18,7 @@
 
 import { HyperbeamQuery } from './hb-query.mjs';
 import {
-  DEVICES, processUrl, pushUrl,
+  DEVICES, processUrl, pushUrl, deviceConsensusUrl,
   PERMABRAIN_CONSENSUS_LUA, PERMABRAIN_QUERY_LUA
 } from './hb-devices.mjs';
 
@@ -39,7 +39,15 @@ export class HyperbeamConsensus {
    * @returns {Promise<Object>} { score, count, validCount, invalidCount, method }
    */
   async compute(articleId) {
-    // Try Lua device if a process is configured
+    // Prefer the published on-node consensus device (~permabrain-consensus@1.0):
+    // it scores where the data lives and the result is signed by the node.
+    try {
+      return await this.computeViaDevice(articleId);
+    } catch (err) {
+      console.warn(`On-node consensus device unavailable, falling back: ${err.message}`);
+    }
+
+    // Then a Lua process, if one is configured.
     if (this.processId) {
       try {
         return await this.computeViaLua(articleId);
@@ -48,8 +56,37 @@ export class HyperbeamConsensus {
       }
     }
 
-    // Fallback: query-based consensus
+    // Last resort: client-side scoring over match results.
     return this.computeViaQuery(articleId);
+  }
+
+  /**
+   * Compute consensus via the published ~permabrain-consensus@1.0 device.
+   *
+   * Format: GET /~permabrain-consensus@1.0/consensus
+   *         Header: Attestation-Target: {articleId}
+   *
+   * The device matches attestations (tagged Attestation-Target /
+   * Attestation-Valid / Attestation-Confidence) via the node's match index and
+   * returns the weighted score. Requires a node with the device preloaded.
+   */
+  async computeViaDevice(articleId) {
+    const res = await fetch(deviceConsensusUrl(this.baseUrl), {
+      headers: { 'Attestation-Target': articleId, 'Accept': 'application/json' },
+    });
+    if (!res.ok) throw new Error(`consensus device HTTP ${res.status}`);
+    const r = await res.json();
+    if (r['Consensus-Status'] === undefined) {
+      throw new Error('consensus device returned no Consensus-Status');
+    }
+    return {
+      score: parseFloat(r['Consensus-Score'] || 0),
+      count: parseInt(r['Consensus-Count'] || 0, 10),
+      validCount: parseInt(r['Consensus-Valid-Count'] || 0, 10),
+      invalidCount: parseInt(r['Consensus-Invalid-Count'] || 0, 10),
+      status: r['Consensus-Status'],
+      method: 'permabrain-consensus@1.0',
+    };
   }
 
   /**
