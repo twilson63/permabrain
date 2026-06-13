@@ -25,7 +25,8 @@
     "test:multi-agent": "node test/multi-agent.mjs",
     "test:module-import": "node test/module-import.mjs",
     "test:pi-skill": "node test/pi-skill.mjs",
-"test:hyperbeam": "node test/hyperbeam.mjs",
+    "test:hyperbeam": "node test/hyperbeam.mjs",
+    "test:hb-reference": "node test/hb-reference.mjs",
     "test:wikipedia": "node test/wikipedia.mjs",
     "test:arweave": "node test/arweave.mjs",
     "test:public-upload": "node test/public-upload.mjs"
