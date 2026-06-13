@@ -30,11 +30,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Build Erlang/OTP from source (ensures compatibility)
+ENV CFLAGS="-O2 -Wno-error=incompatible-pointer-types"
 RUN cd /tmp && git clone --depth 1 --branch maint-${ERLANG_VERSION} https://github.com/erlang/otp.git \
     && cd otp \
-    && CFLAGS="-Wno-error=incompatible-pointer-types" ./configure \
+    && ./configure \
         --without-javac --without-debugger --without-observer --without-wx \
-    && CFLAGS="-Wno-error=incompatible-pointer-types" make -j$(nproc) \
+    && make -j$(nproc) \
     && make install \
     && cd / && rm -rf /tmp/otp
 
