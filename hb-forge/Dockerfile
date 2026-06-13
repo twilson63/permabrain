@@ -1,8 +1,8 @@
 # HyperBEAM Device Development Environment
-# Includes: Erlang/OTP 27, rebar3 3.24+, Rust, Git, cmake
+# Includes: Erlang/OTP 27+, rebar3 3.24+, Rust, Git, cmake
 # Usage:
 #   docker build -t ghcr.io/twilson63/hyperbeam-dev:latest .
-#   docker push ghcr.io/twilson63/hyperbeam-dev:latest
+#   docker run --rm ghcr.io/twilson63/hyperbeam-dev:latest erl -version
 #
 #   # Build a device package:
 #   docker run --rm -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev:latest \
@@ -18,31 +18,19 @@
 
 FROM debian:trixie-slim
 
-ARG ERLANG_VERSION=27
-ARG REBAR3_VERSION=3.24.0
 ARG RUST_PROFILE=minimal
 
-# Install build dependencies
+# Install build/runtime dependencies. Debian trixie ships Erlang/OTP 27,
+# which matches HyperBEAM Forge's current recommended baseline and avoids
+# a long source build in the dev image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential autoconf m4 libncurses-dev libssl-dev \
     git curl pkg-config cmake unixodbc-dev xsltproc fop libxml2-utils \
     openssh-client ca-certificates \
+    erlang-base erlang-dev erlang-crypto erlang-eunit erlang-inets \
+    erlang-os-mon erlang-public-key erlang-runtime-tools erlang-ssl \
+    erlang-syntax-tools erlang-tools rebar3 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Build Erlang/OTP from source (ensures compatibility)
-ENV CFLAGS="-O2 -Wno-error=incompatible-pointer-types"
-RUN cd /tmp && git clone --depth 1 --branch maint-${ERLANG_VERSION} https://github.com/erlang/otp.git \
-    && cd otp \
-    && ./configure \
-        --without-javac --without-debugger --without-observer --without-wx \
-    && make -j$(nproc) \
-    && make install \
-    && cd / && rm -rf /tmp/otp
-
-# Install rebar3 from source
-RUN cd /tmp && git clone --depth 1 --branch ${REBAR3_VERSION} https://github.com/erlang/rebar3.git \
-    && cd rebar3 && ./bootstrap && mv rebar3 /usr/local/bin/ \
-    && cd / && rm -rf /tmp/rebar3
 
 # Install Rust (minimal profile — needed for elmdb-rs NIF)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile ${RUST_PROFILE} --default-toolchain stable \
@@ -53,12 +41,9 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN erl -version && rebar3 version && rustc --version && cargo --version && cmake --version | head -1 && git --version
 
 # Install HyperBEAM Forge template
-RUN git clone --depth 1 --branch edge https://github.com/permaweb/HyperBEAM.git /tmp/hyperbeam \
+RUN git clone --depth 1 --branch edge https://github.com/permaweb/hyperbeam.git /tmp/hyperbeam \
     && cd /tmp/hyperbeam && ./install-template --branch edge \
     && cd / && rm -rf /tmp/hyperbeam
 
-# Set up working directory
 WORKDIR /work
-
-# Default shell
 CMD ["/bin/bash"]

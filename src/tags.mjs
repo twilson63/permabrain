@@ -135,6 +135,17 @@ export function buildAttestationTags({
   const normalizedConfidence = validateConfidence(confidence);
   if (!reason) throw new Error('Attestation-Reason is required');
   if (!agentId) throw new Error('Attestation-Agent-Id is required');
+  // Device-contract tags for the on-node ~permabrain-consensus@1.0 device,
+  // which matches on `Attestation-Target` and scores binary `Attestation-Valid`
+  // weighted by `Attestation-Confidence`. We emit these alongside the canonical
+  // PermaBrain tags so the same attestation is scoreable both client-side (the
+  // full 5-opinion model) and on-node (binary). Only clear valid/invalid
+  // opinions set `Attestation-Valid`; ambiguous opinions (partially-valid,
+  // disputed, outdated) are omitted so they don't distort the binary score.
+  const deviceValid =
+    normalizedOpinion === 'valid' ? 'valid'
+    : normalizedOpinion === 'invalid' ? 'invalid'
+    : undefined;
   return objectToTags({
     'App-Name': 'PermaBrain',
     'App-Version': APP_VERSION,
@@ -146,6 +157,9 @@ export function buildAttestationTags({
     'Attestation-Reason': reason,
     'Attestation-Agent-Id': agentId,
     'Attestation-Source-Url': sourceUrl,
-    'Attestation-Created-At': now
+    'Attestation-Created-At': now,
+    // On-node consensus device contract (additive):
+    'Attestation-Target': targetId,
+    'Attestation-Valid': deviceValid
   });
 }

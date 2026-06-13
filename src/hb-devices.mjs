@@ -28,6 +28,10 @@ export const DEVICES = {
   match: '~match@1.0',
   /** Reference — immutable ID with mutable value, supports resolution chains */
   reference: '~reference@1.0',
+  /** PermaBrain consensus — on-node weighted consensus scoring (Forge device) */
+  permabrainConsensus: '~permabrain-consensus@1.0',
+  /** PermaBrain query — on-node structured article/attestation lookups (Forge device) */
+  permabrainQuery: '~permabrain-query@1.0',
   /** Message — identity/default device (returns raw message keys) */
   message: 'message@1.0',
   /** Cache — node-local caching device */
@@ -38,6 +42,24 @@ export const DEVICES = {
   cron: '~cron@1.0',
   /** Whois — agent identity registry */
   whois: '~whois@1.0',
+};
+
+/**
+ * Published PermaBrain Forge device IDs on Arweave.
+ *
+ * Operators trust these by spec/impl ID; clients can resolve the devices on any
+ * HyperBEAM node that has them preloaded. Published 2026-06-13.
+ * See docs/hyperbeam-operator-guide.md.
+ */
+export const PERMABRAIN_DEVICES = {
+  'permabrain-consensus@1.0': {
+    spec: 'XIsiSYSLaKq99Cnp0vmbsrdZZZyZuNrd1VGU5E7oxQQ',
+    impl: 'ffk_7QOgGEk022l8j0aVyIKxDlg1P5mschBKzmaaUPg',
+  },
+  'permabrain-query@1.0': {
+    spec: 'u9tFjQvxJTlF5jLabE1ye9rA5kzbSli-zhycnxBHutM',
+    impl: 'kf1DH2m1a0u08XJefNPFMAtPbMqd8GrlCETChhbokrg',
+  },
 };
 
 export const FORMATTERS = {
@@ -157,6 +179,41 @@ export function matchUrl(base, key, value) {
 export function referenceUrl(base, refId, path = '') {
   const url = `${base}/${encodeURIComponent(refId)}${DEVICES.reference}`;
   return path ? `${url}/${path}` : url;
+}
+
+/**
+ * Resolve a reference's current value on a node via its /compute path.
+ * Format: {base}/{refId}~reference@1.0/compute
+ *
+ * Use /compute (not a bare key path): /compute resolves from local cache,
+ * while the bare-key default resolver triggers a gateway freshness check.
+ */
+export function referenceComputeUrl(base, refId) {
+  return `${base}/${encodeURIComponent(refId)}${DEVICES.reference}/compute`;
+}
+
+/**
+ * Build a URL for the on-node PermaBrain consensus device.
+ * Format: {base}/~permabrain-consensus@1.0/consensus
+ *
+ * Pass the article id in the `Attestation-Target` request header. The device
+ * matches attestations (tagged `Attestation-Target` / `Attestation-Valid` /
+ * `Attestation-Confidence`) via the node's match index and returns
+ * `Consensus-Score` / `Consensus-Count` / `Consensus-Valid-Count` /
+ * `Consensus-Invalid-Count` / `Consensus-Status`.
+ */
+export function deviceConsensusUrl(base) {
+  return `${base}/${DEVICES.permabrainConsensus}/consensus`;
+}
+
+/**
+ * Build a URL for the on-node PermaBrain query device.
+ * Format: {base}/~permabrain-query@1.0/query
+ *
+ * Pass `Article-Key` / `Article-Kind` / `Article-Topic` as request headers.
+ */
+export function deviceQueryUrl(base) {
+  return `${base}/${DEVICES.permabrainQuery}/query`;
 }
 
 /**
