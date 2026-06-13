@@ -9,3 +9,22 @@ coverage/
 .understand-anything/
 context.md
 articles/
+
+# hb-forge: external device pulled in locally (samcamwilliams/reference-1.0), not ours to commit
+hb-forge/src/dev_reference.erl
+
+# hb-forge: private Arweave wallet key — never commit
+hb-forge/hyperbeam-key.json
+
+# hb-forge: build artifacts & local state (includes locally-patched vendored deps)
+hb-forge/_build/
+hb-forge/cache-mainnet/
+hb-forge/logs/
+hb-forge/rebar.lock
+hb-forge/rebar3.crashdump
+
+# Forge device-packaging session artifacts (local only)
+docs/forge-publish-bug-report.md
+publish-bug-report-zenbin.mjs
+test/step9-devices.mjs
+test/step12-e2e.mjs

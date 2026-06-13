@@ -116,17 +116,28 @@ rebar3 device local
 rebar3 device publish --key wallet.json
 ```
 
-This outputs the spec and implementation IDs:
+> **Note:** on the HyperBEAM `edge` build used here, `rebar3 device publish`
+> crashes on its upload path (see `docs/forge-publish-bug-report.md`). These
+> devices were instead published by serializing the signed spec/impl messages to
+> ANS-104 and uploading them directly to the Arweave bundler (`up.arweave.net`).
+> The IDs below are the resulting data-item IDs.
+
+### Published Device IDs
+
+Published 2026-06-13 (signed by `tfFwf_9YX7EdPyWzWCjmANxhLivWENWmmr8tnJJEJpE`,
+built on Erlang/OTP 28, `variant: ao.N.1`):
+
 ```
 permabrain-consensus@1.0:
-  spec: <SPEC_ID>
-  impl: <IMPL_ID>
+  spec: XIsiSYSLaKq99Cnp0vmbsrdZZZyZuNrd1VGU5E7oxQQ
+  impl: ffk_7QOgGEk022l8j0aVyIKxDlg1P5mschBKzmaaUPg
 permabrain-query@1.0:
-  spec: <SPEC_ID>
-  impl: <IMPL_ID>
+  spec: u9tFjQvxJTlF5jLabE1ye9rA5kzbSli-zhycnxBHutM
+  impl: kf1DH2m1a0u08XJefNPFMAtPbMqd8GrlCETChhbokrg
 ```
 
-Record these IDs — operators need them to trust your device.
+Each `impl` message references its `spec` via the `implements-device` tag.
+Operators need these IDs to trust the devices.
 
 ## Step 2: Operator Setup — Running PermaBrain on a HyperBEAM Node
 
