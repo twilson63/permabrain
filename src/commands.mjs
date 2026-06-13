@@ -8,6 +8,9 @@ import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, proces
 import { consensusForArticle } from './consensus.mjs';
 import { loadIdentity } from './keys.mjs';
 import { getTransport } from './transport.mjs';
+import { HyperbeamQuery } from './hb-query.mjs';
+import { HyperbeamConsensus } from './hb-consensus.mjs';
+import { DEVICES, bundlerUploadUrl } from './hb-devices.mjs';
 
 import fs from 'node:fs';
 
@@ -30,6 +33,11 @@ export async function runCommand(command, args) {
   if (command === 'provision-agent') return provisionAgentCommand(args);
   if (command === 'batch-attest') return batchAttestCommand(args);
   if (command === 'auto-import') return autoImportCommand(args);
+  if (command === 'probe-devices') return probeDevicesCommand(args);
+  if (command === 'match') return matchCommand(args);
+  if (command === 'deploy-consensus') return deployConsensusCommand(args);
+  if (command === 'meta-info') return metaInfoCommand(args);
+  if (command === 'whois') return whoisCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -324,6 +332,114 @@ async function autoImportCommand(args) {
       } else {
         console.log(`  ✗ ${r.key}: ${r.error}`);
       }
+    }
+  }
+  return result;
+}
+
+async function probeDevicesCommand(args) {
+  const home = getHome();
+  let config;
+  try { config = loadConfig(home); } catch { config = {}; }
+  const baseUrl = args.url || config.gateway?.dataUrl || 'http://localhost:10000';
+  const transport = new HyperbeamTransport({
+    ...config,
+    gateway: { ...(config.gateway || {}), dataUrl: baseUrl, graphqlUrl: `${baseUrl}/graphql` },
+    bundler: { ...(config.bundler || {}), uploadUrl: bundlerUploadUrl(baseUrl) },
+  });
+  const result = await transport.probe(baseUrl);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(`HyperBEAM Device Probe: ${result.url}`);
+    for (const check of result.checks) {
+      const icon = check.ok ? '✓' : '✗';
+      console.log(`  ${icon} ${check.name}: ${check.ok ? 'available' : (check.error || `HTTP ${check.status}`)}`);
+    }
+  }
+  return result;
+}
+
+async function matchCommand(args) {
+  const home = getHome();
+  let config;
+  try { config = loadConfig(home); } catch { config = {}; }
+  const baseUrl = args.url || config.gateway?.dataUrl || 'http://localhost:10000';
+  const query = new HyperbeamQuery(baseUrl);
+  const key = args.key || args._[0];
+  const value = args.value || args._[1];
+  if (!key || !value) throw new Error('match requires --key <tag-name> --value <tag-value>');
+  const results = await query.match(key, value);
+  if (args.json) {
+    printJson(results);
+  } else {
+    console.log(`Match: ${key}=${value}`);
+    console.log(`Results: ${results.length}`);
+    for (const id of results) {
+      console.log(`  ${id}`);
+    }
+  }
+  return results;
+}
+
+async function deployConsensusCommand(args) {
+  const home = getHome();
+  let config;
+  try { config = loadConfig(home); } catch { config = {}; }
+  const baseUrl = args.url || config.gateway?.dataUrl || 'http://localhost:10000';
+  const identity = loadIdentity(home);
+  const uploadUrl = config.bundler?.uploadUrl || bundlerUploadUrl(baseUrl);
+  const consensus = new HyperbeamConsensus(baseUrl, config.consensus || {});
+  const result = await consensus.deploy(uploadUrl, identity);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log('Deployed PermaBrain consensus modules to HyperBEAM:');
+    console.log(`  Consensus module: ${result.consensusModuleId}`);
+    console.log(`  Query module: ${result.queryModuleId}`);
+  }
+  return result;
+}
+
+async function metaInfoCommand(args) {
+  const home = getHome();
+  let config;
+  try { config = loadConfig(home); } catch { config = {}; }
+  const baseUrl = args.url || config.gateway?.dataUrl || 'http://localhost:10000';
+  const transport = new HyperbeamTransport({
+    ...config,
+    gateway: { ...(config.gateway || {}), dataUrl: baseUrl },
+  });
+  const result = await transport.metaInfo();
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log('HyperBEAM Node Info:');
+    for (const [key, value] of Object.entries(result)) {
+      console.log(`  ${key}: ${value}`);
+    }
+  }
+  return result;
+}
+
+async function whoisCommand(args) {
+  const home = getHome();
+  let config;
+  try { config = loadConfig(home); } catch { config = {}; }
+  const baseUrl = args.url || config.gateway?.dataUrl || 'http://localhost:10000';
+  const transport = new HyperbeamTransport({
+    ...config,
+    gateway: { ...(config.gateway || {}), dataUrl: baseUrl },
+  });
+  const address = args._[0] || args.address;
+  if (!address) throw new Error('whois requires <address>');
+  const result = await transport.whois(address);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(`Whois: ${address}`);
+    for (const [key, value] of Object.entries(result)) {
+      console.log(`  ${key}: ${value}`);
     }
   }
   return result;

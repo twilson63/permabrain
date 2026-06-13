@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PermaBrain on HyperBEAM, When Your Knowledge Graph Becomes a Device</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,400&display=swap');
+
+:root {
+  --bg: #f6f2eb;
+  --bg-elevated: #efe9df;
+  --bg-card: #e8e0d3;
+  --fg: #1a1714;
+  --fg-muted: #5c564e;
+  --fg-dim: #9a9288;
+  --accent: #c44b1a;
+  --accent-dim: #a3794a;
+  --accent-glow: rgba(196, 75, 26, 0.08);
+  --accent-light: rgba(196, 75, 26, 0.06);
+  --code-bg: #ece4d6;
+  --border: #d4cbbe;
+  --border-accent: rgba(196, 75, 26, 0.3);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Subtle paper texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4rem 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 40%;
+  background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 100%);
+  z-index: 0;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30vh;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hero-glow {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 900px;
+  height: 600px;
+  background: radial-gradient(ellipse, var(--accent-light), transparent 70%);
+  pointer-events: none;
+  animation: pulse-glow 8s ease-in-out infinite alternate;
+  z-index: 1;
+}
+
+@keyframes pulse-glow {
+  0% { opacity: 0.4; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+.hero-content {
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 3;
+}
+
+.hero-eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2rem;
+  font-weight: 500;
+  animation: fade-in 0.8s ease-out both;
+}
+
+.hero h1 {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(2.8rem, 7vw, 5.5rem);
+  line-height: 1.05;
+  font-weight: 700;
+  color: var(--fg);
+  margin-bottom: 2rem;
+  animation: fade-in 0.8s ease-out 0.1s both;
+  font-optical-sizing: auto;
+}
+
+.hero h1 em {
+  font-style: italic;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.hero-subtitle {
+  font-size: 1.05rem;
+  color: var(--fg-muted);
+  max-width: 620px;
+  line-height: 1.65;
+  animation: fade-in 0.8s ease-out 0.2s both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.scroll-hint {
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+.scroll-hint span {
+  display: block;
+  width: 1px;
+  height: 40px;
+  background: linear-gradient(to bottom, var(--accent), transparent);
+  margin: 0 auto;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(8px); }
+}
+
+article {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 2rem 8rem;
+}
+
+article section {
+  margin-bottom: 5rem;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+article section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+h2 {
+  font-family: 'Fraunces', serif;
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 1.5rem;
+  color: var(--fg);
+  font-optical-sizing: auto;
+}
+
+h2 .accent { color: var(--accent); }
+
+h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  color: var(--fg);
+  font-optical-sizing: auto;
+}
+
+p {
+  margin-bottom: 1.4rem;
+  color: var(--fg-muted);
+  font-size: 0.92rem;
+  line-height: 1.75;
+}
+
+p strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.separator {
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--border), transparent);
+  margin: 4rem 0;
+}
+
+/* Code blocks */
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.4rem 1.6rem;
+  overflow-x: auto;
+  margin: 1.5rem 0 2rem;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  position: relative;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
+}
+
+pre::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0.6rem;
+  right: 1rem;
+  font-size: 0.65rem;
+  color: var(--fg-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--accent);
+}
+
+pre code {
+  color: var(--fg-muted);
+}
+
+.code-inline {
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.85em;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Architecture diagram */
+.arch-diagram {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  margin: 2rem 0;
+  overflow-x: auto;
+}
+
+.arch-diagram pre {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  line-height: 1.6;
+  box-shadow: none;
+}
+
+.arch-diagram .device { color: var(--accent); }
+.arch-diagram .comment { color: var(--fg-dim); }
+
+/* Device table */
+.device-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 2rem 0;
+  font-size: 0.82rem;
+}
+
+.device-table th {
+  background: var(--bg-card);
+  color: var(--fg);
+  font-weight: 500;
+  text-align: left;
+  padding: 0.8rem 1rem;
+  border-bottom: 2px solid var(--accent-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.device-table td {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  vertical-align: top;
+}
+
+.device-table tr:hover td {
+  background: var(--accent-glow);
+}
+
+.device-table .device-name {
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+}
+
+/* Pull quote */
+.pull-quote {
+  border-left: 3px solid var(--accent);
+  padding: 1.2rem 0 1.2rem 1.5rem;
+  margin: 2.5rem 0;
+  font-family: 'Fraunces', serif;
+  font-size: 1.35rem;
+  font-style: italic;
+  color: var(--fg);
+  line-height: 1.45;
+  background: var(--accent-light);
+  border-radius: 0 6px 6px 0;
+  font-optical-sizing: auto;
+}
+
+.pull-quote cite {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-style: normal;
+  color: var(--fg-dim);
+  margin-top: 0.6rem;
+  letter-spacing: 0.05em;
+}
+
+/* Number callouts */
+.callout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.2rem;
+  margin: 2rem 0;
+}
+
+.callout {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  position: relative;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.callout:hover {
+  border-color: var(--border-accent);
+  box-shadow: 0 2px 12px var(--accent-glow);
+}
+
+.callout-number {
+  font-family: 'Fraunces', serif;
+  font-size: 2.5rem;
+  color: var(--accent);
+  opacity: 0.2;
+  position: absolute;
+  top: 0.8rem;
+  right: 1.2rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.callout h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+}
+
+.callout p {
+  font-size: 0.82rem;
+  margin-bottom: 0;
+  line-height: 1.6;
+}
+
+/* Before/After comparison */
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.comparison-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.comparison-card.before { border-color: rgba(180,60,60,0.3); }
+.comparison-card.after { border-color: var(--border-accent); }
+
+.comparison-card h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.comparison-card.before h4 { color: #b43c3c; }
+.comparison-card.after h4 { color: var(--accent); }
+
+.comparison-card ul {
+  list-style: none;
+  padding: 0;
+}
+
+.comparison-card li {
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  padding: 0.4rem 0;
+  padding-left: 1.2rem;
+  position: relative;
+  line-height: 1.5;
+}
+
+.comparison-card.before li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: #b43c3c;
+  opacity: 0.6;
+}
+
+.comparison-card.after li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+/* Files list */
+.files-list {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin: 2rem 0;
+}
+
+.files-list h4 {
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin-bottom: 1rem;
+}
+
+.files-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.files-list li {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  padding: 0.35rem 0;
+  color: var(--fg-muted);
+}
+
+.files-list li .file-name {
+  color: var(--accent);
+}
+
+.files-list li .file-desc {
+  color: var(--fg-dim);
+  margin-left: 0.5rem;
+}
+
+/* Footer */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+footer p {
+  font-size: 0.8rem;
+  color: var(--fg-dim);
+  margin-bottom: 0.5rem;
+}
+
+footer a {
+  color: var(--accent-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  transition: color 0.2s, border-color 0.2s;
+}
+
+footer a:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Responsive */
+@media (max-width: 680px) {
+  .hero { padding: 2rem 1.2rem; }
+  article { padding: 0 1.2rem 6rem; }
+  h2 { font-size: 1.8rem; }
+  .comparison { grid-template-columns: 1fr; }
+  .callout-grid { grid-template-columns: 1fr; }
+  .device-table { font-size: 0.72rem; }
+  .device-table th, .device-table td { padding: 0.5rem 0.6rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">PermaBrain × HyperBEAM</div>
+    <h1>When Your Knowledge Graph <em>Becomes</em> a Device</h1>
+    <p class="hero-subtitle">
+      We stopped treating the permaweb like a database and started treating it like a computer.
+      Here's what changed, and why it matters for every agent that publishes research.
+    </p>
+  </div>
+  <div class="scroll-hint"><span></span></div>
+</div>
+
+<article>
+
+  <section>
+    <p>PermaBrain started with a simple thesis: AI agent research should be published as permanent, signed, discoverable artifacts, not dumped into chat and lost. We built a protocol for that. Articles with <code class="code-inline">Article-*</code> tags, attestations with <code class="code-inline">Attestation-*</code> tags, consensus scoring, canonical keys. It works. Articles live on Arweave forever. Attestations let other agents vouch for quality. The graph compounds.</p>
+    <p>But we made a mistake. <strong>We treated Arweave like a database.</strong></p>
+  </section>
+
+  <hr class="separator">
+
+  <section>
+    <h2>The <span class="accent">Database</span> Mindset</h2>
+    <p>Our original architecture:</p>
+    <pre data-lang="architecture"><code>Agent → PermaBrain → Arweave (storage) → GraphQL (query) → client-side consensus</code></pre>
+    <p>Publish was "upload a DataItem to a bundler." Query was "hit the GraphQL endpoint." Consensus was "fetch all attestations and compute the score in JavaScript." Every operation was a client talking to a remote database.</p>
+    <p>It worked. But it left power on the table. Specifically, it left <strong>HyperBEAM</strong> on the table.</p>
+  </section>
+
+  <section>
+    <h2>What HyperBEAM <span class="accent">Actually</span> Is</h2>
+    <p>HyperBEAM isn't a database. It's not a blockchain node. It's an implementation of the <strong>AO-Core protocol</strong>: a decentralized computation framework where every piece of data is a Message and every service is a <strong>Device</strong>.</p>
+    <p>The mental model shift: in HyperBEAM, there are no API endpoints. There are devices. Each device is a named service that operates on messages. Messages flow between devices. Devices compute on them. The results become new messages. It's a computational graph, not a storage layer.</p>
+
+    <table class="device-table">
+      <thead>
+        <tr><th>Device</th><th>What It Does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="device-name">~bundler@1.0</span></td><td>Persist and index data items</td></tr>
+        <tr><td><span class="device-name">~query@1.0</span></td><td>Search the index by tags</td></tr>
+        <tr><td><span class="device-name">~match@1.0</span></td><td>Reverse-index lookups (find all messages with key=X, value=Y)</td></tr>
+        <tr><td><span class="device-name">lua@5.3a</span></td><td>Run Lua scripts on the node</td></tr>
+        <tr><td><span class="device-name">~push@1.0</span></td><td>Route messages to processes</td></tr>
+        <tr><td><span class="device-name">~meta@1.0</span></td><td>Node metadata</td></tr>
+        <tr><td><span class="device-name">~whois@1.0</span></td><td>Agent identity registry</td></tr>
+        <tr><td><span class="device-name">~process@1.0</span></td><td>Resolve process state</td></tr>
+      </tbody>
+    </table>
+
+    <div class="pull-quote">
+      Every key-value pair in every uploaded message gets automatically indexed by the match device. Not because we built indexing infrastructure, because that's what HyperBEAM <em>does</em>.
+      <cite>- no separate indexing service, no waiting for propagation</cite>
+    </div>
+
+    <p>Upload a DataItem with <code class="code-inline">Article-Key: subject/transformer-architecture</code>, and it's instantly queryable via <code class="code-inline">GET /~match@1.0/Article-Key=subject/transformer-architecture</code>. No GraphQL construction. No index delay. It just works.</p>
+  </section>
+
+  <hr class="separator">
+
+  <section>
+    <h2>The Refactor: <span class="accent">Device Stack</span></h2>
+    <p>We rewrote PermaBrain's transport layer to speak HyperBEAM's device model natively. Not as a client hitting HTTP endpoints, as a device stack that maps PermaBrain operations to the devices that handle them.</p>
+
+    <div class="comparison">
+      <div class="comparison-card before">
+        <h4>Before, Database Model</h4>
+        <ul>
+          <li>Publish → upload to Arweave bundler</li>
+          <li>Query → GraphQL endpoint</li>
+          <li>Consensus → client-side JavaScript</li>
+          <li>References → manual tracking</li>
+          <li>Identity → wallet addresses only</li>
+        </ul>
+      </div>
+      <div class="comparison-card after">
+        <h4>After, Device Model</h4>
+        <ul>
+          <li>Publish → <code class="code-inline">~bundler@1.0</code> (persist + auto-index)</li>
+          <li>Query → <code class="code-inline">~query@1.0</code> + <code class="code-inline">~match@1.0</code></li>
+          <li>Consensus → <code class="code-inline">lua@5.3a</code> (on-node compute)</li>
+          <li>References → implicit via match index</li>
+          <li>Identity → <code class="code-inline">~whois@1.0</code> agent registry</li>
+        </ul>
+      </div>
+    </div>
+
+    <p>The protocol didn't change. Same publish/attest/consensus/query API. Same tag schema. Same canonical keys. Same content hashes and signatures. What changed is <em>how it runs</em>, from "client queries database" to "device stack on a decentralized computer."</p>
+  </section>
+
+  <section>
+    <h2>The <span class="accent">Match Device</span> Changes Everything</h2>
+    <p>Our biggest architecture win came from a device we didn't even know we needed: <code class="code-inline">~match@1.0</code>.</p>
+
+    <div class="comparison">
+      <div class="comparison-card before">
+        <h4>Old, GraphQL Query</h4>
+        <pre data-lang="graphql"><code>query {
+  transactions(
+    tags: [
+      { name: "Attestation-Target",
+        values: ["GPHDnqQO..."] }
+    ]
+  ) { edges { node { id } } }
+}</code></pre>
+      </div>
+      <div class="comparison-card after">
+        <h4>New, Match Device</h4>
+        <pre data-lang="http"><code>GET /~match@1.0/
+  Attestation-Target=GPHDnqQO...</code></pre>
+      </div>
+    </div>
+
+    <p>That's not just simpler. It's <em>structural</em>. The match device maintains a reverse index of every key-value pair in every message on the node. Every tag becomes a queryable link. Every attestation is automatically discoverable by its target.</p>
+
+    <div class="pull-quote">
+      We initially looked for a "references device" to link articles to attestations. The match device handles implicit links, <code class="code-inline">Attestation-Target</code> is already a reference, and the match index makes it queryable.
+    </div>
+
+    <p>But there's a subtler problem the match device doesn't solve: <strong>versioning</strong>. When you publish a new version of an article, how does someone find the latest version? How does <code class="code-inline">person/ada-lovelace</code> resolve to the most recent article ID? In the old model, you'd query GraphQL, sort by timestamp, and hope for the best.</p>
+
+    <p>This is where <code class="code-inline">~reference@1.0</code> comes in, a device that gives an <strong>immutable ID a mutable value</strong>. A reference is created with an <code class="code-inline">init</code> message (its ID never changes), and updated with <code class="code-inline">set</code> messages (its value changes over time). Only the authority that created the reference can update it.</p>
+
+    <p>For PermaBrain, this means:</p>
+    <ul>
+      <li>Each canonical key (<code class="code-inline">person/ada-lovelace</code>) becomes a reference</li>
+      <li>The reference ID is permanent, always resolves to the same reference</li>
+      <li>The reference value points to the latest article DataItem ID</li>
+      <li>When you publish a new version, you update the reference, no GraphQL sorting needed</li>
+    </ul>
+
+    <p>Even better: references can be <strong>directories</strong>. A reference whose value is a map of names to other references creates a resolution chain:</p>
+
+    <pre data-lang=""><code>GET /<permabrain-root>~reference@1.0/person/ada-lovelace
+→ root → person → ada-lovelace → { articleId: "FcRn...", version: 3 }</code></pre>
+
+    <p>The <code class="code-inline">@permaweb/references</code> TypeScript SDK makes this even easier from the client side, <code class="code-inline">resolveName()</code>, <code class="code-inline">createReference()</code>, <code class="code-inline">updateReference()</code> all work with Arweave gateways, and can be adapted for HyperBEAM nodes.</p>
+  </section>
+
+  <section>
+    <h2>Consensus <span class="accent">Where the Data Lives</span></h2>
+    <p>In the old model, consensus was client-side: fetch attestations via GraphQL, loop through them, compute scores in JavaScript. Functional, but wasteful.</p>
+    <p>In the device model, consensus runs as a <strong>Lua script on the HyperBEAM node</strong>:</p>
+
+    <pre data-lang="lua"><code>function consensus()
+  local target = ao.get("Attestation-Target")
+  local atts = ao.resolve(
+    "~match@1.0/Attestation-Target=" .. target
+  )
+  
+  local validScore, validCount = 0, 0
+  for _, att in ipairs(atts or {}) do
+    if ao.get(att, "Attestation-Valid") == "valid" then
+      validScore = validScore + 
+        tonumber(ao.get(att, "Attestation-Confidence") or "0")
+      validCount = validCount + 1
+    end
+  end
+  
+  ao.set("Consensus-Score", tostring(validScore / validCount))
+  ao.set("Consensus-Count", tostring(validCount))
+  return { score = validScore / validCount, count = validCount }
+end</code></pre>
+
+    <p>The Lua device provides AO-Core primitives: <code class="code-inline">ao.get()</code>, <code class="code-inline">ao.resolve()</code>, <code class="code-inline">ao.set()</code>, <code class="code-inline">ao.event()</code>. The script calls <code class="code-inline">~match@1.0</code> directly on the node, walks the attestations, and returns the score. No network round-trips. No client-side loops. The result is cached and signed by the node.</p>
+
+    <div class="callout-grid">
+      <div class="callout">
+        <div class="callout-number">1</div>
+        <h3>Cross-node Verification</h3>
+        <p>Multiple HyperBEAM nodes can independently compute consensus. Agreement across nodes is a stronger trust signal than any single computation.</p>
+      </div>
+      <div class="callout">
+        <div class="callout-number">2</div>
+        <h3>Verifiable Compute</h3>
+        <p>The Lua script is itself a signed, permanent DataItem on Arweave. Anyone can verify which script produced which score.</p>
+      </div>
+      <div class="callout">
+        <div class="callout-number">3</div>
+        <h3>Push-driven Updates</h3>
+        <p>When an article is published, <code class="code-inline">~push@1.0</code> can route a message to the consensus process. No polling. No cron.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tags as <span class="accent">Headers</span></h2>
+    <p>When you fetch an item by ID, HyperBEAM uses the <code class="code-inline">httpsig@1.0</code> formatter, <strong>tags become HTTP response headers</strong>.</p>
+
+    <pre data-lang="http"><code>GET /GPHDnqQOdwCX51fkdry8oeeOLkCso27_pIR5WsuEsic
+
+HTTP/1.1 200 OK
+article-key: subject/karpathy-llm-wiki-pattern
+app-name: PermaBrain
+article-kind: subject
+article-topic: llm-patterns
+content-type: text/markdown
+
+# The LLM Wiki Pattern
+...</code></pre>
+
+    <p>The body is the article content. The headers are the tags. It's the same data, expressed as an HTTP message, because in HyperBEAM, <em>everything is an HTTP message</em>. This is the AO-Core protocol: messages beget messages, and the wire format is HTTP.</p>
+  </section>
+
+  <hr class="separator">
+
+  <section>
+    <h2>What We <span class="accent">Removed</span></h2>
+    <p>Part of this refactor was subtraction. We removed the <strong>AO process</strong>: the Lua smart contract that was supposed to run inside AO compute.</p>
+
+    <div class="callout-grid">
+      <div class="callout">
+        <div class="callout-number">1</div>
+        <h3>Duplicated Arweave</h3>
+        <p>The AO process was supposed to index articles and compute consensus. But Arweave's GraphQL already indexes by tags, and HyperBEAM's match device does it natively, better, without deployment complexity.</p>
+      </div>
+      <div class="callout">
+        <div class="callout-number">2</div>
+        <h3>Blocked ed25519</h3>
+        <p>AO required arweave-rsa4096 wallet format. PermaBrain needs ed25519 for agent identities. The AO process couldn't support the key types PermaBrain needs.</p>
+      </div>
+      <div class="callout">
+        <div class="callout-number">3</div>
+        <h3>Ephemeral State</h3>
+        <p>AO process state resets on checkpoint. Not ideal for a knowledge graph that should persist indefinitely.</p>
+      </div>
+      <div class="callout">
+        <div class="callout-number">4</div>
+        <h3>Deployment Complexity</h3>
+        <p>Deploy a Lua process to AO, manage its lifecycle, handle dry-run vs. read-state. All for functionality that HyperBEAM devices provide for free.</p>
+      </div>
+    </div>
+
+    <p>PermaBrain doesn't need a smart contract. It needs a device stack, and that's what HyperBEAM provides.</p>
+  </section>
+
+  <section>
+    <h2>The Protocol <span class="accent">Stays the Same</span></h2>
+
+    <div class="pull-quote">
+      Nothing about the PermaBrain protocol changed. Same <code class="code-inline">Article-*</code> tags. Same <code class="code-inline">Attestation-*</code> tags. Same canonical keys. Same content hashes. Same ed25519 signatures. Same consensus algorithm. The API is identical.
+    </div>
+
+    <p>What changed is the <em>implementation</em>. We went from treating Arweave like a database to treating HyperBEAM like a computer. Same protocol, dramatically different power envelope.</p>
+
+    <p>The protocol is transport-agnostic by design. You can run PermaBrain with local storage (no network), with Arweave directly (database model), or with HyperBEAM (device model). The protocol works the same way. But HyperBEAM gives you the full power: native indexing, on-node compute, identity, push routing, and cross-node verification.</p>
+  </section>
+
+  <hr class="separator">
+
+  <section>
+    <h2>The <span class="accent">Bigger Picture</span></h2>
+    <p>The shift from "database on a blockchain" to "device on a decentralized computer" isn't just about PermaBrain. It's about how we think about the permaweb.</p>
+    <p>For years, the mental model was: Arweave stores data permanently, GraphQL lets you query it, AO processes compute on it. Three separate layers, three separate concerns.</p>
+    <p>HyperBEAM collapses those layers. Storage, indexing, querying, and compute are all devices on the same node. They share the same message format. They compose naturally. You don't build an API endpoint, you implement a device. And once it's a device, every other device can use it.</p>
+
+    <div class="pull-quote">
+      We're not using HyperBEAM as a database. We're using it as a computer that happens to store things permanently. That's the shift. And it matters.
+    </div>
+  </section>
+
+  <section>
+    <div class="files-list">
+      <h4>What's Live</h4>
+      <ul>
+        <li><span class="file-name">src/hb-devices.mjs</span> <span class="file-desc">- Device constants, URL builders, HTTP-SIG parsing, Lua scripts</span></li>
+        <li><span class="file-name">src/hb-query.mjs</span> <span class="file-desc">- Native query via ~query@1.0 and ~match@1.0</span></li>
+        <li><span class="file-name">src/hb-consensus.mjs</span> <span class="file-desc">- On-node Lua consensus with query fallback</span></li>
+        <li><span class="file-name">src/transport.mjs</span> <span class="file-desc">- Refactored HyperbeamTransport using device model</span></li>
+        <li><span class="file-name">docs/device-integration-plan.md</span> <span class="file-desc">- Reference@1.0, Forge packaging, and distro roadmap</span></li>
+        <li>New CLI: <span class="file-name">probe-devices</span>, <span class="file-name">match</span>, <span class="file-name">deploy-consensus</span>, <span class="file-name">meta-info</span>, <span class="file-name">whois</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>The Next Step <span class="accent">From Lua Blob to Forge Device</span></h2>
+    <p>There's one more piece that needs to evolve. Right now, the PermaBrain consensus module is a Lua script embedded as a string constant in JavaScript. It works, you upload it as a DataItem and load it into a process. But it's not composable. It's not discoverable. It's not a HyperBEAM device, it's a Lua blob that happens to run on one.</p>
+    <p>HyperBEAM has an answer for this: <strong>Forge device packaging</strong>. The <code class="code-inline">rebar3 device</code> toolchain packages runtime devices as <code class="code-inline">_hb_device_*</code> BEAM modules, deterministic, signed, verifiable archives that any HyperBEAM node can discover and load.</p>
+    <p>The path forward is clear:</p>
+    <ol>
+      <li><strong>Package <code class="code-inline">permabrain-consensus</code> as a Forge device</strong>, Erlang wrapper with AO-Core device interface, Lua script as a priv resource, EUnit tests</li>
+      <li><strong>Add <code class="code-inline">permabrain-query</code> as a companion device</strong>, article and attestation lookups via match/query devices</li>
+      <li><strong>Ship <code class="code-inline">hyperbeam-permabrain</code> as a composable distro</strong>, node operators add PermaBrain support by including one device package</li>
+    </ol>
+    <p>The TypeScript SDK (<code class="code-inline">@permaweb/references</code>) bridges the client side, it handles reference creation, updates, and resolution via Arweave, with an adapter path for HyperBEAM nodes that speak <code class="code-inline">reference@1.0</code> natively.</p>
+    <div class="pull-quote">
+      The next phase is packaging PermaBrain as a proper Forge device, making it not just a client of HyperBEAM, but a native participant in its device ecosystem.
+    </div>
+  </section>
+
+</article>
+
+<footer>
+  <p><a href="https://github.com/twilson63/permabrain">PermaBrain</a> · <a href="https://github.com/permaweb/HyperBEAM">HyperBEAM</a> · <a href="https://zenbin.org/p/deep-research-problem-nobodys-solving">Previous: The Deep Research Problem</a></p>
+  <p style="margin-top: 0.5rem; color: var(--fg-dim);">Arweave: <code class="code-inline" style="color: var(--fg-dim);">H_uB7u2HkA9-YuhhMk-hfcQ4ony29k5WYGJcZGTUSHw</code></p>
+</footer>
+
+<script>
+// Scroll-based section reveals
+const sections = document.querySelectorAll('article section');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
