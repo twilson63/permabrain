@@ -292,4 +292,39 @@ console.log('15. CLI main help includes batch-attest and auto-import');
 }
 console.log('   ✓ CLI help includes new commands');
 
+// ─── 16. HyperBEAM device commands registered ─────────────────────
+
+console.log('16. CLI: HyperBEAM device commands are recognized');
+{
+  const cliSrc = fs.readFileSync(CLI, 'utf8');
+  for (const cmd of ['probe-devices', 'match', 'deploy-consensus', 'meta-info', 'whois']) {
+    assert.ok(cliSrc.includes(`'${cmd}'`), `CLI COMMANDS includes ${cmd}`);
+    assert.ok(cliSrc.includes(`${cmd}:`) || cliSrc.includes(`'${cmd}':`), `CLI help object includes ${cmd}`);
+  }
+}
+console.log('   ✓ HyperBEAM device commands registered');
+
+// ─── 17. HyperBEAM device command help ──────────────────────────
+
+console.log('17. CLI: HyperBEAM device command help works');
+{
+  for (const cmd of ['probe-devices', 'match', 'deploy-consensus', 'meta-info', 'whois']) {
+    const help = runCli(`${cmd} --help`);
+    assert.ok(help.length > 0, `${cmd} --help produces output`);
+    assert.ok(help.includes('Usage:'), `${cmd} help includes Usage`);
+  }
+}
+console.log('   ✓ HyperBEAM device command help works');
+
+// ─── 18. CLI main help includes HyperBEAM device commands ─────────
+
+console.log('18. CLI main help includes HyperBEAM device commands');
+{
+  const help = runCli('--help');
+  for (const cmd of ['probe-devices', 'match', 'deploy-consensus', 'meta-info', 'whois']) {
+    assert.ok(help.includes(cmd), `main help mentions ${cmd}`);
+  }
+}
+console.log('   ✓ CLI main help includes HyperBEAM device commands');
+
 console.log('\n✅ All Pi skill integration tests passed');

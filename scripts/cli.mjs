@@ -3,6 +3,7 @@
 const COMMANDS = [
   'init',
   'probe-hyperbeam',
+  'probe-devices',
   'publish',
   'import-wikipedia',
   'query',
@@ -14,7 +15,11 @@ const COMMANDS = [
   'list-agents',
   'provision-agent',
   'batch-attest',
-  'auto-import'
+  'auto-import',
+  'match',
+  'deploy-consensus',
+  'meta-info',
+  'whois'
 ];
 
 function printHelp(command = null) {
@@ -27,6 +32,7 @@ Usage:
 Commands:
   init                         Initialize local PermaBrain state
   probe-hyperbeam              Probe local HyperBEAM endpoints
+  probe-devices                Probe all HyperBEAM device endpoints
   publish <file>               Publish a public knowledge article
   import-wikipedia <title>     Import and publish a Wikipedia summary
   query                        Query public articles
@@ -39,6 +45,10 @@ Commands:
   provision-agent              Generate identity for an external agent
   batch-attest                 Batch attest to multiple articles from a JSON file
   auto-import                  Auto-import articles from URLs via a JSON file
+  match                        Query the HyperBEAM match device by tag key/value
+  deploy-consensus             Deploy PermaBrain consensus Lua modules to HyperBEAM
+  meta-info                    Show HyperBEAM node metadata
+  whois <address>              Look up an agent identity on HyperBEAM
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -101,7 +111,25 @@ The file should contain a JSON array of objects:
   [{"url": "https://...", "kind": "subject", "topic": "ai"}, ...]
 
 Each URL is fetched, HTML is stripped to text, and the result is published.
-Title is derived from content or URL if not provided.`
+Title is derived from content or URL if not provided.`,
+    'probe-devices': `Usage: permabrain probe-devices [--url http://localhost:10000] [--json]
+
+Probes all HyperBEAM device endpoints used by PermaBrain:
+health, bundler, fetch, query, match, meta, and GraphQL.`,
+    'match': `Usage: permabrain match --key <tag-name> --value <tag-value> [--url http://localhost:10000] [--json]
+
+Queries the HyperBEAM ~match@1.0 device for messages containing
+a specific tag key-value pair. Returns matching message IDs.`,
+    'deploy-consensus': `Usage: permabrain deploy-consensus [--url http://localhost:10000] [--json]
+
+Deploys the PermaBrain consensus and query Lua modules to a
+HyperBEAM node via the bundler device. Returns module IDs.`,
+    'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
+
+Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,
+    'whois': `Usage: permabrain whois <address> [--url http://localhost:10000] [--json]
+
+Looks up an agent identity via the HyperBEAM ~whois@1.0 device.`
   };
   console.log(help[command] || `Unknown command: ${command}`);
 }
