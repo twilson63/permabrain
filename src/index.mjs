@@ -32,11 +32,12 @@ export {
 // HyperBEAM device architecture
 export { HyperbeamQuery } from './hb-query.mjs';
 export { HyperbeamConsensus } from './hb-consensus.mjs';
+export { HyperbeamReference } from './hb-reference.mjs';
 export {
   DEVICES as HB_DEVICES,
   FORMATTERS as HB_FORMATTERS,
   LUA_DEVICE, PERMABRAIN_CONSENSUS_LUA, PERMABRAIN_QUERY_LUA,
-  bundlerUploadUrl, fetchUrl, pushUrl, processUrl, metaUrl, queryUrl, matchUrl,
+  bundlerUploadUrl, fetchUrl, pushUrl, processUrl, metaUrl, queryUrl, matchUrl, referenceUrl,
   parseHttpsigtHeaders, kebabToTitleCase, titleToKebabCase,
   buildPermaBrainFilters, buildQueryMessage
 } from './hb-devices.mjs';

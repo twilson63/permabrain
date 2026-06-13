@@ -26,6 +26,8 @@ export const DEVICES = {
   query: '~query@1.0',
   /** Match — reverse index for key-value pairs (lower-level than query) */
   match: '~match@1.0',
+  /** Reference — immutable ID with mutable value, supports resolution chains */
+  reference: '~reference@1.0',
   /** Message — identity/default device (returns raw message keys) */
   message: 'message@1.0',
   /** Cache — node-local caching device */
@@ -140,6 +142,24 @@ export function matchUrl(base, key, value) {
 }
 
 /**
+ * Build a reference resolution URL.
+ * Format: {base}/{refId}~reference@1.0/{path}
+ *
+ * References give immutable IDs mutable values.
+ * A reference chain resolves through nested references:
+ * GET /<set>~reference@1.0/alice/balance
+ *   → set resolves alice → her ref → balance
+ *
+ * @param {string} base - HyperBEAM base URL
+ * @param {string} refId - The reference's permanent ID (from its init message)
+ * @param {string} [path] - Optional sub-path to resolve within the reference value
+ */
+export function referenceUrl(base, refId, path = '') {
+  const url = `${base}/${encodeURIComponent(refId)}${DEVICES.reference}`;
+  return path ? `${url}/${path}` : url;
+}
+
+/**
  * Build a Lua compute URL.
  * Format: {base}/{processId}~process@1.0/{functionName}
  *
@@ -163,6 +183,7 @@ const KNOWN_TAG_PREFIXES = [
   'article-', 'attestation-', 'app-', 'permabrain-', 'content-',
   'data-protocol', 'type', 'module', 'scheduler', 'visibility',
   'perma-brain', 'consensus-', 'author-agent-id',
+  'reference-', 'reference-value', 'reference-id', 'authority',
 ];
 
 const KNOWN_EXACT_TAGS = [

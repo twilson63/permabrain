@@ -5,6 +5,7 @@ import { parseAns104, payloadBuffer, payloadText, rawDataItemBytes } from './dat
 import { tagsToObject } from './tags.mjs';
 import { HyperbeamQuery } from './hb-query.mjs';
 import { HyperbeamConsensus } from './hb-consensus.mjs';
+import { HyperbeamReference } from './hb-reference.mjs';
 import {
   DEVICES, FORMATTERS,
   bundlerUploadUrl, fetchUrl, pushUrl, processUrl, metaUrl,
@@ -73,7 +74,20 @@ export class LocalTransport {
  * Consensus:        lua@5.3a device (on-node compute) with query fallback
  * Push:             ~push@1.0 (message routing to processes)
  * Attestations:     ~match@1.0/Attestation-Target={id} (reverse lookup)
+ * References:       ~reference@1.0 (mutable pointers for article versioning)
  * Node info:        ~meta@1.0/info
+ *
+ * Reference@1.0 gives PermaBrain articles stable, mutable pointers:
+ * - Article key → reference → latest version DataItem ID
+ * - Topic index → reference set → { "ai": ref_id, "crypto": ref_id, ... }
+ * - Author identity → reference → latest attestation
+ *
+ * This is the recommended approach from Sam Williams (@samcamwilliams):
+ * using ~reference@1.0 for PermaBrain nodes instead of relying solely
+ * on the match index. References provide:
+ * - Composable resolution chains through nested references
+ * - Each reference independently owned and updated by its authority
+ * - First-class caching and freshness via max-age
  *
  * Arweave serves as the underlying persistence layer; HyperBEAM
  * devices provide indexing, querying, and compute on top.
@@ -88,6 +102,7 @@ export class HyperbeamTransport {
     this.consensus = new HyperbeamConsensus(this.baseUrl, {
       consensusProcessId: config.consensus?.processId,
     });
+    this.reference = new HyperbeamReference(this.baseUrl, config.reference);
   }
 
   // --- Device: ~bundler@1.0 ---
