@@ -19,7 +19,8 @@ const COMMANDS = [
   'match',
   'deploy-consensus',
   'meta-info',
-  'whois'
+  'whois',
+  'reference'
 ];
 
 function printHelp(command = null) {
@@ -49,6 +50,7 @@ Commands:
   deploy-consensus             Deploy PermaBrain consensus Lua modules to HyperBEAM
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
+  reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -129,7 +131,20 @@ HyperBEAM node via the bundler device. Returns module IDs.`,
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,
     'whois': `Usage: permabrain whois <address> [--url http://localhost:10000] [--json]
 
-Looks up an agent identity via the HyperBEAM ~whois@1.0 device.`
+Looks up an agent identity via the HyperBEAM ~whois@1.0 device.`,
+    'reference': `Usage: permabrain reference <subcommand> [args] [--url http://localhost:10000] [--json]
+
+Manage HyperBEAM ~reference@1.0 pointers.
+
+Subcommands:
+  reference create <key=value>...        Create a new reference with given values
+  reference update <ref-id> <key=value>...  Update an existing reference
+  reference resolve <ref-id> [path]     Resolve a reference (optionally with sub-path)
+
+Examples:
+  permabrain reference create article-key=subject/foo current-version=abc123
+  permabrain reference update refId123 current-version=def456
+  permabrain reference resolve refId123 article-key`
   };
   console.log(help[command] || `Unknown command: ${command}`);
 }

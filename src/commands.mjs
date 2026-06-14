@@ -38,6 +38,7 @@ export async function runCommand(command, args) {
   if (command === 'deploy-consensus') return deployConsensusCommand(args);
   if (command === 'meta-info') return metaInfoCommand(args);
   if (command === 'whois') return whoisCommand(args);
+  if (command === 'reference') return referenceCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -443,4 +444,78 @@ async function whoisCommand(args) {
     }
   }
   return result;
+}
+
+async function referenceCommand(args) {
+  const home = getHome();
+  let config;
+  try { config = loadConfig(home); } catch { config = {}; }
+  const baseUrl = args.url || config.gateway?.dataUrl || 'http://localhost:10000';
+  const transport = new HyperbeamTransport({
+    ...config,
+    gateway: { ...(config.gateway || {}), dataUrl: baseUrl },
+  });
+  const subcommand = args._[0];
+  if (!subcommand) throw new Error('reference requires a subcommand: create|update|resolve');
+
+  function parseKeyValuePairs(pairs) {
+    const value = {};
+    for (const pair of pairs) {
+      const idx = pair.indexOf('=');
+      if (idx === -1) throw new Error(`Invalid key=value pair: ${pair}`);
+      value[pair.slice(0, idx)] = pair.slice(idx + 1);
+    }
+    return value;
+  }
+
+  if (subcommand === 'resolve') {
+    const referenceId = args._[1];
+    const path = args._[2] || '';
+    if (!referenceId) throw new Error('reference resolve requires <ref-id>');
+    const result = await transport.resolveReference(referenceId, path);
+    if (args.json) printJson(result);
+    else {
+      console.log(`Reference ${referenceId}${path ? '/' + path : ''}:`);
+      if (typeof result === 'object') console.log(JSON.stringify(result, null, 2));
+      else console.log(String(result));
+    }
+    return result;
+  }
+
+  const identity = loadIdentity(home);
+
+  if (subcommand === 'create') {
+    const pairs = args._.slice(1);
+    if (pairs.length === 0) throw new Error('reference create requires at least one key=value pair');
+    const value = parseKeyValuePairs(pairs);
+    const result = await transport.createReference(value, identity, { authority: identity.agentId });
+    if (args.json) printJson(result);
+    else {
+      console.log(`Created reference: ${result.referenceId}`);
+      for (const [k, v] of Object.entries(result.value)) {
+        console.log(`  ${k}: ${v}`);
+      }
+    }
+    return result;
+  }
+
+  if (subcommand === 'update') {
+    const referenceId = args._[1];
+    const pairs = args._.slice(2);
+    if (!referenceId) throw new Error('reference update requires <ref-id>');
+    if (pairs.length === 0) throw new Error('reference update requires at least one key=value pair');
+    const value = parseKeyValuePairs(pairs);
+    const result = await transport.updateReference(referenceId, value, identity, { authority: identity.agentId });
+    if (args.json) printJson(result);
+    else {
+      console.log(`Updated reference: ${result.referenceId}`);
+      console.log(`  timestamp: ${result.timestamp}`);
+      for (const [k, v] of Object.entries(result.value)) {
+        console.log(`  ${k}: ${v}`);
+      }
+    }
+    return result;
+  }
+
+  throw new Error(`Unknown reference subcommand: ${subcommand}`);
 }

@@ -327,4 +327,46 @@ console.log('18. CLI main help includes HyperBEAM device commands');
 }
 console.log('   ✓ CLI main help includes HyperBEAM device commands');
 
-console.log('\n✅ All Pi skill integration tests passed');
+// ─── 19. CLI: reference command is recognized ───────────────────
+
+console.log('19. CLI: reference command is recognized');
+{
+  const commandsSrc = fs.readFileSync(path.join(PROJECT, 'src/commands.mjs'), 'utf8');
+  assert.ok(commandsSrc.includes("'reference'"), 'commands.mjs includes reference command');
+  assert.ok(commandsSrc.includes('referenceCommand'), 'commands.mjs has referenceCommand function');
+
+  const cliSrc = fs.readFileSync(CLI, 'utf8');
+  assert.ok(cliSrc.includes("'reference'"), 'CLI COMMANDS includes reference');
+}
+console.log('   ✓ reference command registered');
+
+// ─── 20. CLI: reference --help ────────────────────────────────────
+
+console.log('20. CLI: reference --help');
+{
+  const helpOutput = runCli('reference --help');
+  assert.ok(helpOutput.includes('create'), 'help mentions create');
+  assert.ok(helpOutput.includes('update'), 'help mentions update');
+  assert.ok(helpOutput.includes('resolve'), 'help mentions resolve');
+}
+console.log('   ✓ reference help works');
+
+// ─── 21. CLI: reference requires subcommand ───────────────────────
+
+console.log('21. CLI: reference requires subcommand');
+{
+  const error = runCli('reference', true);
+  assert.match(error, /subcommand/i, 'error mentions subcommand');
+}
+console.log('   ✓ reference validates subcommand');
+
+// ─── 22. CLI: reference resolve requires ref-id ───────────────────
+
+console.log('22. CLI: reference resolve requires ref-id');
+{
+  const error = runCli('reference resolve', true);
+  assert.match(error, /ref-id/i, 'error mentions ref-id');
+}
+console.log('   ✓ reference resolve validates ref-id');
+
+console.log('\n✅ All HyperBEAM reference CLI tests passed');

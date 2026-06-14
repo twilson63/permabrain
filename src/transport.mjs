@@ -366,6 +366,32 @@ export class HyperbeamTransport {
     if (!res.ok) throw new Error(`Whois failed for ${address}: HTTP ${res.status}`);
     return res.json();
   }
+
+  // --- Device: ~reference@1.0 ---
+
+  /**
+   * Create a new reference on the HyperBEAM node.
+   * Wrapper around HyperbeamReference.create.
+   */
+  async createReference(value, signer, opts = {}) {
+    return this.reference.create(value, signer, opts);
+  }
+
+  /**
+   * Update an existing reference on the HyperBEAM node.
+   * Wrapper around HyperbeamReference.update.
+   */
+  async updateReference(referenceId, value, signer, opts = {}) {
+    return this.reference.update(referenceId, value, signer, opts);
+  }
+
+  /**
+   * Resolve a reference's current value.
+   * Wrapper around HyperbeamReference.resolve.
+   */
+  async resolveReference(referenceId, path = '') {
+    return this.reference.resolve(referenceId, path);
+  }
 }
 
 // ============================================================================
