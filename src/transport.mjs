@@ -392,6 +392,22 @@ export class HyperbeamTransport {
   async resolveReference(referenceId, path = '') {
     return this.reference.resolve(referenceId, path);
   }
+
+  /**
+   * Create a PermaBrain article reference.
+   * Wrapper around HyperbeamReference.createArticleReference.
+   */
+  async createArticleReference(articleKey, articleId, signer) {
+    return this.reference.createArticleReference(articleKey, articleId, signer);
+  }
+
+  /**
+   * Update a PermaBrain article reference to point to a new version.
+   * Wrapper around HyperbeamReference.updateArticleReference.
+   */
+  async updateArticleReference(referenceId, newArticleId, signer) {
+    return this.reference.updateArticleReference(referenceId, newArticleId, signer);
+  }
 }
 
 // ============================================================================

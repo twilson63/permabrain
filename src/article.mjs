@@ -6,6 +6,7 @@ import { createDataItem, payloadText } from './dataitem.mjs';
 import { getTransport } from './transport.mjs';
 import { buildArticleTags, contentHash, deriveKey, deriveTitleFromFile, tagsToObject } from './tags.mjs';
 import { latestByArticleKey, loadIndex, summarizeArticle, updateArticleInCache, writeIndex, writePageCache } from './cache.mjs';
+import { HyperbeamTransport } from './transport.mjs';
 
 export function sourceNameFromUrl(url) {
   if (!url) return 'Unknown';
@@ -18,7 +19,7 @@ export function sourceNameFromUrl(url) {
   }
 }
 
-export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en' }) {
+export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
@@ -54,9 +55,44 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   await transport.uploadDataItem(item);
   updateArticleInCache(home, item);
   writePageCache(home, finalKey, finalContent);
-  return { item, summary: summarizeArticle(item) };
+
+  // HyperBEAM reference integration: maintain a mutable pointer from key → latest version
+  let reference = null;
+  const enableHyperbeamReference = useHyperbeamReference ?? config.hyperbeam?.references ?? false;
+  if (enableHyperbeamReference && transport instanceof HyperbeamTransport) {
+    reference = await updateOrCreateArticleReference(transport, home, finalKey, item.id, identity);
+  }
+
+  return { item, summary: summarizeArticle(item), reference };
 }
 
+async function updateOrCreateArticleReference(transport, home, articleKey, articleId, identity) {
+  const refCachePath = path.join(home, 'cache', 'article-references.json');
+  const refs = loadRefCache(refCachePath);
+  const existingRefId = refs[articleKey];
+  try {
+    if (existingRefId) {
+      const result = await transport.updateArticleReference(existingRefId, articleId, identity);
+      return { referenceId: result.referenceId, action: 'update' };
+    }
+    const result = await transport.createArticleReference(articleKey, articleId, identity);
+    refs[articleKey] = result.referenceId;
+    writeRefCache(refCachePath, refs);
+    return { referenceId: result.referenceId, action: 'create' };
+  } catch (err) {
+    console.warn(`HyperBEAM reference update/create failed for ${articleKey}: ${err.message}`);
+    return { error: err.message };
+  }
+}
+
+function loadRefCache(path) {
+  if (!fs.existsSync(path)) return {};
+  try { return JSON.parse(fs.readFileSync(path, 'utf8')); } catch { return {}; }
+}
+
+function writeRefCache(path, refs) {
+  fs.writeFileSync(path, JSON.stringify(refs, null, 2) + '\n');
+}
 
 function articleIsNewer(candidate, current) {
   const candidateVersion = Number(candidate.version || 0);
@@ -99,10 +135,26 @@ export async function queryArticles(filters = {}) {
   return mergeArticleSummaries(remote, cached);
 }
 
-export async function resolveLatestArticle(key) {
+export async function resolveLatestArticle(key, opts = {}) {
   const home = getHome();
   const config = loadConfig(home);
   const transport = getTransport(config, home);
+
+  // HyperBEAM reference integration: resolve the latest version via reference@1.0 if available
+  if (!opts.skipHyperbeamReference && transport instanceof HyperbeamTransport) {
+    const refId = await resolveArticleReferenceId(transport, home, key);
+    if (refId) {
+      try {
+        const resolved = await transport.resolveReference(refId, 'current-version');
+        if (resolved && typeof resolved === 'string') {
+          return { item: { id: resolved }, summary: { id: resolved, key }, transport, home, viaReference: true };
+        }
+      } catch (err) {
+        console.warn(`HyperBEAM reference resolution failed for ${key}: ${err.message}`);
+      }
+    }
+  }
+
   const items = await transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article', 'Article-Key': key });
   const latest = latestByArticleKey(items).get(key);
   if (latest) return { item: latest, summary: summarizeArticle(latest), transport, home };
@@ -111,14 +163,37 @@ export async function resolveLatestArticle(key) {
   throw new Error(`Article not found: ${key}`);
 }
 
+async function resolveArticleReferenceId(transport, home, articleKey) {
+  const refCachePath = path.join(home, 'cache', 'article-references.json');
+  const refs = loadRefCache(refCachePath);
+  if (refs[articleKey]) return refs[articleKey];
+  try {
+    // Try to discover the reference ID via query device: find a reference whose value contains this article-key
+    const results = await transport.queryByTags({
+      'App-Name': 'PermaBrain',
+      'PermaBrain-Type': 'reference',
+      'Article-Key': articleKey
+    }, { useQueryDevice: true });
+    if (Array.isArray(results) && results.length > 0) {
+      const refId = results[0].id;
+      refs[articleKey] = refId;
+      writeRefCache(refCachePath, refs);
+      return refId;
+    }
+  } catch (err) {
+    console.warn(`Reference discovery query failed for ${articleKey}: ${err.message}`);
+  }
+  return null;
+}
+
 export async function getArticle(key) {
-  const { item: indexItem, summary, transport, home } = await resolveLatestArticle(key);
+  const { item: indexItem, summary, transport, home, viaReference } = await resolveLatestArticle(key);
   const item = await transport.fetchDataItem(indexItem.id);
   const content = payloadText(item);
   const actualHash = contentHash(content);
-  if (actualHash !== summary.contentHash) throw new Error(`Content hash mismatch for ${key}`);
+  if (actualHash !== summary.contentHash && !viaReference) throw new Error(`Content hash mismatch for ${key}`);
   writePageCache(home, key, content);
-  return { item, summary, content };
+  return { item, summary, content, viaReference };
 }
 
 export async function syncArticlesAndAttestations() {
