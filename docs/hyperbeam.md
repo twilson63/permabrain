@@ -296,6 +296,23 @@ When `PERMABRAIN_TRANSPORT=hyperbeam` (or `config.transport === 'hyperbeam'`), `
 
 This prevents silent misconfiguration such as an unset `PERMABRAIN_HYPERBEAM_URL` or a malformed upload URL.
 
+## Watch
+
+The `permabrain watch` command works with any transport, including HyperBEAM. It polls the configured transport and emits events for newly discovered articles and attestations.
+
+```bash
+# Continuously watch for new AI articles on HyperBEAM
+export PERMABRAIN_TRANSPORT=hyperbeam
+permabrain watch --topic ai
+
+# One-shot scan with JSON output
+permabrain watch --use-hyperbeam --topic ai --once --json
+```
+
+When `PERMABRAIN_TRANSPORT=hyperbeam` is set, `watch` uses `HyperbeamTransport` by default. Use `--use-hyperbeam` to override a non-HyperBEAM default transport for a single watch session.
+
+The first poll seeds all existing items as "seen" so the continuous watch only reports deltas. State is stored in `$PERMABRAIN_HOME/cache/watch-state.json`.
+
 ## Troubleshooting
 
 ### Probe cannot reach HyperBEAM

@@ -52,6 +52,7 @@ permabrain get <canonical-key>
 permabrain attest <canonical-key> --valid|--invalid|--partially-valid|--outdated|--disputed --confidence <0..1> --reason <text>
 permabrain consensus <canonical-key> [--json]
 permabrain sync
+permabrain watch [--topic <topic>] [--kind <kind>] [--key <key>] [--interval <seconds>] [--once] [--json]
 ```
 
 Canonical keys look like this:
@@ -106,6 +107,23 @@ Use public sources. Include source URLs. Attribution matters.
 
 For a copy-paste local HyperBEAM walkthrough, see [`docs/hyperbeam-quickstart.md`](docs/hyperbeam-quickstart.md).
 
+## Watching for updates
+
+Use `permabrain watch` to poll the configured transport and report new articles or attestations as they appear. The first run records everything currently visible as "seen" so restarts don't flood you with the full history.
+
+```sh
+# Continuous watch for AI articles (polls every 30 seconds)
+permabrain watch --topic ai
+
+# One-off scan, JSON output
+permabrain watch --topic ai --once --json
+
+# Watch attestations for a specific article
+permabrain watch --key subject/artificial-intelligence
+```
+
+State is persisted to `.permabrain/cache/watch-state.json`.
+
 ## Tests
 
 ```sh
@@ -114,6 +132,7 @@ npm run test:hyperbeam
 npm run test:wikipedia
 npm run test:arweave
 npm run test:public-upload
+npm run test:watch
 ```
 
 HyperBEAM, Wikipedia, and Arweave integration tests skip cleanly when dependencies are unavailable unless required environment flags are set.

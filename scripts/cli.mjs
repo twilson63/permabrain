@@ -21,7 +21,8 @@ const COMMANDS = [
   'deploy-consensus',
   'meta-info',
   'whois',
-  'reference'
+  'reference',
+  'watch'
 ];
 
 function printHelp(command = null) {
@@ -57,6 +58,7 @@ Commands:
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
+  watch                        Poll transport for new articles/attestations
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -145,7 +147,19 @@ Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,
     'whois': `Usage: permabrain whois <address> [--url http://localhost:10000] [--json]
 
 Looks up an agent identity via the HyperBEAM ~whois@1.0 device.`,
-    'reference': `Usage: permabrain reference <subcommand> [args] [--url http://localhost:10000] [--json]
+    'watch': `Usage: permabrain watch [--use-hyperbeam] [--topic <topic>] [--kind <kind>] [--key <key>] [--interval <seconds>] [--once] [--json]
+
+Polls the configured transport for new articles and attestations. On first run it records all currently visible items as "seen" so only subsequent new items are reported.
+
+Options:
+  --use-hyperbeam    Poll HyperBEAM instead of the default transport
+  --topic <topic>    Filter articles by topic
+  --kind <kind>      Filter articles by kind
+  --key <key>        Filter articles/attestations by canonical key
+  --interval <sec>   Seconds between polls (default 30)
+  --once             Run a single poll and exit
+  --json             Output events as newline-delimited JSON`,
+  'reference': `Usage: permabrain reference <subcommand> [args] [--url http://localhost:10000] [--json]
 
 Manage HyperBEAM ~reference@1.0 pointers.
 

@@ -5,6 +5,7 @@ import { importWikipediaArticle } from './wikipedia.mjs';
 import { attestArticle, opinionFromArgs } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
+import { watch, watchOnce } from './watch.mjs';
 import { getTransport, HyperbeamTransport, ArweaveTransport, LocalTransport, probeTransport } from './transport.mjs';
 import { HyperbeamQuery } from './hb-query.mjs';
 import { HyperbeamConsensus } from './hb-consensus.mjs';
@@ -38,6 +39,7 @@ export async function runCommand(command, args) {
   if (command === 'meta-info') return metaInfoCommand(args);
   if (command === 'whois') return whoisCommand(args);
   if (command === 'reference') return referenceCommand(args);
+  if (command === 'watch') return watchCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -556,4 +558,33 @@ async function referenceCommand(args) {
   }
 
   throw new Error(`Unknown reference subcommand: ${subcommand}`);
+}
+
+async function watchCommand(args) {
+  const opts = {
+    useHyperbeam: args['use-hyperbeam'] === true || args['use-hyperbeam'] === 'true',
+    topic: args.topic,
+    kind: args.kind,
+    key: args.key,
+    interval: Number(args.interval || 30),
+    once: args.once === true || args.once === 'true',
+    json: args.json === true || args.json === 'true'
+  };
+
+  if (opts.once) {
+    const { cancel } = await watchOnce(opts);
+    return { status: 'watched-once' };
+  }
+
+  const { cancel } = await watch(opts);
+  // Keep the process alive until SIGINT/SIGTERM.
+  process.once('SIGINT', () => {
+    cancel();
+    process.exit(0);
+  });
+  process.once('SIGTERM', () => {
+    cancel();
+    process.exit(0);
+  });
+  return { status: 'watching' };
 }
