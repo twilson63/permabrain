@@ -180,14 +180,98 @@ The `useHyperbeamReference` option (and the `PERMABRAIN_HYPERBEAM_REFERENCES=1` 
 | `PERMABRAIN_HYPERBEAM_REFERENCES=1` | Enable reference creation/updates by default |
 | `PERMABRAIN_REQUIRE_HYPERBEAM=1` | Make `probe-hyperbeam` failures fatal |
 
-| Variable | Purpose |
-|----------|---------|
-| `PERMABRAIN_TRANSPORT=hyperbeam` | Make HyperBEAM the default transport |
-| `PERMABRAIN_HYPERBEAM_URL` | Base HyperBEAM URL |
-| `PERMABRAIN_GRAPHQL_URL` | Override GraphQL endpoint |
-| `PERMABRAIN_UPLOAD_URL` | Override bundler upload URL |
-| `PERMABRAIN_HYPERBEAM_REFERENCES=1` | Enable reference creation/updates by default |
-| `PERMABRAIN_REQUIRE_HYPERBEAM=1` | Make `probe-hyperbeam` failures fatal |
+## Transport Probe
+
+PermaBrain includes transport-agnostic health probes.
+
+### `permabrain probe`
+
+Checks the configured transport (local, Arweave, or HyperBEAM) and reports whether the current setup can upload, fetch, and query.
+
+```bash
+# Probe the default transport from config
+permabrain probe
+
+# Force a HyperBEAM probe regardless of default transport
+permabrain probe --use-hyperbeam --url http://localhost:10000
+```
+
+Output includes the transport name, URL, and per-check status (e.g. `health`, `bundler-upload`, `fetch-by-id`, `query-device`, `graphql`).
+
+### `permabrain probe-hyperbeam`
+
+Legacy shortcut to probe only HyperBEAM endpoints.
+
+```bash
+permabrain probe-hyperbeam --url http://localhost:10000
+```
+
+## HyperBEAM Device Commands
+
+PermaBrain exposes several low-level HyperBEAM device commands for operators and agents.
+
+### `permabrain probe-devices`
+
+Probes every HyperBEAM device endpoint used by PermaBrain in one call:
+
+```bash
+permabrain probe-devices --url http://localhost:10000
+```
+
+Checks: `health`, `bundler-upload`, `fetch-by-id`, `query-device`, `match-device`, `meta-info`, and `graphql`.
+
+### `permabrain match`
+
+Query the `~match@1.0` reverse index directly by tag key/value:
+
+```bash
+permabrain match --key App-Name --value PermaBrain
+```
+
+Returns a list of matching message IDs.
+
+### `permabrain deploy-consensus`
+
+Deploys the PermaBrain consensus and query Lua modules to a HyperBEAM node:
+
+```bash
+permabrain deploy-consensus --url http://localhost:10000
+```
+
+Returns the uploaded module IDs (`consensusModuleId`, `queryModuleId`). Once deployed, a process can be created from a module ID and used for on-node consensus computation.
+
+### `permabrain meta-info`
+
+Fetch node metadata from `~meta@1.0/info`:
+
+```bash
+permabrain meta-info --url http://localhost:10000
+```
+
+### `permabrain whois`
+
+Look up an agent identity via `~whois@1.0`:
+
+```bash
+permabrain whois test-address --url http://localhost:10000
+```
+
+### `permabrain reference`
+
+Manage `~reference@1.0` pointers directly:
+
+```bash
+# Create a reference
+permabrain reference create article-key=subject/foo current-version=abc123
+
+# Update a reference
+permabrain reference update ref-ABC current-version=def456
+
+# Resolve a reference
+permabrain reference resolve ref-ABC article-key
+```
+
+All device commands accept `--url` to target a specific HyperBEAM node and `--json` for machine-readable output.
 
 ## Transport Architecture
 
