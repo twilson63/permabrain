@@ -21,6 +21,9 @@ export function defaultConfig(env = process.env) {
     bundler: {
       type: transport,
       uploadUrl: env.PERMABRAIN_UPLOAD_URL || (transport === 'hyperbeam' ? `${baseUrl}/~bundler@1.0/tx?codec-device=ans104@1.0` : 'https://up.arweave.net/tx')
+    },
+    hyperbeam: {
+      references: env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' || false
     }
   };
   return config;

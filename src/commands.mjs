@@ -99,13 +99,17 @@ async function publishCommand(args) {
     sourceUrl: args['source-url'],
     sourceName: args['source-name'],
     sourceLicense: args['source-license'] || '',
-    language: args.language || 'en'
+    language: args.language || 'en',
+    useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
   });
   if (args.json) printJson(result.summary);
   else {
     console.log(`Published ${result.summary.key}`);
     console.log(`ID: ${result.summary.id}`);
     console.log(`Version: ${result.summary.version}`);
+    if (result.reference) {
+      console.log(`Reference: ${result.reference.referenceId} (${result.reference.action})`);
+    }
   }
   return result;
 }
@@ -151,11 +155,22 @@ async function attestCommand(args) {
   const key = args._[0];
   if (!key) throw new Error('attest requires <canonical-key>');
   const opinion = opinionFromArgs(args);
-  const result = await attestArticle({ key, opinion, confidence: args.confidence, reason: args.reason, sourceUrl: args['source-url'] || '', targetId: args['target-id'] });
+  const result = await attestArticle({
+    key,
+    opinion,
+    confidence: args.confidence,
+    reason: args.reason,
+    sourceUrl: args['source-url'] || '',
+    targetId: args['target-id'],
+    useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
+  });
   if (args.json) printJson(result.summary);
   else {
     console.log(`Attested ${result.summary.targetKey}: ${result.summary.opinion} (${result.summary.confidence})`);
     console.log(`ID: ${result.summary.id}`);
+    if (result.reference) {
+      console.log(`Reference: ${result.reference.referenceId} (${result.reference.action})`);
+    }
   }
   return result;
 }

@@ -66,6 +66,15 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   return { item, summary: summarizeArticle(item), reference };
 }
 
+function loadRefCache(refPath) {
+  if (!fs.existsSync(refPath)) return {};
+  try { return JSON.parse(fs.readFileSync(refPath, 'utf8')); } catch { return {}; }
+}
+
+function writeRefCache(refPath, refs) {
+  fs.writeFileSync(refPath, JSON.stringify(refs, null, 2) + '\n');
+}
+
 async function updateOrCreateArticleReference(transport, home, articleKey, articleId, identity) {
   const refCachePath = path.join(home, 'cache', 'article-references.json');
   const refs = loadRefCache(refCachePath);
@@ -85,13 +94,27 @@ async function updateOrCreateArticleReference(transport, home, articleKey, artic
   }
 }
 
-function loadRefCache(path) {
-  if (!fs.existsSync(path)) return {};
-  try { return JSON.parse(fs.readFileSync(path, 'utf8')); } catch { return {}; }
-}
-
-function writeRefCache(path, refs) {
-  fs.writeFileSync(path, JSON.stringify(refs, null, 2) + '\n');
+export async function resolveArticleReferenceId(transport, home, articleKey) {
+  const refCachePath = path.join(home, 'cache', 'article-references.json');
+  const refs = loadRefCache(refCachePath);
+  if (refs[articleKey]) return refs[articleKey];
+  try {
+    // Try to discover the reference ID via query device: find a reference whose value contains this article-key
+    const results = await transport.queryByTags({
+      'App-Name': 'PermaBrain',
+      'PermaBrain-Type': 'reference',
+      'Article-Key': articleKey
+    }, { useQueryDevice: true });
+    if (Array.isArray(results) && results.length > 0) {
+      const refId = results[0].id;
+      refs[articleKey] = refId;
+      writeRefCache(refCachePath, refs);
+      return refId;
+    }
+  } catch (err) {
+    console.warn(`Reference discovery query failed for ${articleKey}: ${err.message}`);
+  }
+  return null;
 }
 
 function articleIsNewer(candidate, current) {
@@ -161,29 +184,6 @@ export async function resolveLatestArticle(key, opts = {}) {
   const cached = loadIndex(home).articles?.[key];
   if (cached) return { item: { id: cached.id }, summary: cached, transport, home };
   throw new Error(`Article not found: ${key}`);
-}
-
-async function resolveArticleReferenceId(transport, home, articleKey) {
-  const refCachePath = path.join(home, 'cache', 'article-references.json');
-  const refs = loadRefCache(refCachePath);
-  if (refs[articleKey]) return refs[articleKey];
-  try {
-    // Try to discover the reference ID via query device: find a reference whose value contains this article-key
-    const results = await transport.queryByTags({
-      'App-Name': 'PermaBrain',
-      'PermaBrain-Type': 'reference',
-      'Article-Key': articleKey
-    }, { useQueryDevice: true });
-    if (Array.isArray(results) && results.length > 0) {
-      const refId = results[0].id;
-      refs[articleKey] = refId;
-      writeRefCache(refCachePath, refs);
-      return refId;
-    }
-  } catch (err) {
-    console.warn(`Reference discovery query failed for ${articleKey}: ${err.message}`);
-  }
-  return null;
 }
 
 export async function getArticle(key) {

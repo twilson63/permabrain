@@ -96,10 +96,16 @@ export class HyperbeamQuery {
   // --- PermaBrain-specific queries ---
 
   /**
-   * Find articles by PermaBrain filters.
+   * Query for articles by PermaBrain filters.
    */
   async findArticles(opts = {}) {
     const filters = buildPermaBrainFilters(opts);
+    // Also forward any extra tag filters supplied directly to queryByTags
+    for (const [name, value] of Object.entries(opts)) {
+      if (!filters[name] && value !== undefined && value !== null && value !== '') {
+        filters[name] = String(value);
+      }
+    }
     // Remove attestation-specific filters for article queries
     delete filters['Attestation-Target'];
     return this.query(filters, { returnType: opts.returnType || 'messages' });

@@ -5,6 +5,9 @@ import { getTransport } from './transport.mjs';
 import { buildAttestationTags, tagsToObject } from './tags.mjs';
 import { summarizeAttestation, updateAttestationInCache } from './cache.mjs';
 import { resolveLatestArticle } from './article.mjs';
+import { HyperbeamTransport } from './transport.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export function opinionFromArgs(args) {
   const opinions = [
@@ -18,7 +21,7 @@ export function opinionFromArgs(args) {
   return opinions[0][0];
 }
 
-export async function attestArticle({ key, opinion, confidence, reason, sourceUrl = '', targetId }) {
+export async function attestArticle({ key, opinion, confidence, reason, sourceUrl = '', targetId, useHyperbeamReference = null }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
@@ -37,7 +40,47 @@ export async function attestArticle({ key, opinion, confidence, reason, sourceUr
   const item = await createDataItem({ payload, tags, identity });
   await transport.uploadDataItem(item);
   updateAttestationInCache(home, item);
-  return { item, summary: summarizeAttestation(item) };
+
+  // HyperBEAM reference integration: maintain a mutable pointer from key → latest attestation
+  let reference = null;
+  const enableHyperbeamReference = useHyperbeamReference ?? config.hyperbeam?.references ?? false;
+  if (enableHyperbeamReference && transport instanceof HyperbeamTransport) {
+    reference = await updateOrCreateAttestationReference(transport, home, key, item.id, identity);
+  }
+
+  return { item, summary: summarizeAttestation(item), reference };
+}
+
+async function updateOrCreateAttestationReference(transport, home, targetKey, attestationId, identity) {
+  const refCachePath = path.join(home, 'cache', 'attestation-references.json');
+  const refs = loadRefCache(refCachePath);
+  const existingRefId = refs[targetKey];
+  try {
+    if (existingRefId) {
+      const result = await transport.updateReference(existingRefId, { 'attestation-target-key': targetKey, 'current-attestation': attestationId }, identity, { authority: identity.agentId });
+      return { referenceId: result.referenceId, action: 'update' };
+    }
+    const result = await transport.createReference(
+      { 'attestation-target-key': targetKey, 'current-attestation': attestationId },
+      identity,
+      { authority: identity.agentId }
+    );
+    refs[targetKey] = result.referenceId;
+    writeRefCache(refCachePath, refs);
+    return { referenceId: result.referenceId, action: 'create' };
+  } catch (err) {
+    console.warn(`HyperBEAM attestation reference update/create failed for ${targetKey}: ${err.message}`);
+    return { error: err.message };
+  }
+}
+
+function loadRefCache(refPath) {
+  if (!fs.existsSync(refPath)) return {};
+  try { return JSON.parse(fs.readFileSync(refPath, 'utf8')); } catch { return {}; }
+}
+
+function writeRefCache(refPath, refs) {
+  fs.writeFileSync(refPath, JSON.stringify(refs, null, 2) + '\n');
 }
 
 export async function queryAttestationsForKey(key) {

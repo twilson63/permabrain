@@ -123,7 +123,7 @@ export function metaUrl(base) {
 export function queryUrl(base, tags, returnType = 'messages') {
   const params = new URLSearchParams();
   for (const [name, value] of Object.entries(tags)) {
-    params.set(encodeURIComponent(name), encodeURIComponent(value));
+    params.set(name, String(value));
   }
   params.set('return', returnType);
   return `${base}/${DEVICES.query}?${params.toString()}`;

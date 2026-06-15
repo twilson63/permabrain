@@ -66,10 +66,19 @@ async function mockCreateDataItem({ payload, tags, identity }) {
   };
 }
 
-// Patch HyperbeamReference DataItem builder for transport tests.
+// Patch HyperbeamReference DataItem builder and HyperbeamTransport reference methods for transport tests.
 import { setDataItemBuilder as setReferenceDataItemBuilder } from '../src/hb-reference.mjs';
 const originalReferenceDataItemBuilder = setReferenceDataItemBuilder;
 setReferenceDataItemBuilder(mockCreateDataItem);
+
+const originalCreateArticleReference = Object.getPrototypeOf(makeTransport()).createArticleReference;
+const originalUpdateArticleReference = Object.getPrototypeOf(makeTransport()).updateArticleReference;
+Object.getPrototypeOf(makeTransport()).createArticleReference = async function(articleKey, articleId, signer) {
+  return { referenceId: `ref-${articleId}`, value: { 'article-key': articleKey, 'current-version': articleId } };
+};
+Object.getPrototypeOf(makeTransport()).updateArticleReference = async function(referenceId, newArticleId, signer) {
+  return { referenceId, value: { 'current-version': newArticleId }, timestamp: Date.now() };
+};
 
 function Response(body, opts = {}) {
   return {
@@ -309,4 +318,6 @@ async function runTests() {
 runTests().finally(() => {
   globalThis.fetch = originalFetch;
   setReferenceDataItemBuilder(originalReferenceDataItemBuilder);
+  Object.getPrototypeOf(makeTransport()).createArticleReference = originalCreateArticleReference;
+  Object.getPrototypeOf(makeTransport()).updateArticleReference = originalUpdateArticleReference;
 });
