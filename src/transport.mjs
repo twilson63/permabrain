@@ -13,12 +13,35 @@ import {
   buildPermaBrainFilters,
 } from './hb-devices.mjs';
 
-export function getTransport(config, home) {
+export function getTransport(config, home, opts = {}) {
+  if (opts.useHyperbeam) return new HyperbeamTransport(configForHyperbeam(config));
   if (config.transport === 'local' || config.gateway?.type === 'local' || config.bundler?.type === 'local') return new LocalTransport(home);
   if (config.transport === 'arweave' || config.gateway?.type === 'arweave') return new ArweaveTransport(config);
   if (config.transport === 'hyperbeam') return new HyperbeamTransport(config);
   // Default fallback: Arweave
   return new ArweaveTransport(config);
+}
+
+function configForHyperbeam(config) {
+  const baseUrl = config.gateway?.dataUrl || process.env.PERMABRAIN_HYPERBEAM_URL || 'http://localhost:10000';
+  return {
+    ...config,
+    transport: 'hyperbeam',
+    gateway: {
+      ...(config.gateway || {}),
+      type: 'hyperbeam',
+      dataUrl: baseUrl,
+      graphqlUrl: config.gateway?.graphqlUrl || `${baseUrl}/graphql`
+    },
+    bundler: {
+      ...(config.bundler || {}),
+      type: 'hyperbeam',
+      uploadUrl: config.bundler?.uploadUrl || `${baseUrl}/~bundler@1.0/tx?codec-device=ans104@1.0`
+    },
+    hyperbeam: {
+      references: config.hyperbeam?.references ?? false
+    }
+  };
 }
 
 // ============================================================================

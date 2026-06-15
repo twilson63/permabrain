@@ -24,6 +24,11 @@ export function defaultConfig(env = process.env) {
     },
     hyperbeam: {
       references: env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' || false
+    },
+    fallback: {
+      // 'hyperbeam' mode forces transport selection when --use-hyperbeam is passed;
+      // actual transport switching is handled by CLI/API callers.
+      arweave: env.PERMABRAIN_FALLBACK_ARWEAVE === '1' || true
     }
   };
   return config;

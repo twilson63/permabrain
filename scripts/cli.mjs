@@ -30,6 +30,10 @@ function printHelp(command = null) {
 Usage:
   permabrain <command> [options]
 
+Global options:
+  --use-hyperbeam              Use HyperbeamTransport for this command
+  --use-hyperbeam-reference    Create/update HyperBEAM article references
+
 Commands:
   init                         Initialize local PermaBrain state
   probe-hyperbeam              Probe local HyperBEAM endpoints
@@ -56,6 +60,7 @@ Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
   PERMABRAIN_TRANSPORT         Transport: local|hyperbeam|arweave
   PERMABRAIN_HYPERBEAM_URL     HyperBEAM node base URL (default http://localhost:10000)
+  PERMABRAIN_HYPERBEAM_REFERENCES  Set 1 to enable reference creation by default
 
 Run 'permabrain <command> --help' for command-specific help.`);
     return;
@@ -68,24 +73,24 @@ Creates .permabrain/ or PERMABRAIN_HOME state, config, keys, identity-init event
     'probe-hyperbeam': `Usage: permabrain probe-hyperbeam [--url http://localhost:10000] [--json]
 
 Checks local HyperBEAM health, GraphQL, upload, and fetch endpoints.`,
-    publish: `Usage: permabrain publish <file> --kind <kind> --topic <topic> [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
+    publish: `Usage: permabrain publish [--use-hyperbeam] [--use-hyperbeam-reference] <file> --kind <kind> --topic <topic> [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
 
-Publishes a signed public article DataItem.`,
+Publishes a signed public article DataItem. With --use-hyperbeam, routes the upload through the HyperBEAM ~bundler@1.0 device. With --use-hyperbeam-reference, also creates/updates a ~reference@1.0 pointer for the article key.`,
     'import-wikipedia': `Usage: permabrain import-wikipedia "<title>" --kind <kind> --topic <topic> [--language en] [--json]
 
 Fetches a Wikipedia summary, generates sourced markdown, and publishes it.`,
-    query: `Usage: permabrain query [--topic <topic>] [--kind <kind>] [--key <key>] [--source-name <name>] [--source-url <url>] [--json]
+    query: `Usage: permabrain query [--use-hyperbeam] [--topic <topic>] [--kind <kind>] [--key <key>] [--source-name <name>] [--source-url <url>] [--json]
 
-Queries public articles by tags.`,
-    get: `Usage: permabrain get <canonical-key> [--json]
+Queries public articles by tags. With --use-hyperbeam, queries via the ~query@1.0 device first, falling back to GraphQL.`,
+    get: `Usage: permabrain get [--use-hyperbeam] <canonical-key> [--json]
 
-Fetches latest article content by canonical key and verifies content hash.`,
-    attest: `Usage: permabrain attest <canonical-key> --valid|--invalid|--partially-valid|--outdated|--disputed --confidence <0..1> --reason <text> [--source-url <url>] [--json]
+Fetches latest article content by canonical key and verifies content hash. With --use-hyperbeam, resolves through HyperBEAM reference and tag query first.`,
+    attest: `Usage: permabrain attest [--use-hyperbeam] [--use-hyperbeam-reference] <canonical-key> --valid|--invalid|--partially-valid|--outdated|--disputed --confidence <0..1> --reason <text> [--source-url <url>] [--json]
 
-Publishes a signed attestation against the latest article version.`,
-    consensus: `Usage: permabrain consensus <canonical-key> [--json]
+Publishes a signed attestation against the latest article version. With --use-hyperbeam, uploads through HyperBEAM; --use-hyperbeam-reference updates the article's reference pointer if configured.`,
+    consensus: `Usage: permabrain consensus [--use-hyperbeam] <canonical-key> [--json]
 
-Aggregates attestations and computes MVP consensus score.`,
+Aggregates attestations and computes MVP consensus score. With --use-hyperbeam, resolves the article and its attestations via HyperBEAM first.`,
     sync: `Usage: permabrain sync [--json]
 
 Queries articles and attestations and writes local cache index.`,

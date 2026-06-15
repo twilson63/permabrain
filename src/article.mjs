@@ -19,11 +19,11 @@ export function sourceNameFromUrl(url) {
   }
 }
 
-export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null }) {
+export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
-  const transport = getTransport(config, home);
+  const transport = getTransport(config, home, { useHyperbeam });
   if (!kind) throw new Error('--kind is required');
   if (!topic) throw new Error('--topic is required');
   if (!sourceUrl) throw new Error('--source-url is required');
@@ -135,10 +135,10 @@ function mergeArticleSummaries(remote, cached) {
   return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
-export async function queryArticles(filters = {}) {
+export async function queryArticles(filters = {}, opts = {}) {
   const home = getHome();
   const config = loadConfig(home);
-  const transport = getTransport(config, home);
+  const transport = getTransport(config, home, { useHyperbeam: opts.useHyperbeam });
   const tagFilters = { 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article' };
   if (filters.topic) tagFilters['Article-Topic'] = filters.topic;
   if (filters.kind) tagFilters['Article-Kind'] = filters.kind;
@@ -161,7 +161,7 @@ export async function queryArticles(filters = {}) {
 export async function resolveLatestArticle(key, opts = {}) {
   const home = getHome();
   const config = loadConfig(home);
-  const transport = getTransport(config, home);
+  const transport = getTransport(config, home, { useHyperbeam: opts.useHyperbeam });
 
   // HyperBEAM reference integration: resolve the latest version via reference@1.0 if available
   if (!opts.skipHyperbeamReference && transport instanceof HyperbeamTransport) {
@@ -186,8 +186,8 @@ export async function resolveLatestArticle(key, opts = {}) {
   throw new Error(`Article not found: ${key}`);
 }
 
-export async function getArticle(key) {
-  const { item: indexItem, summary, transport, home, viaReference } = await resolveLatestArticle(key);
+export async function getArticle(key, opts = {}) {
+  const { item: indexItem, summary, transport, home, viaReference } = await resolveLatestArticle(key, opts);
   const item = await transport.fetchDataItem(indexItem.id);
   const content = payloadText(item);
   const actualHash = contentHash(content);

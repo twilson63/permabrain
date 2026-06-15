@@ -141,12 +141,12 @@ const api = {
   async publish(params) {
     await this.ensureInit();
     requireInit(this._home);
-    const { content, kind, topic, sourceUrl, ...rest } = params;
+    const { content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, ...rest } = params;
     if (!content) throw new Error('content is required');
     if (!kind) throw new Error('kind is required');
     if (!topic) throw new Error('topic is required');
     if (!sourceUrl) throw new Error('sourceUrl is required');
-    const result = await publishArticle({ content, kind, topic, sourceUrl, ...rest });
+    const result = await publishArticle({ content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, ...rest });
     return result.summary;
   },
 
@@ -171,11 +171,11 @@ const api = {
    * @param {string} key - Canonical key (e.g., "subject/my-article")
    * @returns {Promise<{key, title, content, contentHash, version, sourceName, sourceUrl}>}
    */
-  async get(key) {
+  async get(key, opts = {}) {
     await this.ensureInit();
     requireInit(this._home);
     if (!key) throw new Error('key is required');
-    const result = await getArticle(key);
+    const result = await getArticle(key, opts);
     return { ...result.summary, content: result.content };
   },
 
@@ -209,13 +209,15 @@ const api = {
   /**
    * Get consensus information for an article.
    * @param {string} key - Canonical key
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
    * @returns {Promise<{key, status, score, totalAttestations, opinionCounts, topReasons}>}
    */
-  async consensus(key) {
+  async consensus(key, opts = {}) {
     await this.ensureInit();
     requireInit(this._home);
     if (!key) throw new Error('key is required');
-    return consensusForArticle(key);
+    return consensusForArticle(key, opts);
   },
 
   /**
@@ -492,7 +494,9 @@ const api = {
           sourceUrl: item.url,
           sourceName: new URL(item.url).hostname,
           sourceLicense: '',
-          language: 'en'
+          language: 'en',
+          useHyperbeam: params.useHyperbeam,
+          useHyperbeamReference: params.useHyperbeamReference
         });
 
         results.push({ key: result.summary.key, status: 'ok', summary: result.summary });

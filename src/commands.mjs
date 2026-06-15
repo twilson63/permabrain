@@ -100,6 +100,7 @@ async function publishCommand(args) {
     sourceName: args['source-name'],
     sourceLicense: args['source-license'] || '',
     language: args.language || 'en',
+    useHyperbeam: args['use-hyperbeam'] ?? false,
     useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
   });
   if (args.json) printJson(result.summary);
@@ -132,7 +133,8 @@ async function queryCommand(args) {
     kind: args.kind,
     key: args.key,
     sourceName: args['source-name'],
-    sourceUrl: args['source-url']
+    sourceUrl: args['source-url'],
+    useHyperbeam: args['use-hyperbeam'] ?? false
   });
   if (args.json) printJson(articles);
   else {
@@ -145,7 +147,7 @@ async function queryCommand(args) {
 async function getCommand(args) {
   const key = args._[0];
   if (!key) throw new Error('get requires <canonical-key>');
-  const result = await getArticle(key);
+  const result = await getArticle(key, { useHyperbeam: args['use-hyperbeam'] ?? false });
   if (args.json) printJson({ ...result.summary, content: result.content });
   else process.stdout.write(result.content);
   return result;
@@ -162,6 +164,7 @@ async function attestCommand(args) {
     reason: args.reason,
     sourceUrl: args['source-url'] || '',
     targetId: args['target-id'],
+    useHyperbeam: args['use-hyperbeam'] ?? false,
     useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
   });
   if (args.json) printJson(result.summary);
@@ -178,7 +181,7 @@ async function attestCommand(args) {
 async function consensusCommand(args) {
   const key = args._[0];
   if (!key) throw new Error('consensus requires <canonical-key>');
-  const result = await consensusForArticle(key);
+  const result = await consensusForArticle(key, { useHyperbeam: args['use-hyperbeam'] ?? false });
   if (args.json) printJson(result);
   else {
     console.log(`${result.key}: ${result.status}`);

@@ -21,11 +21,11 @@ export function opinionFromArgs(args) {
   return opinions[0][0];
 }
 
-export async function attestArticle({ key, opinion, confidence, reason, sourceUrl = '', targetId, useHyperbeamReference = null }) {
+export async function attestArticle({ key, opinion, confidence, reason, sourceUrl = '', targetId, useHyperbeamReference = null, useHyperbeam = false }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
-  const transport = getTransport(config, home);
+  const transport = getTransport(config, home, { useHyperbeam });
   const resolved = targetId ? { summary: { id: targetId, key } } : await resolveLatestArticle(key);
   const tags = buildAttestationTags({
     targetId: targetId || resolved.summary.id,
@@ -83,10 +83,10 @@ function writeRefCache(refPath, refs) {
   fs.writeFileSync(refPath, JSON.stringify(refs, null, 2) + '\n');
 }
 
-export async function queryAttestationsForKey(key) {
+export async function queryAttestationsForKey(key, opts = {}) {
   const home = getHome();
   const config = loadConfig(home);
-  const transport = getTransport(config, home);
+  const transport = getTransport(config, home, { useHyperbeam: opts.useHyperbeam });
   return transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'attestation', 'Attestation-Target-Key': key });
 }
 
