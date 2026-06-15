@@ -39,6 +39,7 @@ export async function runCommand(command, args) {
   if (command === 'meta-info') return metaInfoCommand(args);
   if (command === 'whois') return whoisCommand(args);
   if (command === 'reference') return referenceCommand(args);
+  if (command === 'get-encrypted') return getEncryptedCommand(args);
   if (command === 'publish-encrypted') return publishEncryptedCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
@@ -146,6 +147,25 @@ async function importWikipediaCommand(args) {
     console.log(`ID: ${result.summary.id}`);
     console.log(`Version: ${result.summary.version}`);
   }
+  return result;
+}
+
+async function getEncryptedCommand(args) {
+  const key = args._[0];
+  if (!key) throw new Error('get-encrypted requires <canonical-key>');
+
+  let decryptSeed;
+  if (args['seed-file']) {
+    decryptSeed = fs.readFileSync(args['seed-file'], 'utf8').trim();
+  } else if (args.seed) {
+    decryptSeed = args.seed;
+  }
+
+  const { api } = await import('./agent-api.mjs');
+  await api.ensureInit();
+  const result = await api.getAndDecrypt(key, { useHyperbeam: args['use-hyperbeam'] ?? false, decryptSeed });
+  if (args.json) printJson({ ...result, content: result.content });
+  else process.stdout.write(result.content);
   return result;
 }
 

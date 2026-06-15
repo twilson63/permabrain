@@ -40,12 +40,47 @@ permabrain consensus person/ada-lovelace
 permabrain sync
 ```
 
+## Encrypted Articles
+
+PermaBrain supports private encrypted articles readable only by listed X25519 recipients. The author is always added as a recipient so they can decrypt their own articles later.
+
+```sh
+# Publish an encrypted article
+permabrain publish-encrypted article.md \
+  --kind subject \
+  --topic internal \
+  --source-url "https://example.com/private" \
+  --for "<recipient-x25519-public-key>"
+
+# Read it back (author seed is auto-derived for ed25519 identities)
+permabrain get-encrypted subject/article
+
+# Read with an explicit seed file
+permabrain get-encrypted subject/article --seed-file seed.txt
+```
+
+Programmatically:
+
+```javascript
+const result = await api.publish({
+  content: '# Confidential\n\nPrivate notes.',
+  kind: 'subject',
+  topic: 'internal',
+  sourceUrl: 'https://example.com/private',
+  encryptedFor: [keypair.publicKey]
+});
+
+const article = await api.getAndDecrypt('subject/article');
+```
+
 ## Commands
 
 ```sh
 permabrain init
 permabrain probe-hyperbeam --url http://localhost:10000
 permabrain publish <file> --kind <kind> --topic <topic> --source-url <url>
+permabrain publish-encrypted <file> --kind <kind> --topic <topic> --for <pubkeys>
+permabrain get-encrypted <canonical-key> [--seed-file <path>]
 permabrain import-wikipedia "<title>" --kind <kind> --topic <topic>
 permabrain query [--topic <topic>] [--kind <kind>] [--key <key>] [--json]
 permabrain get <canonical-key>

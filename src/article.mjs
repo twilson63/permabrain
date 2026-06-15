@@ -233,7 +233,8 @@ export async function getArticle(key, opts = {}) {
   const tags = tagsToObject(item.tags || []);
   if (tags.Visibility === 'private' || pbcrypto.isEncryptedEnvelope(rawContent)) {
     if (!opts.decryptSeed) throw new Error('Article is encrypted; provide decryptSeed or use get-encrypted command');
-    const { content: decryptedContent } = await pbcrypto.decrypt(rawContent, Buffer.from(opts.decryptSeed, 'base64url'));
+    const seedBuffer = Buffer.isBuffer(opts.decryptSeed) ? opts.decryptSeed : Buffer.from(opts.decryptSeed, 'base64url');
+    const { content: decryptedContent } = await pbcrypto.decrypt(rawContent, seedBuffer);
     writePageCache(home, key, decryptedContent);
     return { item, summary, content: decryptedContent, viaReference, encrypted: true };
   }

@@ -197,6 +197,31 @@ const api = {
   },
 
   /**
+   * Get an encrypted article and decrypt it.
+   *
+   * If no `decryptSeed` is provided, automatically derives the author's X25519
+   * seed from the current identity (works for ed25519 identities and arweave
+   * identities that have an `encryptionSeed`).
+   *
+   * @param {string} key - Canonical key
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {string} [opts.decryptSeed] - X25519 seed (base64url) or Buffer
+   * @returns {Promise<{key, title, content, contentHash, version, sourceName, sourceUrl, encrypted: boolean}>}
+   */
+  async getAndDecrypt(key, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!key) throw new Error('key is required');
+    let decryptSeed = opts.decryptSeed;
+    if (!decryptSeed) {
+      decryptSeed = deriveAuthorSeed(this._identity);
+    }
+    const result = await getArticle(key, { ...opts, decryptSeed });
+    return { ...result.summary, content: result.content, encrypted: result.encrypted };
+  },
+
+  /**
    * Attest to an article's validity.
    * @param {string} key - Canonical key of the target article
    * @param {Object} params
@@ -574,5 +599,16 @@ const api = {
     return { agentId: this._identity.agentId, keyType: this._identity.type };
   }
 };
+
+function deriveAuthorSeed(identity) {
+  if (identity.type === 'ed25519') {
+    const edSeed = Buffer.from(identity.secretKey, 'base64url').subarray(0, 32);
+    return Buffer.from(pbcrypto.deriveEncryptionKeyFromEd25519(edSeed).seed, 'base64url');
+  }
+  if (identity.type === 'arweave-rsa4096' && identity.encryptionSeed) {
+    return Buffer.from(identity.encryptionSeed, 'base64url');
+  }
+  throw new Error('Cannot derive decryption seed from identity. Provide decryptSeed or use an ed25519 identity.');
+}
 
 export { api };

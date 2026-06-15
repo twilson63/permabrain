@@ -271,6 +271,59 @@ await api.attest('subject/arweave-ans104-dataitem-format', {
 | `disputed` | Contested or needs competing evidence | Multiple perspectives, no clear consensus |
 | `invalid` | Substantially wrong | Claims are incorrect, sources don't support conclusions |
 
+## Private Articles (Encryption)
+
+PermaBrain supports encrypted articles readable only by listed X25519 recipients. The author is always included as a recipient so they can read their own articles later.
+
+### Generate an encryption keypair
+
+```javascript
+const keypair = api.generateEncryptionKeypair();
+// → { type, seed, publicKey, fingerprint }
+```
+
+### Publish an encrypted article
+
+```javascript
+const result = await api.publish({
+  content: '# Confidential\n\nPrivate notes.',
+  kind: 'subject',
+  topic: 'internal',
+  sourceUrl: 'https://example.com/private',
+  encryptedFor: [keypair.publicKey]
+});
+// → { summary, reference, encrypted: true, encryptionEnvelope }
+```
+
+### Read an encrypted article
+
+```javascript
+// Auto-derive the author's X25519 seed from the current ed25519 identity
+const article = await api.getAndDecrypt('subject/confidential');
+
+// Or decrypt with an explicit recipient seed
+const article = await api.getAndDecrypt('subject/confidential', {
+  decryptSeed: Buffer.from(keypair.seed, 'base64url')
+});
+```
+
+### CLI for encrypted articles
+
+```sh
+# Publish an encrypted article for one or more recipients
+node scripts/cli.mjs publish-encrypted article.md \
+  --kind subject \
+  --topic internal \
+  --source-url "https://example.com/private" \
+  --for "<recipient-x25519-public-key>"
+
+# Read it back (author seed auto-derived for ed25519 identities)
+node scripts/cli.mjs get-encrypted subject/confidential
+
+# Read with an explicit seed file
+node scripts/cli.mjs get-encrypted subject/confidential --seed-file seed.txt
+```
+
 ## Architecture Notes
 
 1. **Three transports:** `local` (filesystem), `hyperbeam` (HyperBEAM node), `arweave` (public Arweave via `up.arweave.net`)

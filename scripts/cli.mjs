@@ -7,6 +7,7 @@ const COMMANDS = [
   'probe-devices',
   'publish',
   'publish-encrypted',
+  'get-encrypted',
   'import-wikipedia',
   'query',
   'get',
@@ -43,6 +44,8 @@ Commands:
   probe-hyperbeam              Probe local HyperBEAM endpoints
   probe-devices                Probe all HyperBEAM device endpoints
   publish <file>               Publish a public knowledge article
+  publish-encrypted <file>     Publish an encrypted knowledge article
+  get-encrypted <key>          Fetch and decrypt an encrypted article
   import-wikipedia <title>     Import and publish a Wikipedia summary
   query                        Query public articles
   get <canonical-key>          Fetch latest article content
@@ -87,6 +90,9 @@ Publishes a signed public article DataItem. With --use-hyperbeam, routes the upl
     'publish-encrypted': `Usage: permabrain publish-encrypted <file> --kind <kind> --topic <topic> --for <public-key-1>[,<public-key-2>...] [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
 
 Publishes an encrypted article readable only by recipients whose X25519 public keys are listed in --for. The author's derived encryption key is included automatically. Use --use-hyperbeam to route the upload through HyperBEAM.`,
+    'get-encrypted': `Usage: permabrain get-encrypted <canonical-key> [--seed <base64url-seed>] [--seed-file <path>] [--use-hyperbeam] [--json]
+
+Fetches an encrypted article and decrypts it. If --seed/--seed-file is omitted, the author's X25519 seed is derived from the current ed25519 identity. Outputs the plaintext content by default, or a JSON envelope with --json.`,
     'import-wikipedia': `Usage: permabrain import-wikipedia "<title>" --kind <kind> --topic <topic> [--language en] [--json]
 
 Fetches a Wikipedia summary, generates sourced markdown, and publishes it. With --use-hyperbeam, routes the upload through the HyperBEAM ~bundler@1.0 device. With --use-hyperbeam-reference, also creates/updates a ~reference@1.0 pointer for the article key.`,
