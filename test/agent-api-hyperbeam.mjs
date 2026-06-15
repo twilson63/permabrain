@@ -95,8 +95,8 @@ async function runTests() {
     useHyperbeam: true,
     useHyperbeamReference: true,
   });
-  assert.ok(pubResult.id, 'publish returned id');
-  assert.ok(pubResult.key, 'publish returned key');
+  assert.ok(pubResult.summary.id, 'publish returned id');
+  assert.ok(pubResult.summary.key, 'publish returned key');
 
   // 4. query forwards useHyperbeam
   await initLocal();
@@ -131,7 +131,7 @@ async function runTests() {
 
   // 6. attest forwards useHyperbeam
   await initLocal();
-  globalThis.fetch = hbFetch({ articles: ['attest-existing'] });
+  globalThis.fetch = hbFetch({ articles: [] });
   const target = await api.publish({
     content: '# Attest Target\n\nBody.',
     kind: 'subject',
@@ -140,15 +140,15 @@ async function runTests() {
     title: 'Attest Target',
     useHyperbeam: true,
   });
-  globalThis.fetch = hbFetch({ articles: [] });
-  const attResult = await api.attest(target.key, {
+  assert.ok(target.summary?.key, 'target has key');
+  const attResult = await api.attest(target.summary.key, {
     opinion: 'valid',
     confidence: 0.9,
     reason: 'Good.',
     useHyperbeam: true,
   });
-  assert.equal(attResult.targetKey, target.key);
-  assert.equal(attResult.opinion, 'valid');
+  assert.equal(attResult.summary.targetKey, target.summary.key);
+  assert.equal(attResult.summary.opinion, 'valid');
 
   // 7. consensus forwards useHyperbeam
   await initLocal();
@@ -183,7 +183,7 @@ async function runTests() {
   const batchResult = await api.batchAttest({
     useHyperbeam: true,
     attestations: [
-      { key: target.key, opinion: 'valid', confidence: 0.7, reason: 'Batch 1' },
+      { key: target.summary.key, opinion: 'valid', confidence: 0.7, reason: 'Batch 1' },
     ],
   });
   assert.equal(batchResult.succeeded, 1);

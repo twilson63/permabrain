@@ -117,7 +117,7 @@ async function publishCommand(args) {
 
 async function importWikipediaCommand(args) {
   const title = args._[0];
-  const result = await importWikipediaArticle({ title, kind: args.kind, topic: args.topic, language: args.language || 'en' });
+  const result = await importWikipediaArticle({ title, kind: args.kind, topic: args.topic, language: args.language || 'en', useHyperbeam: args['use-hyperbeam'] ?? false, useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined) });
   if (args.json) printJson(result.summary);
   else {
     console.log(`Imported Wikipedia article ${result.summary.key}`);
@@ -193,7 +193,7 @@ async function consensusCommand(args) {
 }
 
 async function syncCommand(args) {
-  const index = await syncArticlesAndAttestations();
+  const index = await syncArticlesAndAttestations({ useHyperbeam: args['use-hyperbeam'] ?? false });
   if (args.json) printJson(index);
   else {
     console.log(`Synced ${Object.keys(index.articles).length} articles and ${Object.values(index.attestations).reduce((n, xs) => n + xs.length, 0)} attestations.`);
@@ -296,7 +296,7 @@ async function batchAttestCommand(args) {
   // Use agent API directly
   const { api } = await import('./agent-api.mjs');
   await api.ensureInit();
-  const result = await api.batchAttest({ attestations });
+  const result = await api.batchAttest({ attestations, useHyperbeam: args['use-hyperbeam'] ?? false });
 
   if (args.json) {
     printJson(result);
@@ -339,7 +339,7 @@ async function autoImportCommand(args) {
   // Use agent API directly
   const { api } = await import('./agent-api.mjs');
   await api.ensureInit();
-  const result = await api.autoImport({ articles });
+  const result = await api.autoImport({ articles, useHyperbeam: args['use-hyperbeam'] ?? false, useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined) });
 
   if (args.json) {
     printJson(result);

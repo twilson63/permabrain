@@ -78,7 +78,7 @@ Checks local HyperBEAM health, GraphQL, upload, and fetch endpoints.`,
 Publishes a signed public article DataItem. With --use-hyperbeam, routes the upload through the HyperBEAM ~bundler@1.0 device. With --use-hyperbeam-reference, also creates/updates a ~reference@1.0 pointer for the article key.`,
     'import-wikipedia': `Usage: permabrain import-wikipedia "<title>" --kind <kind> --topic <topic> [--language en] [--json]
 
-Fetches a Wikipedia summary, generates sourced markdown, and publishes it.`,
+Fetches a Wikipedia summary, generates sourced markdown, and publishes it. With --use-hyperbeam, routes the upload through the HyperBEAM ~bundler@1.0 device. With --use-hyperbeam-reference, also creates/updates a ~reference@1.0 pointer for the article key.`,
     query: `Usage: permabrain query [--use-hyperbeam] [--topic <topic>] [--kind <kind>] [--key <key>] [--source-name <name>] [--source-url <url>] [--json]
 
 Queries public articles by tags. With --use-hyperbeam, queries via the ~query@1.0 device first, falling back to GraphQL.`,
@@ -91,9 +91,9 @@ Publishes a signed attestation against the latest article version. With --use-hy
     consensus: `Usage: permabrain consensus [--use-hyperbeam] <canonical-key> [--json]
 
 Aggregates attestations and computes MVP consensus score. With --use-hyperbeam, resolves the article and its attestations via HyperBEAM first.`,
-    sync: `Usage: permabrain sync [--json]
+    sync: `Usage: permabrain sync [--use-hyperbeam] [--json]
 
-Queries articles and attestations and writes local cache index.`,
+Queries articles and attestations and writes local cache index. With --use-hyperbeam, uses HyperBEAM query/GraphQL.`,
     'attest-for-agent': `Usage: permabrain attest-for-agent <canonical-key> --identity-file <path> --valid|--invalid|--partially-valid|--outdated|--disputed --confidence <0..1> --reason <text> [--source-url <url>] [--json]
 
 Creates and uploads an attestation signed by an external agent's identity.
@@ -104,19 +104,22 @@ Lists known external PermaBrain agents (Sage, Relay, etc.).`,
     'provision-agent': `Usage: permabrain provision-agent <name> [--key-type ed25519] [--json]
 
 Generates a provisional identity for an external agent. The secret key is shown once — store securely!`,
-    'batch-attest': `Usage: permabrain batch-attest --file <path> [--json]
+    'batch-attest': `Usage: permabrain batch-attest --file <path> [--use-hyperbeam] [--json]
 
 Batch attest to multiple articles from a JSON file.
 The file should contain a JSON array of objects:
   [{"key": "subject/ai", "opinion": "valid", "confidence": 0.9, "reason": "Accurate"}, ...]
 
+With --use-hyperbeam, each attestation uploads via the HyperBEAM ~bundler@1.0 device.
 Each attestation is processed independently — failures don't block others.`,
-    'auto-import': `Usage: permabrain auto-import --file <path> [--json]
+    'auto-import': `Usage: permabrain auto-import --file <path> [--use-hyperbeam] [--use-hyperbeam-reference] [--json]
 
 Auto-import articles from URLs and publish to PermaBrain.
 The file should contain a JSON array of objects:
   [{"url": "https://...", "kind": "subject", "topic": "ai"}, ...]
 
+With --use-hyperbeam, each article uploads via the HyperBEAM ~bundler@1.0 device.
+With --use-hyperbeam-reference, also creates/updates ~reference@1.0 pointers.
 Each URL is fetched, HTML is stripped to text, and the result is published.
 Title is derived from content or URL if not provided.`,
     'probe-devices': `Usage: permabrain probe-devices [--url http://localhost:10000] [--json]

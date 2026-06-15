@@ -21,7 +21,7 @@ export function wikipediaMarkdown(summary, { fetchedAt = new Date().toISOString(
   return `# ${title}\n\n${extract}\n\n## Source\n\n- Source: Wikipedia\n- URL: ${url}\n- License: CC BY-SA\n- Fetched-At: ${fetchedAt}\n`;
 }
 
-export async function importWikipediaArticle({ title, kind, topic, language = 'en' }) {
+export async function importWikipediaArticle({ title, kind, topic, language = 'en', useHyperbeam = false, useHyperbeamReference = null }) {
   if (!title) throw new Error('import-wikipedia requires <title>');
   const summary = await fetchWikipediaSummary(title, { language });
   const pageTitle = summary.title || title;
@@ -36,6 +36,8 @@ export async function importWikipediaArticle({ title, kind, topic, language = 'e
     sourceUrl,
     sourceName: 'Wikipedia',
     sourceLicense: 'CC BY-SA',
-    language
+    language,
+    useHyperbeam,
+    useHyperbeamReference
   });
 }

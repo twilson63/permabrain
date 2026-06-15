@@ -197,10 +197,10 @@ export async function getArticle(key, opts = {}) {
   return { item, summary, content, viaReference };
 }
 
-export async function syncArticlesAndAttestations() {
+export async function syncArticlesAndAttestations(opts = {}) {
   const home = getHome();
   const config = loadConfig(home);
-  const transport = getTransport(config, home);
+  const transport = getTransport(config, home, { useHyperbeam: opts.useHyperbeam });
   const articleItems = await transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article' });
   const attestationItems = await transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'attestation' });
   const latestArticles = [...latestByArticleKey(articleItems).values()].map(summarizeArticle);

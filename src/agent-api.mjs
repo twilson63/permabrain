@@ -159,7 +159,7 @@ const api = {
     if (!topic) throw new Error('topic is required');
     if (!sourceUrl) throw new Error('sourceUrl is required');
     const result = await publishArticle({ content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, ...rest });
-    return result.summary;
+    return { summary: result.summary, reference: result.reference };
   },
 
   /**
@@ -223,7 +223,7 @@ const api = {
       useHyperbeam,
       useHyperbeamReference
     });
-    return result.summary;
+    return { summary: result.summary, reference: result.reference };
   },
 
   /**
@@ -249,9 +249,7 @@ const api = {
   async sync(opts = {}) {
     await this.ensureInit();
     requireInit(this._home);
-    // syncArticlesAndAttestations does not currently take transport options; the transport
-    // is selected from config in loadConfig. HyperBEAM users can set config.transport='hyperbeam'.
-    const index = await syncArticlesAndAttestations();
+    const index = await syncArticlesAndAttestations({ useHyperbeam: opts.useHyperbeam });
     return {
       articleCount: Object.keys(index.articles).length,
       attestationCount: Object.values(index.attestations).reduce((n, xs) => n + xs.length, 0),
