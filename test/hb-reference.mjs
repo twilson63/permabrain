@@ -5,11 +5,11 @@
  */
 
 import assert from 'node:assert/strict';
-import { HyperbeamReference } from '../src/hb-reference.mjs';
+import { HyperbeamReference, setDataItemBuilder } from '../src/hb-reference.mjs';
 import { DEVICES } from '../src/hb-devices.mjs';
 
 const originalFetch = globalThis.fetch;
-const originalCreateDataItem = (await import('../src/dataitem.mjs')).createDataItem;
+const originalCreateDataItemBuilder = setDataItemBuilder;
 
 let callLog = [];
 let mockFetchResponse = null;
@@ -44,13 +44,16 @@ async function mockCreateDataItem({ payload, tags, identity }) {
 
 const signer = { address: 'test-address' };
 
-async function runTests() {
-  // Override createDataItem import inside hb-reference via module mock not trivial,
-  // so we patch the dynamic import by injecting a helper: HyperbeamReference uses
-  // await import('./dataitem.mjs').createDataItem. We can't easily intercept ESM
-  // dynamic imports, so we test resolve() first (no dataitem dependency), then
-  // test create/update by patching the module namespace via import reflection.
+async function withMockedCreateDataItem(fn) {
+  setDataItemBuilder(mockCreateDataItem);
+  try {
+    return await fn();
+  } finally {
+    setDataItemBuilder(originalCreateDataItemBuilder);
+  }
+}
 
+async function runTests() {
   // Test resolve()
   resetMocks();
   mockFetch((url) => {
@@ -74,6 +77,34 @@ async function runTests() {
   resetMocks();
   mockFetch(() => new Response('not found', { status: 404 }));
   await assert.rejects(ref.resolve('missing'), /Reference resolve failed: HTTP 404/);
+
+  // Test create() POSTs a signed DataItem with reference-value-* tags
+  await withMockedCreateDataItem(async () => {
+    resetMocks();
+    mockFetch((url, init) => {
+      assert.equal(url, `http://localhost:10000/${DEVICES.bundler}/tx?codec-device=ans104@1.0`);
+      assert.equal(init.method, 'POST');
+      assert.equal(init.headers['content-type'], 'application/octet-stream');
+      return new Response('uploaded', { status: 200 });
+    });
+    const created = await ref.create({ 'article-key': 'subject/test', 'current-version': 'article-id-1' }, signer);
+    assert.match(created.referenceId, /^dataitem-\d+-\d+$/);
+    assert.deepEqual(created.value, { 'article-key': 'subject/test', 'current-version': 'article-id-1' });
+  });
+
+  // Test update() POSTs a signed DataItem with reference-id + timestamp tags
+  await withMockedCreateDataItem(async () => {
+    resetMocks();
+    mockFetch((url, init) => {
+      assert.equal(url, `http://localhost:10000/${DEVICES.bundler}/tx?codec-device=ans104@1.0`);
+      assert.equal(init.method, 'POST');
+      return new Response('uploaded', { status: 200 });
+    });
+    const updated = await ref.update('ref-article-1', { 'current-version': 'article-id-2' }, signer, { timestamp: 12345 });
+    assert.equal(updated.referenceId, 'ref-article-1');
+    assert.deepEqual(updated.value, { 'current-version': 'article-id-2' });
+    assert.equal(updated.timestamp, 12345);
+  });
 
   // Test createArticleReference and updateArticleReference shape using stubbed create/update
   const stubRef = new HyperbeamReference('http://localhost:10000');
@@ -106,6 +137,20 @@ async function runTests() {
   assert.deepEqual(setResult.value, {
     ai: { device: 'reference@1.0', 'reference-id': 'ref-ai' },
     crypto: { device: 'reference@1.0', 'reference-id': 'ref-crypto' },
+  });
+
+  // Test create() and update() throw on HTTP error
+  await withMockedCreateDataItem(async () => {
+    resetMocks();
+    mockFetch(() => new Response('fail', { status: 500 }));
+    await assert.rejects(
+      ref.create({ x: 'y' }, signer),
+      /Reference init upload failed: HTTP 500/,
+    );
+    await assert.rejects(
+      ref.update('ref-x', { x: 'z' }, signer),
+      /Reference set upload failed: HTTP 500/,
+    );
   });
 
   console.log('hb-reference unit tests passed');

@@ -66,6 +66,11 @@ async function mockCreateDataItem({ payload, tags, identity }) {
   };
 }
 
+// Patch HyperbeamReference DataItem builder for transport tests.
+import { setDataItemBuilder as setReferenceDataItemBuilder } from '../src/hb-reference.mjs';
+const originalReferenceDataItemBuilder = setReferenceDataItemBuilder;
+setReferenceDataItemBuilder(mockCreateDataItem);
+
 function Response(body, opts = {}) {
   return {
     ok: opts.status >= 200 && opts.status < 300,
@@ -303,4 +308,5 @@ async function runTests() {
 
 runTests().finally(() => {
   globalThis.fetch = originalFetch;
+  setReferenceDataItemBuilder(originalReferenceDataItemBuilder);
 });

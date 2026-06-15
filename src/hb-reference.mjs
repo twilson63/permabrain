@@ -22,7 +22,21 @@
  * @see https://github.com/permaweb/permaweb-references
  */
 
+import { createDataItem } from './dataitem.mjs';
 import { DEVICES, referenceUrl } from './hb-devices.mjs';
+
+// Default DataItem builder; tests can override via setDataItemBuilder.
+let buildDataItem = null;
+
+export function setDataItemBuilder(fn) {
+  buildDataItem = fn;
+}
+
+async function createReferenceDataItem({ payload, tags, identity }) {
+  if (buildDataItem) return buildDataItem({ payload, tags, identity });
+  const { createDataItem } = await import('./dataitem.mjs');
+  return createDataItem({ payload, tags, identity });
+}
 
 /**
  * Manages ~reference@1.0 operations on a HyperBEAM node.
@@ -56,7 +70,6 @@ export class HyperbeamReference {
    * @returns {Promise<{referenceId: string, value: Object}>}
    */
   async create(value, signer, opts = {}) {
-    const { createDataItem } = await import('./dataitem.mjs');
     const tags = [
       { name: 'Data-Protocol', value: 'ao' },
       { name: 'Type', value: 'Message' },
@@ -71,7 +84,7 @@ export class HyperbeamReference {
       tags.push({ name: 'authority', value: opts.authority });
     }
 
-    const item = await createDataItem({ payload: JSON.stringify(value), tags, identity: signer });
+    const item = await createReferenceDataItem({ payload: JSON.stringify(value), tags, identity: signer });
     const bytes = Buffer.from(item.ans104Base64, 'base64url');
 
     const res = await fetch(`${this.baseUrl}/${DEVICES.bundler}/tx?codec-device=ans104@1.0`, {
@@ -98,7 +111,6 @@ export class HyperbeamReference {
    * @returns {Promise<{referenceId: string, value: Object, timestamp: number}>}
    */
   async update(referenceId, value, signer, opts = {}) {
-    const { createDataItem } = await import('./dataitem.mjs');
     const timestamp = opts.timestamp || Date.now();
     const tags = [
       { name: 'Data-Protocol', value: 'ao' },
@@ -113,7 +125,7 @@ export class HyperbeamReference {
       })),
     ];
 
-    const item = await createDataItem({ payload: JSON.stringify(value), tags, identity: signer });
+    const item = await createReferenceDataItem({ payload: JSON.stringify(value), tags, identity: signer });
     const bytes = Buffer.from(item.ans104Base64, 'base64url');
 
     const res = await fetch(`${this.baseUrl}/${DEVICES.bundler}/tx?codec-device=ans104@1.0`, {

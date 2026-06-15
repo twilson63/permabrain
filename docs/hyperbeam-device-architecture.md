@@ -169,6 +169,91 @@ Agent → PermaBrain API
 5. **New `src/hb-reference.mjs`** — Reference@1.0 for mutable article pointers ✅
 6. **New `hb-forge/`** — Forge device package for Erlang implementations ✅
 7. **Update `src/transport.mjs`** — Wire reference into HyperbeamTransport ✅
-8. **Tests** — Test reference operations against live HyperBEAM node
+8. ~~Tests~~ — Test reference operations against live HyperBEAM node
 9. **Device packaging** — Build and publish `hyperbeam-permabrain` Forge package
 10. **`@permaweb/references` integration** — Arweave-layer reference reads
+
+## Reference CLI Workflow
+
+The `permabrain reference` command provides direct access to `~reference@1.0`
+operations. It is useful for both manual administration and scripted
+workflows.
+
+### Create a reference
+
+Map one or more `key=value` pairs into a new reference value. The command
+returns the permanent reference ID, which is the reference's immutable name.
+
+```bash
+permabrain reference create article-key=subject/llm-101 current-version=ARTICLE_ID_1
+# Created reference: ref-ABC123...
+#   article-key: subject/llm-101
+#   current-version: ARTICLE_ID_1
+```
+
+### Update a reference
+
+Only the reference authority (the signer used at creation) can update a
+reference. Updates include an automatic timestamp.
+
+```bash
+permabrain reference update ref-ABC123... current-version=ARTICLE_ID_2
+# Updated reference: ref-ABC123...
+#   timestamp: 1718400000000
+#   current-version: ARTICLE_ID_2
+```
+
+### Resolve a reference
+
+Read the current value directly from the HyperBEAM node.
+
+```bash
+permabrain reference resolve ref-ABC123... current-version
+# Reference ref-ABC123.../current-version:
+# "ARTICLE_ID_2"
+```
+
+### Article publish/get integration
+
+When `config.hyperbeam.references` is enabled (or `--use-hyperbeam-reference`
+is passed), `permabrain publish` automatically creates or updates the
+article-key reference. `permabrain get` then resolves the article through the
+reference, guaranteeing the latest version is returned.
+
+Configuration:
+
+```json
+{
+  "hyperbeam": {
+    "references": true
+  }
+}
+```
+
+Behavior:
+
+- First publish for a key → `reference action: create`, reference ID cached in
+  `$PERMABRAIN_HOME/cache/article-references.json`.
+- Subsequent publish for the same key → `reference action: update`.
+- `get <key>` first checks the cache for a reference ID, resolves
+  `current-version`, and fetches that DataItem. Falls back to tag-based lookup
+  if no reference exists.
+
+### Programmatic access
+
+```javascript
+import { HyperbeamTransport } from 'permabrain/src/transport.mjs';
+
+const transport = new HyperbeamTransport(config);
+const { referenceId } = await transport.createArticleReference(
+  'subject/llm-101',
+  'ARTICLE_ID_1',
+  identity,
+);
+await transport.updateArticleReference(referenceId, 'ARTICLE_ID_2', identity);
+const currentId = await transport.resolveReference(referenceId, 'current-version');
+```
+
+## Implementation Plan (cont.)
+
+11. **Reference workflow unit tests** — Mocked fetch + DataItem builder for create/update/resolve
