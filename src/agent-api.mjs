@@ -63,7 +63,7 @@ const api = {
    */
   async init(options = {}) {
     const keyType = options.keyType || process.env.PERMABRAIN_KEY_TYPE || 'ed25519';
-    const { home, createdConfig } = initState({ env: { PERMABRAIN_KEY_TYPE: keyType } });
+    const { home, createdConfig } = initState({ env: { ...process.env, PERMABRAIN_KEY_TYPE: keyType } });
     const { identity, created } = await ensureIdentity(home, { keyType });
 
     // Update config if transport specified
@@ -85,8 +85,20 @@ const api = {
         config.transport = 'local';
         config.gateway = { type: 'local' };
         config.bundler = { type: 'local' };
+      } else if (transport === 'hyperbeam') {
+        const baseUrl = options.dataUrl || process.env.PERMABRAIN_HYPERBEAM_URL || 'http://localhost:10000';
+        config.transport = 'hyperbeam';
+        config.gateway = {
+          type: 'hyperbeam',
+          graphqlUrl: options.graphqlUrl || `${baseUrl}/graphql`,
+          dataUrl: baseUrl
+        };
+        config.bundler = {
+          type: 'hyperbeam',
+          uploadUrl: options.uploadUrl || `${baseUrl}/~bundler@1.0/tx?codec-device=ans104@1.0`
+        };
+        config.hyperbeam = { ...(config.hyperbeam || {}), references: options.useHyperbeamReference ?? config.hyperbeam?.references ?? false };
       }
-      const { writeJsonIfMissing } = await import('./config.mjs');
       const { statePaths } = await import('./config.mjs');
       const paths = statePaths(home);
       const fs = await import('fs');
@@ -158,6 +170,7 @@ const api = {
    * @param {string} [filters.key] - Filter by canonical key
    * @param {string} [filters.sourceName] - Filter by source name
    * @param {string} [filters.sourceUrl] - Filter by source URL
+   * @param {boolean} [filters.useHyperbeam] - Use HyperbeamTransport for this query
    * @returns {Promise<Array<{id, key, kind, title, topic, version, sourceName, sourceUrl, contentHash}>>}
    */
   async query(filters = {}) {
@@ -169,6 +182,8 @@ const api = {
   /**
    * Get an article by canonical key. Fetches from the transport and verifies content hash.
    * @param {string} key - Canonical key (e.g., "subject/my-article")
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam] - Use HyperbeamTransport for this get
    * @returns {Promise<{key, title, content, contentHash, version, sourceName, sourceUrl}>}
    */
   async get(key, opts = {}) {
@@ -187,6 +202,8 @@ const api = {
    * @param {number} params.confidence - Confidence from 0 to 1
    * @param {string} params.reason - Short explanation for the attestation
    * @param {string} [params.sourceUrl] - Supporting source URL
+   * @param {boolean} [params.useHyperbeam] - Use HyperbeamTransport for this attestation
+   * @param {boolean} [params.useHyperbeamReference] - Create/update HyperBEAM reference pointer
    * @returns {Promise<{id, targetKey, opinion, confidence, reason}>}
    */
   async attest(key, params = {}) {
@@ -196,12 +213,15 @@ const api = {
     if (!params.opinion) throw new Error('opinion is required');
     if (params.confidence === undefined) throw new Error('confidence is required');
     if (!params.reason) throw new Error('reason is required');
+    const { opinion, confidence, reason, sourceUrl, useHyperbeam, useHyperbeamReference } = params;
     const result = await attestArticle({
       key,
-      opinion: params.opinion,
-      confidence: params.confidence,
-      reason: params.reason,
-      sourceUrl: params.sourceUrl || ''
+      opinion,
+      confidence,
+      reason,
+      sourceUrl: sourceUrl || '',
+      useHyperbeam,
+      useHyperbeamReference
     });
     return result.summary;
   },
@@ -222,11 +242,15 @@ const api = {
 
   /**
    * Sync local cache from the transport (Arweave/HyperBEAM).
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam] - Use HyperbeamTransport for sync
    * @returns {Promise<{articleCount, attestationCount, updatedAt}>}
    */
-  async sync() {
+  async sync(opts = {}) {
     await this.ensureInit();
     requireInit(this._home);
+    // syncArticlesAndAttestations does not currently take transport options; the transport
+    // is selected from config in loadConfig. HyperBEAM users can set config.transport='hyperbeam'.
     const index = await syncArticlesAndAttestations();
     return {
       articleCount: Object.keys(index.articles).length,
@@ -404,7 +428,8 @@ const api = {
    * Each attestation is signed independently — failures don't block others.
    *
    * @param {Object} params
-   * @param {Array<{key, opinion, confidence, reason, sourceUrl?}>} params.attestations
+   * @param {Array<{key, opinion, confidence, reason, sourceUrl?, useHyperbeam?}>} params.attestations
+   * @param {boolean} [params.useHyperbeam] - Default HyperbeamTransport flag for all attestations
    * @returns {Promise<{results: Array<{key, status: 'ok'|'error', summary?, error?}>, succeeded: number, failed: number}>}
    */
   async batchAttest(params = {}) {
@@ -414,6 +439,7 @@ const api = {
 
     const results = [];
     let succeeded = 0, failed = 0;
+    const defaultUseHyperbeam = params.useHyperbeam;
     for (const att of params.attestations) {
       try {
         if (!att.key) throw new Error('key is required');
@@ -426,7 +452,8 @@ const api = {
           opinion: att.opinion,
           confidence: att.confidence,
           reason: att.reason,
-          sourceUrl: att.sourceUrl || ''
+          sourceUrl: att.sourceUrl || '',
+          useHyperbeam: att.useHyperbeam ?? defaultUseHyperbeam
         });
         results.push({ key: att.key, status: 'ok', summary: result.summary });
         succeeded++;
@@ -495,8 +522,8 @@ const api = {
           sourceName: new URL(item.url).hostname,
           sourceLicense: '',
           language: 'en',
-          useHyperbeam: params.useHyperbeam,
-          useHyperbeamReference: params.useHyperbeamReference
+          useHyperbeam: item.useHyperbeam ?? params.useHyperbeam,
+          useHyperbeamReference: item.useHyperbeamReference ?? params.useHyperbeamReference
         });
 
         results.push({ key: result.summary.key, status: 'ok', summary: result.summary });

@@ -26,7 +26,7 @@ export async function attestArticle({ key, opinion, confidence, reason, sourceUr
   const config = loadConfig(home);
   const identity = loadIdentity(home);
   const transport = getTransport(config, home, { useHyperbeam });
-  const resolved = targetId ? { summary: { id: targetId, key } } : await resolveLatestArticle(key);
+  const resolved = targetId ? { summary: { id: targetId, key } } : await resolveLatestArticle(key, { useHyperbeam });
   const tags = buildAttestationTags({
     targetId: targetId || resolved.summary.id,
     targetKey: key,

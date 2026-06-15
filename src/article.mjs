@@ -136,23 +136,24 @@ function mergeArticleSummaries(remote, cached) {
 }
 
 export async function queryArticles(filters = {}, opts = {}) {
+  const { useHyperbeam, ...restFilters } = filters;
   const home = getHome();
   const config = loadConfig(home);
-  const transport = getTransport(config, home, { useHyperbeam: opts.useHyperbeam });
+  const transport = getTransport(config, home, { useHyperbeam: useHyperbeam ?? opts.useHyperbeam });
   const tagFilters = { 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article' };
-  if (filters.topic) tagFilters['Article-Topic'] = filters.topic;
-  if (filters.kind) tagFilters['Article-Kind'] = filters.kind;
-  if (filters.key) tagFilters['Article-Key'] = filters.key;
-  if (filters.sourceName) tagFilters['Article-Source-Name'] = filters.sourceName;
-  if (filters.sourceUrl) tagFilters['Article-Source-Url'] = filters.sourceUrl;
+  if (restFilters.topic) tagFilters['Article-Topic'] = restFilters.topic;
+  if (restFilters.kind) tagFilters['Article-Kind'] = restFilters.kind;
+  if (restFilters.key) tagFilters['Article-Key'] = restFilters.key;
+  if (restFilters.sourceName) tagFilters['Article-Source-Name'] = restFilters.sourceName;
+  if (restFilters.sourceUrl) tagFilters['Article-Source-Url'] = restFilters.sourceUrl;
   const items = await transport.queryByTags(tagFilters);
   const remote = [...latestByArticleKey(items).values()].map(summarizeArticle);
   const cached = Object.values(loadIndex(home).articles || {}).filter((article) => {
-    if (filters.topic && article.topic !== filters.topic) return false;
-    if (filters.kind && article.kind !== filters.kind) return false;
-    if (filters.key && article.key !== filters.key) return false;
-    if (filters.sourceName && article.sourceName !== filters.sourceName) return false;
-    if (filters.sourceUrl && article.sourceUrl !== filters.sourceUrl) return false;
+    if (restFilters.topic && article.topic !== restFilters.topic) return false;
+    if (restFilters.kind && article.kind !== restFilters.kind) return false;
+    if (restFilters.key && article.key !== restFilters.key) return false;
+    if (restFilters.sourceName && article.sourceName !== restFilters.sourceName) return false;
+    if (restFilters.sourceUrl && article.sourceUrl !== restFilters.sourceUrl) return false;
     return true;
   });
   return mergeArticleSummaries(remote, cached);
