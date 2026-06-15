@@ -438,6 +438,7 @@ const api = {
     const results = [];
     let succeeded = 0, failed = 0;
     const defaultUseHyperbeam = params.useHyperbeam;
+    const defaultUseHyperbeamReference = params.useHyperbeamReference;
     for (const att of params.attestations) {
       try {
         if (!att.key) throw new Error('key is required');
@@ -451,9 +452,10 @@ const api = {
           confidence: att.confidence,
           reason: att.reason,
           sourceUrl: att.sourceUrl || '',
-          useHyperbeam: att.useHyperbeam ?? defaultUseHyperbeam
+          useHyperbeam: att.useHyperbeam ?? defaultUseHyperbeam,
+          useHyperbeamReference: att.useHyperbeamReference ?? defaultUseHyperbeamReference
         });
-        results.push({ key: att.key, status: 'ok', summary: result.summary });
+        results.push({ key: att.key, status: 'ok', summary: result.summary, reference: result.reference });
         succeeded++;
       } catch (err) {
         results.push({ key: att.key, status: 'error', error: err.message });
