@@ -3,6 +3,9 @@ import path from 'node:path';
 
 export const APP_VERSION = '0.1.0';
 
+/** Known transport backends. */
+export const VALID_TRANSPORTS = ['local', 'arweave', 'hyperbeam'];
+
 export function getHome(cwd = process.cwd(), env = process.env) {
   return path.resolve(env.PERMABRAIN_HOME || path.join(cwd, '.permabrain'));
 }
@@ -32,6 +35,39 @@ export function defaultConfig(env = process.env) {
     }
   };
   return config;
+}
+
+/**
+ * Validate HyperBEAM transport configuration.
+ * Throws a clear error if required URLs are missing or malformed.
+ */
+export function validateHyperbeamConfig(config) {
+  if (config.transport !== 'hyperbeam') return;
+
+  const baseUrl = config.gateway?.dataUrl;
+  if (!baseUrl) throw new Error('HyperBEAM transport requires gateway.dataUrl (set PERMABRAIN_HYPERBEAM_URL or config.gateway.dataUrl)');
+
+  try {
+    new URL(baseUrl);
+  } catch (err) {
+    throw new Error(`HyperBEAM base URL is invalid: ${baseUrl}`);
+  }
+
+  const graphqlUrl = config.gateway?.graphqlUrl;
+  if (!graphqlUrl) throw new Error('HyperBEAM transport requires gateway.graphqlUrl');
+  try {
+    new URL(graphqlUrl);
+  } catch (err) {
+    throw new Error(`HyperBEAM GraphQL URL is invalid: ${graphqlUrl}`);
+  }
+
+  const uploadUrl = config.bundler?.uploadUrl;
+  if (!uploadUrl) throw new Error('HyperBEAM transport requires bundler.uploadUrl');
+  try {
+    new URL(uploadUrl);
+  } catch (err) {
+    throw new Error(`HyperBEAM bundler upload URL is invalid: ${uploadUrl}`);
+  }
 }
 
 export function ensureDir(dir) {

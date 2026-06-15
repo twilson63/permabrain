@@ -1,24 +1,6 @@
-/**
- * HyperBEAM Query Module
- *
- * Provides PermaBrain-specific querying using HyperBEAM's native
- * query and match devices instead of GraphQL.
- *
- * Devices used:
- * - ~query@1.0: Tag-based search via match index (high-level)
- * - ~match@1.0: Direct reverse-index lookups (low-level)
- *
- * The match device stores every key-value pair from uploaded messages
- * as: ~match@1.0&Key=Value → [message-ids...]
- *
- * The query device wraps match with AND semantics, returning
- * message IDs that match ALL specified key-value pairs.
- */
-
 import {
   queryUrl, matchUrl, parseHttpsigtHeaders,
-  buildPermaBrainFilters, buildQueryMessage,
-  DEVICES
+  buildPermaBrainFilters,
 } from './hb-devices.mjs';
 
 export class HyperbeamQuery {

@@ -180,6 +180,38 @@ The `useHyperbeamReference` option (and the `PERMABRAIN_HYPERBEAM_REFERENCES=1` 
 | `PERMABRAIN_HYPERBEAM_REFERENCES=1` | Enable reference creation/updates by default |
 | `PERMABRAIN_REQUIRE_HYPERBEAM=1` | Make `probe-hyperbeam` failures fatal |
 
+| Variable | Purpose |
+|----------|---------|
+| `PERMABRAIN_TRANSPORT=hyperbeam` | Make HyperBEAM the default transport |
+| `PERMABRAIN_HYPERBEAM_URL` | Base HyperBEAM URL |
+| `PERMABRAIN_GRAPHQL_URL` | Override GraphQL endpoint |
+| `PERMABRAIN_UPLOAD_URL` | Override bundler upload URL |
+| `PERMABRAIN_HYPERBEAM_REFERENCES=1` | Enable reference creation/updates by default |
+| `PERMABRAIN_REQUIRE_HYPERBEAM=1` | Make `probe-hyperbeam` failures fatal |
+
+## Transport Architecture
+
+PermaBrain keeps transport selection in one place:
+
+- `src/config.mjs` produces the default configuration and validates HyperBEAM-specific URLs.
+- `src/transport.mjs` resolves which transport class to use (`local`, `arweave`, or `hyperbeam`) based on `config.transport` or the `--use-hyperbeam` flag.
+- `src/hyperbeam-transport.mjs` is the clean facade that wraps the HyperBEAM device modules:
+  - `hb-query.mjs` for `~query@1.0` / `~match@1.0`
+  - `hb-consensus.mjs` for `lua@5.3a` consensus
+  - `hb-reference.mjs` for `~reference@1.0` versioning
+
+When `PERMABRAIN_TRANSPORT=hyperbeam` (or `config.transport === 'hyperbeam'`), `getTransport()` returns `HyperbeamTransport`. The same happens on a per-command basis when `--use-hyperbeam` is passed; otherwise Arweave stays the default.
+
+### Configuration validation
+
+`src/config.mjs` exposes `validateHyperbeamConfig(config)`. It is called automatically by `new HyperbeamTransport(config)` and will throw clear errors if any of these are missing or invalid:
+
+- `config.gateway.dataUrl`
+- `config.gateway.graphqlUrl`
+- `config.bundler.uploadUrl`
+
+This prevents silent misconfiguration such as an unset `PERMABRAIN_HYPERBEAM_URL` or a malformed upload URL.
+
 ## Troubleshooting
 
 ### Probe cannot reach HyperBEAM
