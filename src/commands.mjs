@@ -427,7 +427,7 @@ async function deployConsensusCommand(args) {
   try { config = loadConfig(home); } catch { config = {}; }
   const baseUrl = args.url || config.gateway?.dataUrl || 'http://localhost:10000';
   const identity = loadIdentity(home);
-  const uploadUrl = config.bundler?.uploadUrl || bundlerUploadUrl(baseUrl);
+  const uploadUrl = bundlerUploadUrl(baseUrl);
   const consensus = new HyperbeamConsensus(baseUrl, config.consensus || {});
   const result = await consensus.deploy(uploadUrl, identity);
   if (args.json) {

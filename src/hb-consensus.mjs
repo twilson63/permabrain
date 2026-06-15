@@ -159,7 +159,7 @@ export class HyperbeamConsensus {
     // Step 1: Upload the consensus Lua script
     const { createDataItem } = await import('./dataitem.mjs');
     const consensusItem = await createDataItem({
-      data: PERMABRAIN_CONSENSUS_LUA,
+      payload: PERMABRAIN_CONSENSUS_LUA,
       tags: [
         { name: 'Content-Type', value: 'application/lua' },
         { name: 'App-Name', value: 'PermaBrain' },
@@ -167,7 +167,8 @@ export class HyperbeamConsensus {
         { name: 'Module-Name', value: 'permabrain-consensus' },
         { name: 'Device', value: 'lua@5.3a' },
       ],
-    }, signer);
+      identity: signer,
+    });
 
     const uploadRes = await fetch(bundlerUploadUrl, {
       method: 'POST',
@@ -179,7 +180,7 @@ export class HyperbeamConsensus {
 
     // Step 2: Upload the query Lua script
     const queryItem = await createDataItem({
-      data: PERMABRAIN_QUERY_LUA,
+      payload: PERMABRAIN_QUERY_LUA,
       tags: [
         { name: 'Content-Type', value: 'application/lua' },
         { name: 'App-Name', value: 'PermaBrain' },
@@ -187,7 +188,8 @@ export class HyperbeamConsensus {
         { name: 'Module-Name', value: 'permabrain-query' },
         { name: 'Device', value: 'lua@5.3a' },
       ],
-    }, signer);
+      identity: signer,
+    });
 
     const queryUploadRes = await fetch(bundlerUploadUrl, {
       method: 'POST',
