@@ -85,6 +85,7 @@ export function buildArticleTags({
   sourceLicense = '',
   content,
   agentId,
+  visibility = 'public',
   now = new Date().toISOString()
 }) {
   validateArticleKey(key);
@@ -115,7 +116,7 @@ export function buildArticleTags({
     'Article-Published-At': now,
     'Article-Updated-At': now,
     'Author-Agent-Id': agentId,
-    Visibility: 'public'
+    Visibility: visibility
   });
 }
 

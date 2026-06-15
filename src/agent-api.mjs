@@ -148,18 +148,19 @@ const api = {
    * @param {string} [params.sourceName] - Source display name
    * @param {string} [params.sourceLicense] - License (e.g., "CC BY-SA")
    * @param {string} [params.language] - Language code (default "en")
-   * @returns {Promise<{id, key, kind, title, version, contentHash}>}
+   * @param {string[]} [params.encryptedFor] - X25519 public keys to encrypt for; if omitted, public plaintext
+   * @returns {Promise<{summary: object, reference?: object, encrypted: boolean, encryptionEnvelope?: object}>}
    */
   async publish(params) {
     await this.ensureInit();
     requireInit(this._home);
-    const { content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, ...rest } = params;
+    const { content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, encryptedFor, ...rest } = params;
     if (!content) throw new Error('content is required');
     if (!kind) throw new Error('kind is required');
     if (!topic) throw new Error('topic is required');
     if (!sourceUrl) throw new Error('sourceUrl is required');
-    const result = await publishArticle({ content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, ...rest });
-    return { summary: result.summary, reference: result.reference };
+    const result = await publishArticle({ content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, encryptedFor, ...rest });
+    return { summary: result.summary, reference: result.reference, encrypted: result.encrypted, encryptionEnvelope: result.encryptionEnvelope };
   },
 
   /**
@@ -184,14 +185,15 @@ const api = {
    * @param {string} key - Canonical key (e.g., "subject/my-article")
    * @param {Object} [opts]
    * @param {boolean} [opts.useHyperbeam] - Use HyperbeamTransport for this get
-   * @returns {Promise<{key, title, content, contentHash, version, sourceName, sourceUrl}>}
+   * @param {string} [opts.decryptSeed] - X25519 seed for decrypting private articles
+   * @returns {Promise<{key, title, content, contentHash, version, sourceName, sourceUrl, encrypted: boolean}>}
    */
   async get(key, opts = {}) {
     await this.ensureInit();
     requireInit(this._home);
     if (!key) throw new Error('key is required');
     const result = await getArticle(key, opts);
-    return { ...result.summary, content: result.content };
+    return { ...result.summary, content: result.content, encrypted: result.encrypted };
   },
 
   /**

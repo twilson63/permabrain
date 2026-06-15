@@ -7,6 +7,7 @@ import { getTransport } from './transport.mjs';
 import { buildArticleTags, contentHash, deriveKey, deriveTitleFromFile, tagsToObject } from './tags.mjs';
 import { latestByArticleKey, loadIndex, summarizeArticle, updateArticleInCache, writeIndex, writePageCache } from './cache.mjs';
 import { HyperbeamTransport } from './transport.mjs';
+import * as pbcrypto from './crypto.mjs';
 
 export function sourceNameFromUrl(url) {
   if (!url) return 'Unknown';
@@ -19,7 +20,7 @@ export function sourceNameFromUrl(url) {
   }
 }
 
-export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false }) {
+export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [] }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
@@ -30,6 +31,19 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   const finalContent = content ?? fs.readFileSync(file, 'utf8');
   const finalTitle = title || (file ? deriveTitleFromFile(file) : key?.split('/').at(-1));
   const finalKey = deriveKey({ key, kind, title: finalTitle, file });
+
+  // Encrypt if recipients specified (always include author so they can read/decrypt later)
+  let plainContent = finalContent;
+  let encryptedPayload = null;
+  let encryptionEnvelope = null;
+  if (encryptedFor?.length > 0) {
+    const authorKeypair = await deriveAuthorEncryptionKeypair(identity);
+    const recipientKeys = [...new Set([...encryptedFor, authorKeypair.publicKey])];
+    const encryption = await pbcrypto.encrypt(finalContent, recipientKeys);
+    encryptedPayload = encryption.encryptedPayload;
+    encryptionEnvelope = encryption.envelope;
+    plainContent = encryptedPayload;
+  }
   const existing = await transport.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article', 'Article-Key': finalKey });
   const latest = latestByArticleKey(existing).get(finalKey);
   const latestTags = latest ? tagsToObject(latest.tags || []) : null;
@@ -48,13 +62,36 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
     sourceName: sourceName || sourceNameFromUrl(sourceUrl),
     sourceUrl,
     sourceLicense,
-    content: finalContent,
-    agentId: identity.agentId
+    content: plainContent,
+    agentId: identity.agentId,
+    visibility: encryptedFor?.length > 0 ? 'private' : 'public'
   });
-  const item = await createDataItem({ payload: finalContent, tags, identity });
+
+  // Store encryption metadata as tags for discovery
+  if (encryptionEnvelope) {
+    tags.push({ name: 'Encryption-Recipients', value: JSON.stringify(encryptionEnvelope.recipients.map(r => r.publicKeyFingerprint)) });
+    tags.push({ name: 'Encryption-Ephemeral-Public-Key', value: encryptionEnvelope.ephemeralPublicKey });
+  }
+
+  const item = await createDataItem({ payload: plainContent, tags, identity });
   await transport.uploadDataItem(item);
   updateArticleInCache(home, item);
   writePageCache(home, finalKey, finalContent);
+
+  // For encrypted articles, cache the plaintext locally only if this agent is a recipient or author
+  if (encryptionEnvelope) {
+    const authorKeypair = await deriveAuthorEncryptionKeypair(identity);
+    const isRecipient = encryptionEnvelope.recipients.some(r => r.publicKeyFingerprint === authorKeypair.fingerprint);
+    if (isRecipient) {
+      try {
+        const { content: decrypted } = await pbcrypto.decrypt(encryptedPayload, Buffer.from(authorKeypair.seed, 'base64url'));
+        writePageCache(home, finalKey, decrypted);
+      } catch (err) {
+        // Non-fatal: plaintext not cacheable, but article is published
+        console.warn(`Could not decrypt cached encrypted article ${finalKey}: ${err.message}`);
+      }
+    }
+  }
 
   // HyperBEAM reference integration: maintain a mutable pointer from key → latest version
   let reference = null;
@@ -63,7 +100,7 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
     reference = await updateOrCreateArticleReference(transport, home, finalKey, item.id, identity);
   }
 
-  return { item, summary: summarizeArticle(item), reference };
+  return { item, summary: summarizeArticle(item), reference, encrypted: encryptedFor?.length > 0, encryptionEnvelope };
 }
 
 function loadRefCache(refPath) {
@@ -190,11 +227,36 @@ export async function resolveLatestArticle(key, opts = {}) {
 export async function getArticle(key, opts = {}) {
   const { item: indexItem, summary, transport, home, viaReference } = await resolveLatestArticle(key, opts);
   const item = await transport.fetchDataItem(indexItem.id);
-  const content = payloadText(item);
+  const rawContent = payloadText(item);
+
+  // Handle encrypted articles
+  const tags = tagsToObject(item.tags || []);
+  if (tags.Visibility === 'private' || pbcrypto.isEncryptedEnvelope(rawContent)) {
+    if (!opts.decryptSeed) throw new Error('Article is encrypted; provide decryptSeed or use get-encrypted command');
+    const { content: decryptedContent } = await pbcrypto.decrypt(rawContent, Buffer.from(opts.decryptSeed, 'base64url'));
+    writePageCache(home, key, decryptedContent);
+    return { item, summary, content: decryptedContent, viaReference, encrypted: true };
+  }
+
+  const content = rawContent;
   const actualHash = contentHash(content);
   if (actualHash !== summary.contentHash && !viaReference) throw new Error(`Content hash mismatch for ${key}`);
   writePageCache(home, key, content);
-  return { item, summary, content, viaReference };
+  return { item, summary, content, viaReference, encrypted: false };
+}
+
+/**
+ * Derive an X25519 encryption keypair from an identity (Ed25519 seed or generated).
+ */
+async function deriveAuthorEncryptionKeypair(identity) {
+  if (identity.type === 'ed25519') {
+    const edSeed = Buffer.from(identity.secretKey, 'base64url').subarray(0, 32);
+    return pbcrypto.deriveEncryptionKeyFromEd25519(edSeed);
+  }
+  if (identity.type === 'arweave-rsa4096' && identity.encryptionSeed) {
+    return pbcrypto.deriveEncryptionKeyFromEd25519(Buffer.from(identity.encryptionSeed, 'base64url'));
+  }
+  return pbcrypto.generateEncryptionKeypair();
 }
 
 export async function syncArticlesAndAttestations(opts = {}) {

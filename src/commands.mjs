@@ -39,7 +39,7 @@ export async function runCommand(command, args) {
   if (command === 'meta-info') return metaInfoCommand(args);
   if (command === 'whois') return whoisCommand(args);
   if (command === 'reference') return referenceCommand(args);
-  if (command === 'watch') return watchCommand(args);
+  if (command === 'publish-encrypted') return publishEncryptedCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -145,6 +145,36 @@ async function importWikipediaCommand(args) {
     console.log(`Imported Wikipedia article ${result.summary.key}`);
     console.log(`ID: ${result.summary.id}`);
     console.log(`Version: ${result.summary.version}`);
+  }
+  return result;
+}
+
+async function publishEncryptedCommand(args) {
+  const file = args._[0];
+  if (!file) throw new Error('publish-encrypted requires <file>');
+  if (!args.for) throw new Error('--for is required (comma-separated X25519 public keys)');
+  const encryptedFor = String(args.for).split(',').map(k => k.trim()).filter(Boolean);
+  if (encryptedFor.length === 0) throw new Error('--for must include at least one recipient public key');
+  const result = await publishArticle({
+    file,
+    kind: args.kind,
+    topic: args.topic,
+    key: args.key,
+    title: args.title,
+    sourceUrl: args['source-url'],
+    sourceName: args['source-name'],
+    sourceLicense: args['source-license'] || '',
+    language: args.language || 'en',
+    encryptedFor,
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
+  });
+  if (args.json) printJson({ ...result.summary, encrypted: result.encrypted, encryptionEnvelope: result.encryptionEnvelope });
+  else {
+    console.log(`Published encrypted ${result.summary.key}`);
+    console.log(`ID: ${result.summary.id}`);
+    console.log(`Version: ${result.summary.version}`);
+    console.log(`Recipients: ${result.encryptionEnvelope?.recipients?.length || encryptedFor.length}`);
   }
   return result;
 }

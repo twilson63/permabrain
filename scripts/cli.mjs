@@ -6,6 +6,7 @@ const COMMANDS = [
   'probe-hyperbeam',
   'probe-devices',
   'publish',
+  'publish-encrypted',
   'import-wikipedia',
   'query',
   'get',
@@ -83,6 +84,9 @@ Checks local HyperBEAM health, GraphQL, upload, and fetch endpoints.`,
     publish: `Usage: permabrain publish [--use-hyperbeam] [--use-hyperbeam-reference] <file> --kind <kind> --topic <topic> [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
 
 Publishes a signed public article DataItem. With --use-hyperbeam, routes the upload through the HyperBEAM ~bundler@1.0 device. With --use-hyperbeam-reference, also creates/updates a ~reference@1.0 pointer for the article key.`,
+    'publish-encrypted': `Usage: permabrain publish-encrypted <file> --kind <kind> --topic <topic> --for <public-key-1>[,<public-key-2>...] [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
+
+Publishes an encrypted article readable only by recipients whose X25519 public keys are listed in --for. The author's derived encryption key is included automatically. Use --use-hyperbeam to route the upload through HyperBEAM.`,
     'import-wikipedia': `Usage: permabrain import-wikipedia "<title>" --kind <kind> --topic <topic> [--language en] [--json]
 
 Fetches a Wikipedia summary, generates sourced markdown, and publishes it. With --use-hyperbeam, routes the upload through the HyperBEAM ~bundler@1.0 device. With --use-hyperbeam-reference, also creates/updates a ~reference@1.0 pointer for the article key.`,
