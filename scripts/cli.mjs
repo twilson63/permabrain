@@ -2,6 +2,7 @@
 
 const COMMANDS = [
   'init',
+  'probe',
   'probe-hyperbeam',
   'probe-devices',
   'publish',
@@ -36,6 +37,7 @@ Global options:
 
 Commands:
   init                         Initialize local PermaBrain state
+  probe                        Probe the configured PermaBrain transport
   probe-hyperbeam              Probe local HyperBEAM endpoints
   probe-devices                Probe all HyperBEAM device endpoints
   publish <file>               Publish a public knowledge article
@@ -70,6 +72,9 @@ Run 'permabrain <command> --help' for command-specific help.`);
     init: `Usage: permabrain init [--key-type arweave-rsa4096|ed25519] [--json]
 
 Creates .permabrain/ or PERMABRAIN_HOME state, config, keys, identity-init event, cache, and logs. Defaults to arweave-rsa4096; can also use PERMABRAIN_KEY_TYPE=ed25519.`,
+    probe: `Usage: permabrain probe [--use-hyperbeam] [--url http://localhost:10000] [--json]
+
+Probes the configured PermaBrain transport (arweave/hyperbeam/local). Reports health, device availability, and whether the transport can upload/fetch/query. Use --use-hyperbeam to force a HyperBEAM probe.`,
     'probe-hyperbeam': `Usage: permabrain probe-hyperbeam [--url http://localhost:10000] [--json]
 
 Checks local HyperBEAM health, GraphQL, upload, and fetch endpoints.`,

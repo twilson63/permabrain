@@ -1,13 +1,11 @@
 import { initState, loadConfig, getHome, defaultConfig } from './config.mjs';
-import { ensureIdentity, publicIdentity } from './keys.mjs';
-import { HyperbeamTransport } from './transport.mjs';
+import { ensureIdentity, publicIdentity, loadIdentity } from './keys.mjs';
 import { getArticle, publishArticle, queryArticles, syncArticlesAndAttestations } from './article.mjs';
 import { importWikipediaArticle } from './wikipedia.mjs';
 import { attestArticle, opinionFromArgs } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
-import { loadIdentity } from './keys.mjs';
-import { getTransport } from './transport.mjs';
+import { getTransport, HyperbeamTransport, ArweaveTransport, LocalTransport, probeTransport } from './transport.mjs';
 import { HyperbeamQuery } from './hb-query.mjs';
 import { HyperbeamConsensus } from './hb-consensus.mjs';
 import { DEVICES, bundlerUploadUrl } from './hb-devices.mjs';
@@ -20,6 +18,7 @@ function printJson(value) {
 
 export async function runCommand(command, args) {
   if (command === 'init') return initCommand(args);
+  if (command === 'probe') return probeCommand(args);
   if (command === 'probe-hyperbeam') return probeHyperbeamCommand(args);
   if (command === 'publish') return publishCommand(args);
   if (command === 'import-wikipedia') return importWikipediaCommand(args);
@@ -40,6 +39,27 @@ export async function runCommand(command, args) {
   if (command === 'whois') return whoisCommand(args);
   if (command === 'reference') return referenceCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
+}
+
+async function probeCommand(args) {
+  const home = getHome();
+  let config;
+  try { config = loadConfig(home); } catch { config = defaultConfig(); }
+  const useHyperbeam = args['use-hyperbeam'] === true || args['use-hyperbeam'] === 'true' || config.transport === 'hyperbeam';
+  if (useHyperbeam) {
+    const baseUrl = args.url || config.gateway?.dataUrl || process.env.PERMABRAIN_HYPERBEAM_URL || 'http://localhost:10000';
+    config = { ...config, transport: 'hyperbeam', gateway: { ...(config.gateway || {}), type: 'hyperbeam', dataUrl: baseUrl, graphqlUrl: `${baseUrl}/graphql` }, bundler: { ...(config.bundler || {}), type: 'hyperbeam', uploadUrl: `${baseUrl}/~bundler@1.0/tx?codec-device=ans104@1.0` } };
+  }
+  const { probeTransport } = await import('./transport.mjs');
+  const result = await probeTransport(config, home, { useHyperbeam });
+  if (args.json) printJson(result);
+  else {
+    console.log(`PermaBrain probe: ${result.url} (${result.transport})`);
+    for (const check of result.checks) {
+      console.log(`${check.ok ? 'ok' : 'fail'} ${check.name} ${check.status || check.error || ''}`.trim());
+    }
+  }
+  return result;
 }
 
 async function initCommand(args) {

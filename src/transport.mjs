@@ -74,6 +74,33 @@ export class LocalTransport {
       return Object.entries(filters).every(([name, value]) => obj[name] === String(value));
     }).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
   }
+
+  /**
+   * Probe local transport health.
+   * Validates that the state directory is writable/readable.
+   */
+  async probe(url = `file://${this.paths.home || this.paths.objectsDir.replace(/\/cache\/objects$/, '')}`) {
+    try {
+      fs.mkdirSync(this.paths.objectsDir, { recursive: true });
+      const probeFile = path.join(this.paths.objectsDir, '.permabrain-probe');
+      fs.writeFileSync(probeFile, 'ok');
+      const read = fs.readFileSync(probeFile, 'utf8');
+      fs.unlinkSync(probeFile);
+      return {
+        url,
+        transport: 'local',
+        ok: read === 'ok',
+        checks: [{ name: 'local-state', ok: true, endpoint: this.paths.objectsDir }]
+      };
+    } catch (err) {
+      return {
+        url,
+        transport: 'local',
+        ok: false,
+        checks: [{ name: 'local-state', ok: false, endpoint: this.paths.objectsDir, error: err.message }]
+      };
+    }
+  }
 }
 
 // ============================================================================
@@ -120,6 +147,31 @@ export class ArweaveTransport {
     this.graphqlUrl = config.gateway?.graphqlUrl || 'https://arweave.net/graphql';
     this.dataUrl = config.gateway?.dataUrl || 'https://arweave.net';
     this.uploadUrl = config.bundler?.uploadUrl || 'https://up.arweave.net/tx';
+  }
+
+  /**
+   * Probe Arweave transport health.
+   * Checks GraphQL and data gateway reachability.
+   */
+  async probe(url = this.dataUrl) {
+    const checks = [];
+    async function check(name, endpoint, options) {
+      try {
+        const res = await fetch(endpoint, options);
+        checks.push({ name, endpoint, ok: res.ok, status: res.status });
+      } catch (err) {
+        checks.push({ name, endpoint, ok: false, error: err.message });
+      }
+    }
+
+    await check('gateway', this.dataUrl, { method: 'GET' });
+    await check('graphql', this.graphqlUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: '{ transactions(first: 1) { edges { node { id } } } }' })
+    });
+
+    return { url, transport: 'arweave', checks, ok: checks.some((c) => c.ok) };
   }
 
   async uploadDataItem(item) {
@@ -199,4 +251,33 @@ export class ArweaveTransport {
 
 export function itemSummary(item) {
   return { id: item.id, owner: item.owner, timestamp: item.timestamp, tags: tagsToObject(item.tags || []), text: payloadText(item) };
+}
+
+export async function probeTransport(config, home, opts = {}) {
+  const transport = getTransport(config, home, opts);
+  if (typeof transport.probe === 'function') {
+    return transport.probe(config.gateway?.dataUrl);
+  }
+  // Local transport: validate state directories are writable/readable.
+  try {
+    const testDir = path.join(home, 'cache', 'objects');
+    fs.mkdirSync(testDir, { recursive: true });
+    const probeFile = path.join(testDir, '.permabrain-probe');
+    fs.writeFileSync(probeFile, 'ok');
+    const read = fs.readFileSync(probeFile, 'utf8');
+    fs.unlinkSync(probeFile);
+    return {
+      url: `file://${home}`,
+      transport: 'local',
+      ok: read === 'ok',
+      checks: [{ name: 'local-state', ok: true, endpoint: testDir }]
+    };
+  } catch (err) {
+    return {
+      url: `file://${home}`,
+      transport: 'local',
+      ok: false,
+      checks: [{ name: 'local-state', ok: false, endpoint: home, error: err.message }]
+    };
+  }
 }

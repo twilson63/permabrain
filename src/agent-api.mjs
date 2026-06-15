@@ -15,7 +15,7 @@
  *   await api.sync();
  */
 
-import { initState, getHome, loadConfig } from './config.mjs';
+import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
 import { ensureIdentity, loadIdentity } from './keys.mjs';
 import { publishArticle, queryArticles, getArticle, syncArticlesAndAttestations } from './article.mjs';
 import { attestArticle } from './attestation.mjs';
@@ -238,6 +238,32 @@ const api = {
     requireInit(this._home);
     if (!key) throw new Error('key is required');
     return consensusForArticle(key, opts);
+  },
+
+  /**
+   * Probe the configured transport and return health/status info.
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam] - Force HyperbeamTransport probe
+   * @param {string} [opts.url] - Override probe URL
+   * @returns {Promise<{ok, url, transport, checks}>}
+   */
+  async probe(opts = {}) {
+    const { probeTransport } = await import('./transport.mjs');
+    if (!this._home) {
+      const home = getHome();
+      try { this._config = loadConfig(home); } catch { this._config = defaultConfig(); }
+      this._home = home;
+    }
+    if (!this._config) {
+      try { this._config = loadConfig(this._home); } catch { this._config = defaultConfig(); }
+    }
+    requireInit(this._home);
+    const useHyperbeam = opts.useHyperbeam === true || this._config.transport === 'hyperbeam';
+    const baseUrl = opts.url || this._config.gateway?.dataUrl || process.env.PERMABRAIN_HYPERBEAM_URL || 'http://localhost:10000';
+    if (useHyperbeam) {
+      this._config = { ...this._config, transport: 'hyperbeam', gateway: { ...(this._config.gateway || {}), type: 'hyperbeam', dataUrl: baseUrl, graphqlUrl: `${baseUrl}/graphql` }, bundler: { ...(this._config.bundler || {}), type: 'hyperbeam', uploadUrl: `${baseUrl}/~bundler@1.0/tx?codec-device=ans104@1.0` } };
+    }
+    return probeTransport(this._config, this._home, { useHyperbeam });
   },
 
   /**

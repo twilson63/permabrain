@@ -80,7 +80,7 @@ export class HyperbeamTransport {
       body: JSON.stringify({ query: '{ transactions(first: 1) { edges { node { id } } } }' })
     });
 
-    return { url, checks, ok: checks.some((c) => c.name === 'health' && c.ok) };
+    return { url, transport: 'hyperbeam', checks, ok: checks.some((c) => c.name === 'health' && c.ok) };
   }
 
   /**
