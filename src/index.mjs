@@ -61,5 +61,8 @@ export { syncWithMerge, syncArticlesAndAttestationsBase } from './sync.mjs';
 // Diff
 export { diffArticles, diffLocalVsRemote } from './diff.mjs';
 
+// Status
+export { status } from './status.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

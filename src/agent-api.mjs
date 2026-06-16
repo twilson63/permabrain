@@ -885,6 +885,24 @@ const api = {
   },
 
   /**
+   * Get a working-state overview for the PermaBrain node.
+   *
+   * Reports local articles, remote latest versions, pending sync
+   * divergences, fork heads, merge/conflict status, transport health,
+   * circuit breakers, and transport metrics.
+   *
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<Object>} Status report
+   */
+  async status(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { status } = await import('./status.mjs');
+    return status({ ...opts, home: this._home, config: this._config });
+  },
+
+  /**
    * Get the current agent identity.
    * @returns {{agentId, keyType}}
    */

@@ -36,7 +36,8 @@ const COMMANDS = [
   'transport-status',
   'watch',
   'history',
-  'diff'
+  'diff',
+  'status'
 ];
 
 function printHelp(command = null) {
@@ -83,6 +84,9 @@ Commands:
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
   transport-status             Show transport metrics and circuit breaker state
   watch                        Poll transport for new articles/attestations
+  history                      Lists the full version chain and attestation timeline for an article key
+  diff                         Compare two article versions or local vs remote
+  status                       Show working-state overview (articles, divergences, forks, merges)
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -276,6 +280,17 @@ Options:
   --context N          Context lines around each hunk (default 3)
   --no-preview         Skip three-way conflict preview
   --local              Compare local vs remote for a single key`,
+  'status': `Usage: permabrain status [--use-hyperbeam] [--json]
+
+Show a working-state overview of the local PermaBrain node.
+
+Reports local articles, remote latest versions, pending sync divergences,
+fork heads, merge/conflict status, transport health, circuit breakers,
+and transport metrics.
+
+Options:
+  --use-hyperbeam      Query remote state via HyperBEAM transport
+  --json               Output structured status report`,
   'export-bundle': `Usage: permabrain export-bundle <canonical-key> [--id <id>] [--no-attestations] [--no-versions] [--output <path>] [--json]
 
 Exports a single article, its version chain, and attestations into a

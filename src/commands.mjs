@@ -19,6 +19,7 @@ import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
 import { diffArticles, diffLocalVsRemote } from './diff.mjs';
+import { status } from './status.mjs';
 
 import fs from 'node:fs';
 
@@ -62,6 +63,7 @@ export async function runCommand(command, args) {
   if (command === 'list-forks') return listForksCommand(args);
   if (command === 'merge') return mergeCommand(args);
   if (command === 'diff') return diffCommand(args);
+  if (command === 'status') return statusCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1041,6 +1043,36 @@ async function diffCommand(args) {
   if (args.json) printJson(result);
   else if (args.format === 'json') printJson(result);
   else process.stdout.write(result.text + '\n');
+  return result;
+}
+
+async function statusCommand(args) {
+  const result = await status({ useHyperbeam: args['use-hyperbeam'] ?? false, home: getHome() });
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(`PermaBrain status: ${result.home} (${result.transport})`);
+    console.log(`  Transport: ${result.transportOk ? 'ok' : 'degraded'}`);
+    const s = result.summary;
+    console.log(`  Articles: ${s.localArticles} local, ${s.remoteArticles} remote latest`);
+    console.log(`  Divergences: ${s.divergenceCount} (${s.conflictCount} conflict, ${s.mergeableCount} mergeable)`);
+    console.log(`  Forks: ${s.forkCount}`);
+    console.log(`  Attestations: ${s.totalAttestations} across ${s.attestationTargets} keys`);
+    if (result.remoteError) console.log(`  Remote query error: ${result.remoteError}`);
+    if (s.divergenceCount) {
+      console.log('  Pending divergences:');
+      for (const d of result.divergences) {
+        const note = d.encrypted ? 'encrypted' : (d.mergeable ? 'mergeable' : 'manual');
+        console.log(`    ${d.key}: ${d.localId} <-> ${d.remoteId} (${note})`);
+      }
+    }
+    if (s.forkCount) {
+      console.log('  Fork heads:');
+      for (const f of result.forkHeads) {
+        console.log(`    ${f.key} (from ${f.sourceKey}) v${f.version}: ${f.id}`);
+      }
+    }
+  }
   return result;
 }
 
