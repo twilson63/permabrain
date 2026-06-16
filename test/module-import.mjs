@@ -30,6 +30,7 @@ import {
 import { verifyDataItemById, verifyByKey, verifyItem } from '../src/index.mjs';
 import { exportBundle, exportAllArticles, importBundle, buildBundle } from '../src/index.mjs';
 import { exportHistory } from '../src/index.mjs';
+import { importHistory } from '../src/index.mjs';
 import { historyForKey, buildVersionChain, summarizeVersion } from '../src/index.mjs';
 import { forkArticle, listForks, deriveForkKey } from '../src/index.mjs';
 import { mergeArticles, threeWayMerge } from '../src/index.mjs';
@@ -110,6 +111,7 @@ assert.equal(typeof exportBundle, 'function', 'exportBundle');
 assert.equal(typeof exportAllArticles, 'function', 'exportAllArticles');
 assert.equal(typeof importBundle, 'function', 'importBundle');
 assert.equal(typeof exportHistory, 'function', 'exportHistory');
+assert.equal(typeof importHistory, 'function', 'importHistory');
 assert.equal(typeof buildArticleTags, 'function', 'buildArticleTags');
 assert.equal(typeof buildAttestationTags, 'function', 'buildAttestationTags');
 assert.equal(typeof contentHash, 'function', 'contentHash');
@@ -235,11 +237,11 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 42 API methods present');
+console.log('   ✓ All 43 API methods present');
 
 console.log('\n✅ All importable module tests passed');

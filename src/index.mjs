@@ -76,3 +76,4 @@ export { activityFeed, activityToMarkdown } from './activity.mjs';
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';
 export { exportHistory } from './export-history.mjs';
+export { importHistory } from './import-history.mjs';

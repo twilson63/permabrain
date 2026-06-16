@@ -23,6 +23,7 @@ import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, proces
 import { consensusForArticle } from './consensus.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { exportHistory } from './export-history.mjs';
+import { importHistory } from './import-history.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
@@ -797,6 +798,26 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return importBundle(bundle, { ...opts, transport: opts.useHyperbeam ?? false, home: this._home });
+  },
+
+  /**
+   * Import a history bundle produced by exportHistory() into the local store.
+   *
+   * Preserves version ordering, updates the local cache index, skips
+   * duplicates, and verifies each DataItem signature by default.  Returns a
+   * structured report with per-entry results and import counts.
+   *
+   * @param {Object} bundle - History bundle
+   * @param {Object} [opts]
+   * @param {boolean} [opts.verify=true] - Verify DataItem signatures
+   * @param {boolean} [opts.skipDuplicates=true] - Skip already-present items
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<{ok, meta, importedArticles, importedAttestations, skippedArticles, skippedAttestations, failed, results}>}
+   */
+  async importHistory(bundle, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return importHistory(bundle, { ...opts, home: this._home });
   },
 
   /**

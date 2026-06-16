@@ -15,6 +15,7 @@ import { parseGoalFile, planFromGoal, importArticlesFromGoal, attestationsFromGo
 import { verifyDataItemById, verifyByKey } from './verify.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { exportHistory } from './export-history.mjs';
+import { importHistory } from './import-history.mjs';
 import { historyForKey } from './history.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
@@ -61,6 +62,7 @@ export async function runCommand(command, args) {
   if (command === 'export-history') return exportHistoryCommand(args);
   if (command === 'export-all') return exportAllCommand(args);
   if (command === 'import-bundle') return importBundleCommand(args);
+  if (command === 'import-history') return importHistoryCommand(args);
   if (command === 'transport-status') return transportStatusCommand(args);
   if (command === 'watch') return watchCommand(args);
   if (command === 'history') return historyCommand(args);
@@ -957,6 +959,36 @@ async function historyCommand(args) {
       console.log(`  Total attestations considered: ${result.consensus.totalAttestations}`);
       if (Object.keys(result.consensus.opinionCounts).length) {
         console.log('  Opinions:', JSON.stringify(result.consensus.opinionCounts));
+      }
+    }
+  }
+  return result;
+}
+
+async function importHistoryCommand(args) {
+  const file = args._[0] || args.file;
+  if (!file) throw new Error('import-history requires <file>');
+  const raw = fs.readFileSync(file, 'utf8');
+  const bundle = JSON.parse(raw);
+  const result = await importHistory(bundle, {
+    home: getHome(),
+    verify: args['no-verify'] !== true,
+    skipDuplicates: args['skip-duplicates'] !== false
+  });
+  if (args.json) printJson(result);
+  else {
+    console.log(`Import history: ${result.importedArticles} articles, ${result.importedAttestations} attestations imported`);
+    if (result.skippedArticles || result.skippedAttestations) {
+      console.log(`  Skipped: ${result.skippedArticles} articles, ${result.skippedAttestations} attestations`);
+    }
+    if (result.failed) console.log(`  Failed: ${result.failed}`);
+    for (const r of result.results) {
+      if (!r.ok) {
+        console.log(`  ✗ ${r.type}${r.key ? ` ${r.key}` : ''}${r.targetKey ? ` ${r.targetKey}` : ''}: ${r.error}`);
+      } else if (!r.imported) {
+        console.log(`  - ${r.type} ${r.key || r.targetKey || ''}: already present`);
+      } else {
+        console.log(`  ✓ ${r.type} ${r.key || r.targetKey || ''}: ${r.id}`);
       }
     }
   }

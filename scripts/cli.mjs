@@ -19,6 +19,7 @@ const COMMANDS = [
   'export-all',
   'export-history',
   'import-bundle',
+  'import-history',
   'fork',
   'list-forks',
   'merge',
@@ -376,6 +377,12 @@ Imports articles and attestations from a PermaBrain bundle file. Each entry
 is verified (unless --no-verify is passed), signatures are checked, and
 duplicates are skipped by default. Use --use-hyperbeam to submit through a
 HyperBEAM node.`,
+  'import-history': `Usage: permabrain import-history <file> [--no-verify] [--no-skip-duplicates] [--json]
+
+Imports a history bundle produced by export-history into the local store.
+Articles are replayed in version order so the version chain is preserved;
+attestations are imported after articles. Each entry is verified by default
+(unless --no-verify is passed), and duplicates are skipped.`,
   'search': `Usage: permabrain search <query> [--kind <kind>] [--topic <topic>] [--author <agent-id>] [--key <key>] [--after <iso-date>] [--before <iso-date>] [--limit N] [--offset N] [--use-hyperbeam] [--json]
 
 Full-text search across article titles, topics, keys, source names, and
