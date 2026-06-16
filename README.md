@@ -59,6 +59,8 @@ permabrain get-encrypted subject/article
 permabrain get-encrypted subject/article --seed-file seed.txt
 ```
 
+The web viewer (`viewer/index.html`) also detects encrypted articles. Paste an X25519 seed into the decrypt panel to render the plaintext locally; the seed is never stored persistently or sent anywhere.
+
 Programmatically:
 
 ```javascript

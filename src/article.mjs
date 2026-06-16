@@ -64,7 +64,7 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
     sourceLicense,
     content: plainContent,
     agentId: identity.agentId,
-    visibility: encryptedFor?.length > 0 ? 'private' : 'public'
+    visibility: encryptedFor?.length > 0 ? 'encrypted' : 'public'
   });
 
   // Store encryption metadata as tags for discovery

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PermaBrain</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module" src="./crypto.mjs"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -156,7 +157,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .version-num{font-weight:600;color:var(--accent);min-width:2rem}
 .version-date{color:var(--muted);font-size:0.8rem}
 .version-link{color:var(--accent);font-family:monospace;font-size:0.75rem;text-decoration:none}
-.version-link:hover{text-decoration:underline}
+/* Decryption panel */
+.decrypt-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+.decrypt-panel h3{font-size:1rem;margin-bottom:0.5rem}
+.decrypt-panel p{font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem}
+.decrypt-panel input{width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text);margin-bottom:0.5rem}
+.decrypt-panel input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(9,105,218,0.2)}
+[data-theme="dark"] .decrypt-panel input:focus{box-shadow:0 0 0 2px rgba(88,166,255,0.2)}
+.decrypt-panel .btn-row{display:flex;gap:0.5rem;flex-wrap:wrap}
+.decrypt-panel .btn-primary{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.45rem 0.9rem;cursor:pointer;font-size:0.85rem}
+.decrypt-panel .btn-primary:hover{opacity:0.9}
+.decrypt-panel .btn-secondary{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.45rem 0.9rem;cursor:pointer;font-size:0.85rem}
+.decrypt-panel .btn-secondary:hover{border-color:var(--accent)}
+.encrypted-hint{background:rgba(154,103,0,0.08);border:1px solid var(--orange);border-radius:var(--radius);padding:0.6rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:var(--orange)}
+[data-theme="dark"] .encrypted-hint{background:rgba(210,153,34,0.1);color:var(--orange)}
 
 /* Mobile */
 .mobile-toggle{display:none;position:fixed;top:0.75rem;left:0.75rem;z-index:100;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.7rem;cursor:pointer;font-size:1.2rem}
@@ -207,7 +221,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 </div>
 </div>
 </div>
-<script>
+<script type="module">
+import { viewerDecrypt, isEncryptedEnvelope } from './crypto.mjs';
+window.viewerDecrypt = viewerDecrypt;
+window.isEncryptedEnvelope = isEncryptedEnvelope;
 (function(){
   // --- Config ---
   var GATEWAY = 'https://arweave.net';
@@ -215,7 +232,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     GATEWAY = 'https://arweave.net';
   }
 
-  // --- State ---
+  // --- State (added encrypted viewer state) ---
   var articles = [];         // deduped latest versions
   var allVersions = {};       // key -> [{id, version, tags}]
   var attestations = {};     // key -> [{...}]
@@ -227,6 +244,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   var error = null;
   var lastSync = null;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
+  var decryptedContent = {};  // key -> cached decrypted plaintext
 
   // --- Theme ---
   function applyTheme(t) {
@@ -428,6 +447,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         contentHash: t['Article-Content-Hash'] || '',
         updatedAt: t['Article-Updated-At'] || '',
         language: t['Article-Language'] || 'en',
+        visibility: t['Visibility'] || (t['Encrypted-For'] ? 'encrypted' : 'public'),
         arweaveUrl: GATEWAY + '/' + item.id,
         _tags: t,
         _content: null,
@@ -446,6 +466,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     renderStatus();
     if (selectedKey) renderArticle(selectedKey);
     else renderHome();
+  }
+
+  async function tryDecryptArticle(article, seed) {
+    if (!article._encryptedPayload && !isEncryptedEnvelope(article._content)) return;
+    const payload = article._encryptedPayload || article._content;
+    try {
+      const plain = await viewerDecrypt(payload, seed);
+      decryptedContent[article.key] = plain;
+      encryptedSeeds[article.key] = btoa(seed); // remember as base64 (not base64url) in-memory only
+      article._decrypted = plain;
+      article._decryptError = null;
+      if (selectedKey === article.key) renderArticle(selectedKey);
+    } catch (err) {
+      article._decryptError = err.message;
+      if (selectedKey === article.key) renderArticle(selectedKey);
+    }
   }
 
   // --- Content fetching ---
@@ -479,10 +515,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       if (text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html')) {
         throw new Error('Gateway returned HTML');
       }
-      article._content = text;
-      article._contentLoading = false;
-      dbPut('content', { id: article.id, text: text, fetchedAt: new Date().toISOString() }).catch(function(){});
-      if (selectedKey === article.key) renderArticle(selectedKey);
+      return handleFetchedContent(article, text);
     })
     .catch(function() {
       // Strategy 2: Try arweave.net raw endpoint
@@ -495,10 +528,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         if (text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html')) {
           throw new Error('Content not available');
         }
-        article._content = text;
-        article._contentLoading = false;
-        dbPut('content', { id: article.id, text: text, fetchedAt: new Date().toISOString() }).catch(function(){});
-        if (selectedKey === article.key) renderArticle(selectedKey);
+        return handleFetchedContent(article, text);
       })
       .catch(function(err) {
         article._contentLoading = false;
@@ -506,6 +536,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
         if (selectedKey === article.key) renderArticle(selectedKey);
       });
     });
+  }
+
+  function handleFetchedContent(article, text) {
+    // Detect encrypted envelopes from server responses
+    if (isEncryptedEnvelope(text)) {
+      article._encryptedPayload = text;
+      article._content = 'ENCRYPTED';
+      article._contentLoading = false;
+      dbPut('content', { id: article.id, text: text, fetchedAt: new Date().toISOString(), encrypted: true }).catch(function(){});
+      if (selectedKey === article.key) renderArticle(selectedKey);
+      return;
+    }
+    article._content = text;
+    article._contentLoading = false;
+    dbPut('content', { id: article.id, text: text, fetchedAt: new Date().toISOString() }).catch(function(){});
+    if (selectedKey === article.key) renderArticle(selectedKey);
+  }
+
+  async function tryDecryptArticle(article, seed) {
+    if (!article._encryptedPayload && !isEncryptedEnvelope(article._content)) return;
+    const payload = article._encryptedPayload || article._content;
+    try {
+      const plain = await viewerDecrypt(payload, seed);
+      decryptedContent[article.key] = plain;
+      encryptedSeeds[article.key] = btoa(seed); // remember as base64 (not base64url) in-memory only
+      article._decrypted = plain;
+      article._decryptError = null;
+      if (selectedKey === article.key) renderArticle(selectedKey);
+    } catch (err) {
+      article._decryptError = err.message;
+      if (selectedKey === article.key) renderArticle(selectedKey);
+    }
   }
 
   // --- Consensus ---
@@ -534,8 +596,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   // --- Render helpers ---
   function getTopics() {
     var topics = new Set();
-    articles.forEach(function(a){ if(a.topic) topics.add(a.topic) });
-    return ['all'].concat(Array.from(topics).sort());
+    var hasEncrypted = false;
+    articles.forEach(function(a) {
+      if(a.topic) topics.add(a.topic);
+      if(a.visibility === 'encrypted' || isEncryptedEnvelope(a._content || '')) hasEncrypted = true;
+    });
+    var arr = ['all'].concat(Array.from(topics).sort());
+    if (hasEncrypted) arr.push('encrypted');
+    return arr;
   }
 
   function getKinds() {
@@ -548,8 +616,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     var topics = getTopics();
     var el = document.getElementById('filters');
     el.innerHTML = topics.map(function(k) {
-      var label = k === 'all' ? 'All' : k;
-      var count = k === 'all' ? articles.length : articles.filter(function(a){ return a.topic === k }).length;
+      var count = k === 'all' ? articles.length : (k === 'encrypted' ? articles.filter(function(a){ return a.visibility === 'encrypted' || isEncryptedEnvelope(a._content || '') }).length : articles.filter(function(a){ return a.topic === k }).length);
+      var label = k === 'all' ? 'All' : (k === 'encrypted' ? 'Encrypted' : k);
       return '<button class="filter-btn' + (activeFilter === k ? ' active' : '') + '" onclick="window.setFilter(\'' + k + '\')">' + esc(label) + ' <span style="opacity:0.6">(' + count + ')</span></button>';
     }).join('');
   }
@@ -570,6 +638,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
   function sortedArticles() {
     var filtered = articles.filter(function(a) {
+      if (activeFilter === 'encrypted') return a.visibility === 'encrypted' || isEncryptedEnvelope(a._content || '');
       if (activeFilter !== 'all' && a.topic !== activeFilter) return false;
       var q = (document.getElementById('search').value || '').toLowerCase();
       if (q && a.title.toLowerCase().indexOf(q) === -1 && a.key.toLowerCase().indexOf(q) === -1 && a.topic.toLowerCase().indexOf(q) === -1) return false;
@@ -629,13 +698,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       var badgeClass = cons.status === 'attested' ? 'badge-valid' : 'badge-pending';
       var badgeLabel = cons.status === 'attested' ? '\u2713 Attested' : (cons.status === 'unattested' ? 'Unattested' : 'Mixed');
       var atts = attestations[a.key] || [];
+      var lockIcon = a.visibility === 'encrypted' || isEncryptedEnvelope(a._content || '') ? '&#128274; ' : '';
       return '<div class="home-card" data-key="' + esc(a.key) + '" onclick="window.selectArticle(\'' + esc(a.key) + '\')">' +
         '<div class="home-card-header">' +
         '<span class="badge badge-kind">' + esc(a.kind) + '</span>' +
         '<span class="badge badge-topic">' + esc(a.topic) + '</span>' +
         '<span class="badge ' + badgeClass + '">' + badgeLabel + '</span>' +
         '</div>' +
-        '<h3>' + esc(a.title) + '</h3>' +
+        '<h3>' + lockIcon + esc(a.title) + '</h3>' +
         '<div class="home-card-meta">v' + a.version + ' &middot; ' + esc(a.sourceName) + (a.updatedAt ? ' &middot; ' + new Date(a.updatedAt).toLocaleDateString() : '') + '</div>' +
         (atts.length ? '<div class="home-card-atts">\u2713 ' + esc(atts[0].opinion) + ' (' + atts[0].confidence + ')' + (atts.length > 1 ? ' +' + (atts.length - 1) + ' more' : '') + '</div>' : '') +
         '<div class="home-card-key">' + esc(a.key) + '</div>' +
@@ -663,9 +733,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       var cons = getConsensus(a.key);
       var attDot = atts.length ? '<span class="att-dot"></span>' : '<span class="att-dot unattested"></span>';
       var attLabel = atts.length ? '<span style="color:var(--green);font-size:0.72rem">\u2713 ' + atts.length + '</span>' : '';
+      var lockIcon = a.visibility === 'encrypted' || isEncryptedEnvelope(a._content || '') ? '&#128274; ' : '';
       return '<div class="article-item' + (selectedKey === a.key ? ' selected' : '') + '" data-key="' + esc(a.key) + '" onclick="window.selectArticle(\'' + esc(a.key) + '\')">' +
         '<div class="key">' + esc(a.key) + '</div>' +
-        '<div class="title">' + esc(a.title) + '</div>' +
+        '<div class="title">' + lockIcon + esc(a.title) + '</div>' +
         '<div class="meta">' + attDot + ' ' + esc(a.kind) + ' &middot; ' + esc(a.topic) + ' &middot; v' + a.version + ' ' + attLabel + '</div>' +
         '</div>';
     }).join('');
@@ -688,6 +759,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     var contentHtml = '';
     if (a._contentLoading) {
       contentHtml = '<div class="loading"><div class="spinner"></div> Loading content...</div>';
+    } else if (a._decrypted) {
+      try {
+        contentHtml = (typeof marked !== 'undefined' && marked.parse) ? marked.parse(a._decrypted) : '<pre>' + esc(a._decrypted) + '</pre>';
+      } catch(e) {
+        contentHtml = '<pre>' + esc(a._decrypted) + '</pre>';
+      }
+    } else if (a._content === 'ENCRYPTED') {
+      contentHtml = buildDecryptPanel(a) + '<p style="color:var(--muted)">Content is encrypted. Enter a seed above to decrypt.</p>';
     } else if (a._contentError) {
       contentHtml = '<div class="error-box">Could not load article content: ' + esc(a._contentError) + '</div>';
     } else if (a._content) {
@@ -705,6 +784,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
     var badgeClass = consensus.status === 'attested' ? 'badge-valid' : 'badge-pending';
     var badgeLabel = consensus.status === 'attested' ? '&#10003; Attested' : (consensus.status === 'unattested' ? 'Unattested' : 'Mixed');
+
+    // Encrypted hint + decrypt panel for non-content tabs too
+    var encrypted = a._content === 'ENCRYPTED' || isEncryptedEnvelope(a._content || '');
+    var encryptedBanner = encrypted ? '<div class="encrypted-hint">&#128274; Encrypted article — content hidden without recipient seed</div>' : '';
 
     // Version history
     var versions = allVersions[a.key] || [];
@@ -769,10 +852,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       (versions.length > 1 ? '<div class="tab' + (activeTab === 'versions' ? ' active' : '') + '" onclick="window.setTab(\'versions\')">Versions (' + versions.length + ')</div>' : '') +
       '</div>' +
       '<div class="tab-content' + (activeTab === 'content' ? ' active' : '') + '" id="tab-content">' + contentHtml + '</div>' +
-      '<div class="tab-content' + (activeTab === 'attestations' ? ' active' : '') + '" id="tab-attestations">' +
-      (attCards || '<p style="color:var(--muted)">No attestations yet.</p>') +
+      '<div class="tab-content' + (activeTab === 'attestations' ? ' active' : '') + '" id="tab-attestations">' + encryptedBanner + (attCards || '<p style="color:var(--muted)">No attestations yet.</p>') +
       '</div>' +
-      '<div class="tab-content' + (activeTab === 'consensus' ? ' active' : '') + '" id="tab-consensus">' +
+      '<div class="tab-content' + (activeTab === 'consensus' ? ' active' : '') + '" id="tab-consensus">' + encryptedBanner +
       '<div class="consensus-box">' +
       '<div class="score ' + scoreClass + '">' + (consensus.score !== null ? consensus.score : 'N/A') + '</div>' +
       '<div class="label">Consensus Score</div>' +
@@ -787,6 +869,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
       document.getElementById('sidebar').classList.remove('open');
       document.getElementById('overlay').classList.remove('show');
     }
+  }
+
+  function buildDecryptPanel(a) {
+    var remembered = encryptedSeeds[a.key] ? atob(encryptedSeeds[a.key]) : '';
+    return '\u003cdiv class="decrypt-panel"\u003e' +
+      '\u003ch3\u003e🔐 Encrypted article\u003c/h3\u003e' +
+      '\u003cp\u003eThis article is encrypted. Paste your X25519 private key seed (base64url) to decrypt it. The seed is used locally and is not stored or transmitted.\u003c/p\u003e' +
+      '\u003cinput type="password" id="decryptSeed" placeholder="X25519 seed (base64url)" value="' + esc(remembered) + '"\u003e' +
+      '\u003cdiv class="btn-row"\u003e' +
+      '\u003cbutton class="btn-primary" onclick="window.decryptSelected()"\u003eDecrypt\u003c/button\u003e' +
+      '\u003cbutton class="btn-secondary" onclick="document.getElementById(\'decryptSeed\').value=\'\'"\u003eClear\u003c/button\u003e' +
+      '\u003c/div\u003e' +
+      (a._decryptError ? '\u003cdiv class="error-box" style="margin-top:0.5rem"\u003e' + esc(a._decryptError) + '\u003c/div\u003e' : '') +
+      '\u003c/div\u003e';
   }
 
   // --- Public API ---
@@ -821,6 +917,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
   window.refresh = function() {
     syncAll();
+  };
+
+  window.decryptSelected = async function() {
+    var a = articles.find(function(x) { return x.key === selectedKey; });
+    if (!a) return;
+    var input = document.getElementById('decryptSeed');
+    var seed = input ? input.value.trim() : '';
+    if (!seed) {
+      a._decryptError = 'Enter a seed to decrypt';
+      renderArticle(selectedKey);
+      return;
+    }
+    a._decryptError = null;
+    await tryDecryptArticle(a, seed);
   };
 
   // --- Boot ---
