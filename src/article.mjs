@@ -20,7 +20,7 @@ export function sourceNameFromUrl(url) {
   }
 }
 
-export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [] }) {
+export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [], visibility = 'public' }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
@@ -32,13 +32,17 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   const finalTitle = title || (file ? deriveTitleFromFile(file) : key?.split('/').at(-1));
   const finalKey = deriveKey({ key, kind, title: finalTitle, file });
 
+  // Normalize visibility: --publish encrypted|private|public and --visibility take precedence
+  const isEncrypted = visibility === 'encrypted' || visibility === 'private' || encryptedFor?.length > 0;
+  const requestedEncryptedFor = encryptedFor?.length > 0 ? encryptedFor : (isEncrypted ? [] : []);
+
   // Encrypt if recipients specified (always include author so they can read/decrypt later)
   let plainContent = finalContent;
   let encryptedPayload = null;
   let encryptionEnvelope = null;
-  if (encryptedFor?.length > 0) {
+  if (isEncrypted) {
     const authorKeypair = await deriveAuthorEncryptionKeypair(identity);
-    const recipientKeys = [...new Set([...encryptedFor, authorKeypair.publicKey])];
+    const recipientKeys = [...new Set([...requestedEncryptedFor, authorKeypair.publicKey])];
     const encryption = await pbcrypto.encrypt(finalContent, recipientKeys);
     encryptedPayload = encryption.encryptedPayload;
     encryptionEnvelope = encryption.envelope;
@@ -64,7 +68,7 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
     sourceLicense,
     content: plainContent,
     agentId: identity.agentId,
-    visibility: encryptedFor?.length > 0 ? 'encrypted' : 'public'
+    visibility: isEncrypted ? 'encrypted' : 'public'
   });
 
   // Store encryption metadata as tags for discovery
@@ -100,7 +104,7 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
     reference = await updateOrCreateArticleReference(transport, home, finalKey, item.id, identity);
   }
 
-  return { item, summary: summarizeArticle(item), reference, encrypted: encryptedFor?.length > 0, encryptionEnvelope };
+  return { item, summary: summarizeArticle(item), reference, encrypted: isEncrypted, encryptionEnvelope };
 }
 
 function loadRefCache(refPath) {

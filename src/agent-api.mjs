@@ -154,13 +154,14 @@ const api = {
   async publish(params) {
     await this.ensureInit();
     requireInit(this._home);
-    const { content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, encryptedFor, ...rest } = params;
+    const { content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, encryptedFor, visibility, ...rest } = params;
     if (!content) throw new Error('content is required');
     if (!kind) throw new Error('kind is required');
     if (!topic) throw new Error('topic is required');
     if (!sourceUrl) throw new Error('sourceUrl is required');
-    const result = await publishArticle({ content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, encryptedFor, ...rest });
-    return { summary: result.summary, reference: result.reference, encrypted: result.encrypted, encryptionEnvelope: result.encryptionEnvelope };
+    const normalizedVisibility = visibility || (encryptedFor?.length ? 'encrypted' : 'public');
+    const result = await publishArticle({ content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, encryptedFor, visibility: normalizedVisibility, ...rest });
+    return { summary: result.summary, item: result.item, reference: result.reference, encrypted: result.encrypted, encryptionEnvelope: result.encryptionEnvelope };
   },
 
   /**

@@ -113,6 +113,9 @@ async function probeHyperbeamCommand(args) {
 async function publishCommand(args) {
   const file = args._[0];
   if (!file) throw new Error('publish requires <file>');
+  const visibility = args.visibility || args.publish || 'public';
+  if (!['public', 'encrypted', 'private'].includes(visibility)) throw new Error(`--visibility must be public, encrypted, or private (got: ${visibility})`);
+  const encryptedFor = args.for ? String(args.for).split(',').map(k => k.trim()).filter(Boolean) : [];
   const result = await publishArticle({
     file,
     kind: args.kind,
@@ -124,11 +127,13 @@ async function publishCommand(args) {
     sourceLicense: args['source-license'] || '',
     language: args.language || 'en',
     useHyperbeam: args['use-hyperbeam'] ?? false,
-    useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
+    useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined),
+    visibility,
+    encryptedFor
   });
   if (args.json) printJson(result.summary);
   else {
-    console.log(`Published ${result.summary.key}`);
+    console.log(`Published ${visibility !== 'public' ? visibility + ' ' : ''}${result.summary.key}`);
     console.log(`ID: ${result.summary.id}`);
     console.log(`Version: ${result.summary.version}`);
     if (result.reference) {

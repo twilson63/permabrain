@@ -84,9 +84,9 @@ Probes the configured PermaBrain transport (arweave/hyperbeam/local). Reports he
     'probe-hyperbeam': `Usage: permabrain probe-hyperbeam [--url http://localhost:10000] [--json]
 
 Checks local HyperBEAM health, GraphQL, upload, and fetch endpoints.`,
-    publish: `Usage: permabrain publish [--use-hyperbeam] [--use-hyperbeam-reference] <file> --kind <kind> --topic <topic> [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
+    publish: `Usage: permabrain publish [--use-hyperbeam] [--use-hyperbeam-reference] <file> --kind <kind> --topic <topic> [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--visibility public|encrypted|private] [--for <pubkey-1>[,<pubkey-2>...]] [--json]
 
-Publishes a signed public article DataItem. With --use-hyperbeam, routes the upload through the HyperBEAM ~bundler@1.0 device. With --use-hyperbeam-reference, also creates/updates a ~reference@1.0 pointer for the article key.`,
+Publishes a signed article DataItem. Use --visibility encrypted (or --publish encrypted) to encrypt the article; with --for, encrypt for specific X25519 public keys (author is included automatically). With --use-hyperbeam, routes the upload through the HyperBEAM ~bundler@1.0 device. With --use-hyperbeam-reference, also creates/updates a ~reference@1.0 pointer for the article key.`,
     'publish-encrypted': `Usage: permabrain publish-encrypted <file> --kind <kind> --topic <topic> --for <public-key-1>[,<public-key-2>...] [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
 
 Publishes an encrypted article readable only by recipients whose X25519 public keys are listed in --for. The author's derived encryption key is included automatically. Use --use-hyperbeam to route the upload through HyperBEAM.`,

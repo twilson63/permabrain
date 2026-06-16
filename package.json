@@ -20,7 +20,7 @@
     "permabrain": "./scripts/cli.mjs"
   },
   "scripts": {
-    "test": "node test/test.mjs && node test/multi-agent.mjs && node test/crypto.mjs && node test/module-import.mjs && node test/pi-skill.mjs && node test/hb-reference.mjs && node test/hb-transport.mjs && node test/article-hb-reference.mjs && node test/hb-e2e.mjs && node test/hb-cli-integration.mjs && node test/agent-api-hyperbeam.mjs && node test/transport-probe.mjs && node test/hb-device-cli.mjs && node test/watch.mjs && node test/publish-encrypted.mjs && node test/get-encrypted.mjs && node test/viewer-crypto.mjs",
+    "test": "node test/test.mjs && node test/multi-agent.mjs && node test/crypto.mjs && node test/module-import.mjs && node test/pi-skill.mjs && node test/hb-reference.mjs && node test/hb-transport.mjs && node test/article-hb-reference.mjs && node test/hb-e2e.mjs && node test/hb-cli-integration.mjs && node test/agent-api-hyperbeam.mjs && node test/transport-probe.mjs && node test/hb-device-cli.mjs && node test/watch.mjs && node test/publish-encrypted.mjs && node test/publish-visibility.mjs && node test/get-encrypted.mjs && node test/viewer-crypto.mjs",
     "test:unit": "node test/test.mjs",
     "test:multi-agent": "node test/multi-agent.mjs",
     "test:module-import": "node test/module-import.mjs",
@@ -36,7 +36,8 @@
     "test:hb-device-cli": "node test/hb-device-cli.mjs",
     "test:watch": "node test/watch.mjs",
     "test:viewer-crypto": "node test/viewer-crypto.mjs",
-    "test:get-encrypted": "node test/get-encrypted.mjs"
+    "test:get-encrypted": "node test/get-encrypted.mjs",
+    "test:publish-visibility": "node test/publish-visibility.mjs"
   },
   "dependencies": {
     "@noble/ed25519": "^3.1.0",
