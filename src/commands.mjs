@@ -13,6 +13,7 @@ import { DEVICES, bundlerUploadUrl } from './hb-devices.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 import { parseGoalFile, planFromGoal, importArticlesFromGoal, attestationsFromGoal } from './goal.mjs';
 import { verifyDataItemById, verifyByKey } from './verify.mjs';
+import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 
 import fs from 'node:fs';
 
@@ -46,6 +47,9 @@ export async function runCommand(command, args) {
   if (command === 'get-encrypted') return getEncryptedCommand(args);
   if (command === 'publish-encrypted') return publishEncryptedCommand(args);
   if (command === 'verify') return verifyCommand(args);
+  if (command === 'export-bundle') return exportBundleCommand(args);
+  if (command === 'export-all') return exportAllCommand(args);
+  if (command === 'import-bundle') return importBundleCommand(args);
   if (command === 'transport-status') return transportStatusCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
@@ -816,4 +820,74 @@ async function goalCommand(args) {
     console.log(`Attestations: ${plan.attestations.length}`);
   }
   return plan;
+}
+
+async function exportBundleCommand(args) {
+  const key = args._[0];
+  const id = args.id;
+  if (!key && !id) throw new Error('export-bundle requires <canonical-key> or --id <id>');
+  const result = await exportBundle({
+    key,
+    id,
+    includeAttestations: args.attestations !== false,
+    includeVersions: args.versions !== false,
+    home: getHome(),
+    transport: args['use-hyperbeam'] ?? false
+  });
+  if (args.output) {
+    fs.writeFileSync(args.output, JSON.stringify(result, null, 2) + '\n');
+  }
+  if (args.json || !args.output) {
+    printJson(result);
+  } else {
+    console.log(`Exported bundle to ${args.output}: ${result.entries.length} entries`);
+  }
+  return result;
+}
+
+async function exportAllCommand(args) {
+  const result = await exportAllArticles({
+    includeAttestations: args.attestations !== false,
+    home: getHome(),
+    transport: args['use-hyperbeam'] ?? false
+  });
+  if (args.output) {
+    fs.writeFileSync(args.output, JSON.stringify(result, null, 2) + '\n');
+  }
+  if (args.json || !args.output) {
+    printJson(result);
+  } else {
+    console.log(`Exported ${result.articles.length} articles and ${result.attestations.length} attestations to ${args.output}`);
+  }
+  return result;
+}
+
+async function importBundleCommand(args) {
+  const file = args._[0] || args.file;
+  if (!file) throw new Error('import-bundle requires <file>');
+  const raw = fs.readFileSync(file, 'utf8');
+  const bundle = JSON.parse(raw);
+  const results = await importBundle(bundle, {
+    home: getHome(),
+    transport: args['use-hyperbeam'] ?? false,
+    verify: args['no-verify'] !== true,
+    skipDuplicates: args['skip-duplicates'] !== false
+  });
+  if (args.json) printJson(results);
+  else {
+    const imported = results.filter(r => r.imported).length;
+    const skipped = results.filter(r => r.ok && !r.imported).length;
+    const failed = results.filter(r => !r.ok).length;
+    console.log(`Import bundle: ${imported} imported, ${skipped} skipped, ${failed} failed`);
+    for (const r of results) {
+      if (!r.ok) {
+        console.log(`  ✗ ${r.type}${r.key ? ` ${r.key}` : ''}: ${r.error}`);
+      } else if (!r.imported) {
+        console.log(`  - ${r.type} ${r.key || r.target}: already present`);
+      } else {
+        console.log(`  ✓ ${r.type} ${r.key || r.target}: ${r.id}`);
+      }
+    }
+  }
+  return results;
 }

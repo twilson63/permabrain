@@ -15,6 +15,9 @@ const COMMANDS = [
   'consensus',
   'sync',
   'verify',
+  'export-bundle',
+  'export-all',
+  'import-bundle',
   'attest-for-agent',
   'list-agents',
   'provision-agent',
@@ -56,6 +59,9 @@ Commands:
   attest <canonical-key>       Publish a signed validity attestation
   consensus <canonical-key>    Compute attestation consensus
   sync                         Sync local cache
+  export-bundle                Export an article bundle (versions + attestations)
+  export-all                   Export all indexed articles as a bundle
+  import-bundle <file>         Import articles/attestations from a bundle file
   attest-for-agent             Attest on behalf of another agent
   list-agents                  List known external agents
   provision-agent              Generate identity for an external agent
@@ -224,6 +230,23 @@ Options:
   --no-verify-chain    Skip resolving the previous version chain
   --no-verify-target   Skip resolving attestation target article
   --json               Output structured verification report`,
+  'export-bundle': `Usage: permabrain export-bundle <canonical-key> [--id <id>] [--no-attestations] [--no-versions] [--output <path>] [--json]
+
+Exports a single article, its version chain, and attestations into a
+self-contained PermaBrain bundle JSON. Use --id to export by DataItem ID
+instead of canonical key. By default both attestation and version data are
+included; use --no-attestations/--no-versions to omit them.`,
+  'export-all': `Usage: permabrain export-all [--no-attestations] [--output <path>] [--json]
+
+Exports every article found in the local index plus its version chain and
+attestations. The output is a bundle JSON optimized for full snapshots or
+cross-agent sharing.`,
+  'import-bundle': `Usage: permabrain import-bundle <file> [--no-verify] [--no-skip-duplicates] [--use-hyperbeam] [--json]
+
+Imports articles and attestations from a PermaBrain bundle file. Each entry
+is verified (unless --no-verify is passed), signatures are checked, and
+duplicates are skipped by default. Use --use-hyperbeam to submit through a
+HyperBEAM node.`,
   };
   console.log(help[command] || `Unknown command: ${command}`);
 }

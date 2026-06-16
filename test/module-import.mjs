@@ -28,6 +28,7 @@ import {
   validateKind, validateOpinion
 } from '../src/index.mjs';
 import { verifyDataItemById, verifyByKey, verifyItem } from '../src/index.mjs';
+import { exportBundle, exportAllArticles, importBundle, buildBundle } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -94,6 +95,10 @@ assert.equal(typeof payloadText, 'function', 'payloadText');
 assert.equal(typeof verifyDataItemById, 'function', 'verifyDataItemById');
 assert.equal(typeof verifyByKey, 'function', 'verifyByKey');
 assert.equal(typeof verifyItem, 'function', 'verifyItem');
+assert.equal(typeof exportBundle, 'function', 'exportBundle');
+assert.equal(typeof exportAllArticles, 'function', 'exportAllArticles');
+assert.equal(typeof importBundle, 'function', 'importBundle');
+assert.equal(typeof buildBundle, 'function', 'buildBundle');
 assert.equal(typeof buildArticleTags, 'function', 'buildArticleTags');
 assert.equal(typeof buildAttestationTags, 'function', 'buildAttestationTags');
 assert.equal(typeof contentHash, 'function', 'contentHash');
@@ -203,11 +208,11 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify'
+  'verify', 'exportBundle', 'exportAll', 'importBundle'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 29 API methods present');
+console.log('   ✓ All 32 API methods present');
 
 console.log('\n✅ All importable module tests passed');

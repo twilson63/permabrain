@@ -6,6 +6,7 @@ import { tagsToObject } from './tags.mjs';
 import { HyperbeamTransport as ExternalHyperbeamTransport } from './hyperbeam-transport.mjs';
 import { CircuitBreakerRegistry, resilientCall } from './resilience.mjs';
 import { getMetrics } from './metrics.mjs';
+import { summarizeArticle, latestByArticleKey } from './cache.mjs';
 
 const globalBreakers = new CircuitBreakerRegistry({
   failureThreshold: 5,
@@ -89,6 +90,53 @@ export class LocalTransport {
       const obj = tagsToObject(item.tags || []);
       return Object.entries(filters).every(([name, value]) => obj[name] === String(value));
     }).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  }
+
+  async localIndex() {
+    if (!fs.existsSync(this.paths.objectsDir)) return [];
+    const files = fs.readdirSync(this.paths.objectsDir).filter((name) => name.endsWith('.json'));
+    return files
+      .map((file) => JSON.parse(fs.readFileSync(path.join(this.paths.objectsDir, file), 'utf8')))
+      .filter((item) => tagsToObject(item.tags || [])['PermaBrain-Type'] === 'article')
+      .map(summarizeArticle);
+  }
+
+  async queryByKey(key) {
+    const items = await this.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article', 'Article-Key': key });
+    const latest = latestByArticleKey(items).get(key);
+    if (!latest) return null;
+    return { summary: summarizeArticle(latest) };
+  }
+
+  async getItem(id) {
+    return this.fetchDataItem(id);
+  }
+
+  async submit(raw) {
+    const parsed = parseAns104(raw);
+    const item = {
+      format: 'ans104@1.0',
+      id: parsed.id,
+      owner: parsed.owner,
+      timestamp: new Date().toISOString(),
+      tags: parsed.tags,
+      payloadBase64: parsed.rawData.toString('base64url'),
+      ans104Base64: raw.toString('base64url'),
+      signature: parsed.signature,
+      publicKey: parsed.owner
+    };
+    return this.uploadDataItem(item);
+  }
+
+  async query({ tags = [], cursor, limit = 100 } = {}) {
+    const filters = {};
+    for (let i = 0; i < tags.length; i += 2) {
+      filters[tags[i]] = tags[i + 1];
+    }
+    const items = await this.queryByTags(filters);
+    const start = cursor || 0;
+    const slice = items.slice(start, start + limit);
+    return { items: slice.map(summarizeArticle), cursor: start + slice.length < items.length ? start + slice.length : null };
   }
 
   /**

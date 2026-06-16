@@ -21,6 +21,7 @@ import { publishArticle, queryArticles, getArticle, syncArticlesAndAttestations 
 import { attestArticle } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
+import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -690,6 +691,47 @@ const api = {
     const { verifyByKey, verifyDataItemById } = await import('./verify.mjs');
     const isKey = idOrKey.includes('/');
     return isKey ? verifyByKey(idOrKey, { ...opts, home: this._home }) : verifyDataItemById(idOrKey, { ...opts, home: this._home });
+  },
+
+  /**
+   * Export an article bundle (versions + attestations) by key or DataItem ID.
+   * @param {Object} [opts]
+   * @param {string} [opts.key]
+   * @param {string} [opts.id]
+   * @param {boolean} [opts.includeAttestations]
+   * @param {boolean} [opts.includeVersions]
+   * @returns {Promise<Object>} Bundle object
+   */
+  async exportBundle(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return exportBundle({ ...opts, transport: opts.useHyperbeam ?? false, home: this._home });
+  },
+
+  /**
+   * Export all indexed articles and attestations as a bundle.
+   * @param {Object} [opts]
+   * @param {boolean} [opts.includeAttestations]
+   * @returns {Promise<Object>} Bundle object
+   */
+  async exportAll(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return exportAllArticles({ includeAttestations: opts.includeAttestations ?? true, transport: opts.useHyperbeam ?? false, home: this._home });
+  },
+
+  /**
+   * Import articles and attestations from a PermaBrain bundle.
+   * @param {Object} bundle
+   * @param {Object} [opts]
+   * @param {boolean} [opts.verify] - Verify signatures (default true)
+   * @param {boolean} [opts.skipDuplicates] - Skip existing items (default true)
+   * @returns {Promise<Array<{type, key, id, ok, imported, note, error}>>}
+   */
+  async importBundle(bundle, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return importBundle(bundle, { ...opts, transport: opts.useHyperbeam ?? false, home: this._home });
   },
 
   /**
