@@ -22,6 +22,7 @@ import { attestArticle } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
+import { exportHistory } from './export-history.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
@@ -761,6 +762,27 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return exportAllArticles({ includeAttestations: opts.includeAttestations ?? true, transport: opts.useHyperbeam ?? false, home: this._home });
+  },
+
+  /**
+   * Export the full version chain + attestations for a single article key.
+   *
+   * Produces a deterministic bundle (articles sorted by version ascending,
+   * attestations sorted by DataItem ID) that can be imported by another
+   * PermaBrain node via importBundle(). Each entry is a raw, signed ANS-104
+   * DataItem.
+   *
+   * @param {string} key - Canonical article key
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {boolean} [opts.verify=true] - Verify each DataItem signature before bundling
+   * @returns {Promise<Object>} History bundle
+   */
+  async exportHistory(key, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!key) throw new Error('key is required');
+    return exportHistory(key, { ...opts, home: this._home });
   },
 
   /**

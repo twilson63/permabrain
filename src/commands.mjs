@@ -14,6 +14,7 @@ import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 import { parseGoalFile, planFromGoal, importArticlesFromGoal, attestationsFromGoal } from './goal.mjs';
 import { verifyDataItemById, verifyByKey } from './verify.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
+import { exportHistory } from './export-history.mjs';
 import { historyForKey } from './history.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
@@ -57,6 +58,7 @@ export async function runCommand(command, args) {
   if (command === 'publish-encrypted') return publishEncryptedCommand(args);
   if (command === 'verify') return verifyCommand(args);
   if (command === 'export-bundle') return exportBundleCommand(args);
+  if (command === 'export-history') return exportHistoryCommand(args);
   if (command === 'export-all') return exportAllCommand(args);
   if (command === 'import-bundle') return importBundleCommand(args);
   if (command === 'transport-status') return transportStatusCommand(args);
@@ -880,6 +882,27 @@ async function exportBundleCommand(args) {
     printJson(result);
   } else {
     console.log(`Exported bundle to ${args.output}: ${result.entries.length} entries`);
+  }
+  return result;
+}
+
+async function exportHistoryCommand(args) {
+  const key = args._[0];
+  if (!key) throw new Error('export-history requires <canonical-key>');
+  const result = await exportHistory(key, {
+    home: getHome(),
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    verify: args['no-verify'] !== true,
+    includeExporter: args['no-exporter'] !== true
+  });
+  if (args.output) {
+    fs.writeFileSync(args.output, JSON.stringify(result, null, 2) + '\n');
+  }
+  if (args.json || !args.output) {
+    printJson(result);
+  } else {
+    console.log(`Exported history for ${result.meta.sourceKey}: ${result.entries.length} entries`);
+    console.log(`  Versions: ${result.meta.entryCount.articles} | Attestations: ${result.meta.entryCount.attestations}`);
   }
   return result;
 }

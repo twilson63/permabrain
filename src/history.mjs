@@ -37,6 +37,12 @@ export async function buildVersionChain(key, opts = {}) {
     'Article-Key': key
   });
 
+  if (items.length === 0) {
+    // No local versions at all. resolveLatestArticle throws for unknown keys,
+    // so fail fast with a clear message.
+    throw new Error(`No versions found for key: ${key}`);
+  }
+
   const versions = new Map();
   for (const item of items) {
     const tags = tagsToObject(item.tags || []);

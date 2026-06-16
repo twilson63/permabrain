@@ -17,6 +17,7 @@ const COMMANDS = [
   'verify',
   'export-bundle',
   'export-all',
+  'export-history',
   'import-bundle',
   'fork',
   'list-forks',
@@ -300,6 +301,17 @@ Exports a single article, its version chain, and attestations into a
 self-contained PermaBrain bundle JSON. Use --id to export by DataItem ID
 instead of canonical key. By default both attestation and version data are
 included; use --no-attestations/--no-versions to omit them.`,
+  'export-history': `Usage: permabrain export-history <canonical-key> [--output <path>] [--no-verify] [--no-exporter] [--use-hyperbeam] [--json]
+
+Exports a single article's full version chain plus all attestations against
+any version as a deterministic, verifiable bundle. Articles are sorted by
+version ascending; attestations are sorted by DataItem ID. Each entry is a
+raw signed ANS-104 DataItem that importBundle() can verify and submit.
+
+The resulting bundle has type 'history' and includes a deterministic meta
+block (sourceKey, rootId, latestId, versionRange, entry counts). Use
+--no-verify to skip local signature checks before export. Use --no-exporter
+to omit the exporting agent id from meta.`,
   'fork': `Usage: permabrain fork <source-key> [--key <new-key>] [--slug <slug>] [--title <title>] [--content <text>] [--topic <topic>] [--kind <kind>] [--source-url <url>] [--source-name <name>] [--source-license <license>] [--language <lang>] [--target-id <id>] [--use-hyperbeam] [--use-hyperbeam-reference] [--json]
 
 Creates a new version branch from an existing article. The fork is published
