@@ -77,6 +77,9 @@ export { topicFeed, feedToMarkdown } from './topic-feed.mjs';
 // Activity feed
 export { activityFeed, activityToMarkdown } from './activity.mjs';
 
+// Article-level metrics
+export { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';
 export { exportHistory } from './export-history.mjs';

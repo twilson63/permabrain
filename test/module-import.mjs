@@ -43,6 +43,7 @@ import { topicFeed, feedToMarkdown } from '../src/index.mjs';
 import { activityFeed, activityToMarkdown } from '../src/index.mjs';
 import { listArticles, listToMarkdown } from '../src/index.mjs';
 import { exportArticles, exportArticlesToMarkdown } from '../src/index.mjs';
+import { computeMetrics, metricsToMarkdown } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -243,11 +244,11 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 45 API methods present');
+console.log('   ✓ All 46 API methods present');
 
 console.log('\n✅ All importable module tests passed');

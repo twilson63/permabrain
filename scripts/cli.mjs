@@ -44,7 +44,8 @@ const COMMANDS = [
   'topic',
   'activity',
   'list',
-  'export-articles'
+  'export-articles',
+  'metrics'
 ];
 
 function printHelp(command = null) {
@@ -95,6 +96,7 @@ Commands:
   diff                         Compare two article versions or local vs remote
   status                       Show working-state overview (articles, divergences, forks, merges)
   export-articles              Export a filtered article directory to JSON or markdown
+  metrics                      Show aggregate article/attestation metrics
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -495,7 +497,23 @@ Options:
   --format <fmt>       Output format: json or markdown (default markdown)
   --output <path>      Write result to file instead of stdout
   --use-hyperbeam      Query via HyperBEAM transport
-  --json               Force JSON output (also sets format to json)`
+  --json               Force JSON output (also sets format to json)`,
+    'metrics': `Usage: permabrain metrics [--kind <kind>] [--topic <topic>] [--author <agent-id>] [--after <iso-date>] [--before <iso-date>] [--top N] [--json]
+
+Show aggregate article and attestation metrics from the local cache.
+
+Reports article counts, attestations, opinion distribution, top-attested
+articles, activity timeline, and per-kind/topic/author breakdowns. Filters
+narrow the dataset the same way as the list command.
+
+Options:
+  --kind <kind>        Filter by article kind
+  --topic <topic>      Filter by topic
+  --author <agent-id>  Filter by author agent id
+  --after <date>       Only articles updated on or after this ISO date
+  --before <date>      Only articles updated on or before this ISO date
+  --top N              Number of top-attested articles (default 10)
+  --json               Output structured JSON instead of markdown`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

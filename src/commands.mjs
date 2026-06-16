@@ -27,6 +27,7 @@ import { topicFeed, feedToMarkdown } from './topic-feed.mjs';
 import { activityFeed, activityToMarkdown } from './activity.mjs';
 import { listArticles, listToMarkdown } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
+import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 
 import fs from 'node:fs';
 
@@ -78,6 +79,7 @@ export async function runCommand(command, args) {
   if (command === 'activity') return activityCommand(args);
   if (command === 'list') return listCommand(args);
   if (command === 'export-articles') return exportArticlesCommand(args);
+  if (command === 'metrics') return metricsCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1249,6 +1251,25 @@ async function exportArticlesCommand(args) {
     printJson(result);
   } else {
     console.log(output);
+  }
+  return result;
+}
+
+async function metricsCommand(args) {
+  const opts = {
+    home: getHome(),
+    kind: args.kind,
+    topic: args.topic,
+    author: args.author,
+    after: args.after,
+    before: args.before,
+    top: args.top ? Number(args.top) : undefined
+  };
+  const result = computeMetrics(opts);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(metricsToMarkdown(result));
   }
   return result;
 }

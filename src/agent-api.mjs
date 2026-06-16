@@ -32,6 +32,7 @@ import { topicFeed } from './topic-feed.mjs';
 import { activityFeed } from './activity.mjs';
 import { listArticles } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
+import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1060,6 +1061,24 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return exportArticles({ ...opts, home: this._home });
+  },
+
+  /**
+   * Compute aggregate article/attestation metrics from the local cache.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.kind] - Filter by article kind
+   * @param {string} [opts.topic] - Filter by topic
+   * @param {string} [opts.author] - Filter by author agent id
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {number} [opts.top=10] - Number of top-attested articles to include
+   * @returns {Promise<Object>} Metrics report
+   */
+  async metrics(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return computeMetrics({ ...opts, home: this._home });
   },
 
   /**

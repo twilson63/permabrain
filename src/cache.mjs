@@ -46,7 +46,8 @@ export function summarizeArticle(item) {
     sourceUrl: tags['Article-Source-Url'] || null,
     contentHash: tags['Article-Content-Hash'],
     updatedAt: tags['Article-Updated-At'] || item.timestamp,
-    authorAgentId: tags['Author-Agent-Id'] || item.owner
+    authorAgentId: tags['Author-Agent-Id'] || item.owner,
+    visibility: tags['Visibility'] || 'public'
   };
 }
 
