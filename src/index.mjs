@@ -45,6 +45,9 @@ export { HyperbeamTransport, ArweaveTransport, LocalTransport, getTransport, pro
 
 // Article directory list
 export { listArticles, listToMarkdown } from './list.mjs';
+
+// Export filtered article directory
+export { exportArticles, exportArticlesToMarkdown } from './export-articles.mjs';
 export { verifyDataItemById, verifyByKey, verifyItem } from './verify.mjs';
 
 // History

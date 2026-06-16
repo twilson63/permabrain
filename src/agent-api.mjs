@@ -31,6 +31,7 @@ import { searchArticles } from './search.mjs';
 import { topicFeed } from './topic-feed.mjs';
 import { activityFeed } from './activity.mjs';
 import { listArticles } from './list.mjs';
+import { exportArticles } from './export-articles.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1034,6 +1035,31 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return listArticles({ ...opts, home: this._home });
+  },
+
+  /**
+   * Export a filtered, sorted article directory.
+   *
+   * Reuses listArticles() so all filters, sorting, pagination, and counts
+   * are available. Output can be JSON (default) or markdown.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.format='json'] - 'json' or 'markdown'
+   * @param {string} [opts.kind]
+   * @param {string} [opts.topic]
+   * @param {string} [opts.author]
+   * @param {string} [opts.after]
+   * @param {string} [opts.before]
+   * @param {string} [opts.sort='date']
+   * @param {number} [opts.limit=50]
+   * @param {number} [opts.offset=0]
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<{format, total, limit, offset, sort, filters, articles?, markdown?, took}>}
+   */
+  async exportArticles(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return exportArticles({ ...opts, home: this._home });
   },
 
   /**

@@ -26,6 +26,7 @@ import { searchArticles } from './search.mjs';
 import { topicFeed, feedToMarkdown } from './topic-feed.mjs';
 import { activityFeed, activityToMarkdown } from './activity.mjs';
 import { listArticles, listToMarkdown } from './list.mjs';
+import { exportArticles } from './export-articles.mjs';
 
 import fs from 'node:fs';
 
@@ -76,6 +77,7 @@ export async function runCommand(command, args) {
   if (command === 'topic') return topicCommand(args);
   if (command === 'activity') return activityCommand(args);
   if (command === 'list') return listCommand(args);
+  if (command === 'export-articles') return exportArticlesCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1218,6 +1220,35 @@ async function listCommand(args) {
     printJson(result);
   } else {
     console.log(listToMarkdown(result));
+  }
+  return result;
+}
+
+async function exportArticlesCommand(args) {
+  const opts = {
+    home: getHome(),
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    kind: args.kind,
+    topic: args.topic,
+    author: args.author,
+    after: args.after,
+    before: args.before,
+    sort: args.sort || 'date',
+    limit: args.limit ? Number(args.limit) : undefined,
+    offset: args.offset ? Number(args.offset) : undefined,
+    format: args.format || (args.json ? 'json' : 'markdown')
+  };
+  const result = await exportArticles(opts);
+  const output = args.json || result.format === 'json'
+    ? JSON.stringify(result, null, 2) + '\n'
+    : result.markdown;
+  if (args.output) {
+    fs.writeFileSync(args.output, output);
+    console.log(`Exported ${result.total} articles to ${args.output} (${result.format})`);
+  } else if (args.json || result.format === 'json') {
+    printJson(result);
+  } else {
+    console.log(output);
   }
   return result;
 }

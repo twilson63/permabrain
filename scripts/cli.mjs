@@ -43,7 +43,8 @@ const COMMANDS = [
   'search',
   'topic',
   'activity',
-  'list'
+  'list',
+  'export-articles'
 ];
 
 function printHelp(command = null) {
@@ -93,6 +94,7 @@ Commands:
   history                      Lists the full version chain and attestation timeline for an article key
   diff                         Compare two article versions or local vs remote
   status                       Show working-state overview (articles, divergences, forks, merges)
+  export-articles              Export a filtered article directory to JSON or markdown
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -471,7 +473,29 @@ Options:
   --limit N            Maximum results (default 50)
   --offset N           Pagination offset (default 0)
   --use-hyperbeam      Query via HyperBEAM transport
-  --json               Output structured JSON instead of markdown`
+  --json               Output structured JSON instead of markdown`,
+    'export-articles': `Usage: permabrain export-articles [--kind <kind>] [--topic <topic>] [--author <agent-id>] [--after <iso-date>] [--before <iso-date>] [--sort date|title|consensus|attestations|key] [--limit N] [--offset N] [--format json|markdown] [--output <path>] [--use-hyperbeam] [--json]
+
+Export a filtered, sorted article directory to JSON or markdown.
+
+Reuses the list command logic, so all filters, sorting, pagination, and
+per-article counts (attestations, consensus, activity) are preserved. By
+default prints markdown; use --format json or --json for structured output.
+With --output, writes the result to a file instead of stdout.
+
+Options:
+  --kind <kind>        Filter by article kind
+  --topic <topic>      Filter by topic
+  --author <agent-id>  Filter by author agent id
+  --after <date>       Only articles updated on or after this ISO date
+  --before <date>      Only articles updated on or before this ISO date
+  --sort <criterion>   Sort: date (default), title, consensus, attestations, key
+  --limit N            Maximum results (default 50)
+  --offset N           Pagination offset (default 0)
+  --format <fmt>       Output format: json or markdown (default markdown)
+  --output <path>      Write result to file instead of stdout
+  --use-hyperbeam      Query via HyperBEAM transport
+  --json               Force JSON output (also sets format to json)`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }
