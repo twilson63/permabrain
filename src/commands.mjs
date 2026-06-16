@@ -10,6 +10,7 @@ import { getTransport, HyperbeamTransport, ArweaveTransport, LocalTransport, pro
 import { HyperbeamQuery } from './hb-query.mjs';
 import { HyperbeamConsensus } from './hb-consensus.mjs';
 import { DEVICES, bundlerUploadUrl } from './hb-devices.mjs';
+import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 
 import fs from 'node:fs';
 
@@ -41,6 +42,7 @@ export async function runCommand(command, args) {
   if (command === 'reference') return referenceCommand(args);
   if (command === 'get-encrypted') return getEncryptedCommand(args);
   if (command === 'publish-encrypted') return publishEncryptedCommand(args);
+  if (command === 'transport-status') return transportStatusCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -642,4 +644,25 @@ async function watchCommand(args) {
     process.exit(0);
   });
   return { status: 'watching' };
+}
+
+async function transportStatusCommand(args) {
+  const status = {
+    circuitBreakers: getCircuitBreakerStatus(),
+    metrics: getTransportMetrics(),
+  };
+  if (args.json) printJson(status);
+  else {
+    console.log('Transport status');
+    console.log('Circuit breakers:');
+    for (const [name, b] of Object.entries(status.circuitBreakers)) {
+      console.log(`  ${name}: ${b.state} (failures=${b.failures}, successes=${b.successes}, calls=${b.stats?.calls || 0})`);
+    }
+    console.log('Metrics:');
+    for (const [name, m] of Object.entries(status.metrics.histograms)) {
+      console.log(`  ${name}: count=${m.count} success=${m.success} failure=${m.failure} avg=${m.summary.avg?.toFixed(2) || '-'}ms p95=${m.summary.p95?.toFixed(2) || '-'}ms`);
+    }
+    if (Object.keys(status.metrics.histograms).length === 0) console.log('  (no transport calls recorded yet)');
+  }
+  return status;
 }

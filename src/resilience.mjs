@@ -11,6 +11,8 @@
 
 import { EventEmitter } from 'node:events';
 
+import { withMetrics } from './metrics.mjs';
+
 export class CircuitBreaker extends EventEmitter {
   constructor(name, opts = {}) {
     super();
@@ -131,7 +133,7 @@ export async function withRetry(fn, opts = {}) {
   while (attempts < maxAttempts) {
     attempts++;
     try {
-      return await fn();
+      return await withMetrics(label, fn);
     } catch (err) {
       lastErr = err;
       if (attempts >= maxAttempts || !isRetryableError(err)) throw err;

@@ -41,4 +41,4 @@ export {
   parseHttpsigtHeaders, kebabToTitleCase, titleToKebabCase,
   buildPermaBrainFilters, buildQueryMessage
 } from './hb-devices.mjs';
-export { HyperbeamTransport, ArweaveTransport, LocalTransport, getTransport, probeTransport, getCircuitBreakerStatus } from './transport.mjs';
+export { HyperbeamTransport, ArweaveTransport, LocalTransport, getTransport, probeTransport, getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';

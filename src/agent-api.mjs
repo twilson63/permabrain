@@ -24,7 +24,7 @@ import { consensusForArticle } from './consensus.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
-import { getCircuitBreakerStatus } from './transport.mjs';
+import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 
 function requireInit(home) {
   if (!home) throw new Error('PermaBrain not initialized. Call api.init() first.');
@@ -318,6 +318,14 @@ const api = {
    */
   getCircuitBreakerStatus() {
     return getCircuitBreakerStatus();
+  },
+
+  /**
+   * Get transport metrics: call counts, successes, failures, latency summaries.
+   * @returns {Object} Metrics snapshot.
+   */
+  getTransportStatus() {
+    return getTransportMetrics();
   },
 
   /**

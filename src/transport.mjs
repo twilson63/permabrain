@@ -5,6 +5,7 @@ import { parseAns104, payloadBuffer, payloadText, rawDataItemBytes } from './dat
 import { tagsToObject } from './tags.mjs';
 import { HyperbeamTransport as ExternalHyperbeamTransport } from './hyperbeam-transport.mjs';
 import { CircuitBreakerRegistry, resilientCall } from './resilience.mjs';
+import { getMetrics } from './metrics.mjs';
 
 const globalBreakers = new CircuitBreakerRegistry({
   failureThreshold: 5,
@@ -23,6 +24,10 @@ export function getTransport(config, home, opts = {}) {
 
 export function getCircuitBreakerStatus() {
   return globalBreakers.status();
+}
+
+export function getTransportMetrics() {
+  return getMetrics().status();
 }
 
 function configForHyperbeam(config) {

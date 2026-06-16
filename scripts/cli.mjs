@@ -24,6 +24,7 @@ const COMMANDS = [
   'meta-info',
   'whois',
   'reference',
+  'transport-status',
   'watch'
 ];
 
@@ -62,6 +63,7 @@ Commands:
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
+  transport-status             Show transport metrics and circuit breaker state
   watch                        Poll transport for new articles/attestations
 
 Environment:
@@ -181,7 +183,12 @@ Subcommands:
 Examples:
   permabrain reference create article-key=subject/foo current-version=abc123
   permabrain reference update refId123 current-version=def456
-  permabrain reference resolve refId123 article-key`
+  permabrain reference resolve refId123 article-key`,
+  'transport-status': `Usage: permabrain transport-status [--json]
+
+Show transport metrics and circuit breaker state.
+Reports call counts, successes, failures, latency summaries (p50/p95/p99),
+and per-operation circuit breaker status for Arweave/HyperBEAM transports.`,
   };
   console.log(help[command] || `Unknown command: ${command}`);
 }
