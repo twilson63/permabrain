@@ -852,6 +852,39 @@ const api = {
   },
 
   /**
+   * Diff two article versions or compare local vs remote.
+   *
+   * Accepts:
+   *   - two DataItem IDs (base, head)
+   *   - two canonical keys (latest of each)
+   *   - a single canonical key with opts.local = true for local-vs-remote
+   *
+   * Emits a unified-diff or JSON report, plus an optional three-way conflict
+   * preview when a common ancestor can be resolved.
+   *
+   * @param {string} base - Base DataItem ID or canonical key
+   * @param {string} head - Head DataItem ID or canonical key (omit for local-vs-remote)
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {boolean} [opts.local=false] - Compare local cached version against remote latest
+   * @param {string} [opts.format='unified'] - 'unified' or 'json'
+   * @param {number} [opts.context=3] - Context lines around each hunk
+   * @param {boolean} [opts.preview=true] - Include three-way conflict preview when possible
+   * @returns {Promise<{base: object, head: object, ancestor?: object, format: string, changes: number, additions: number, deletions: number, hunks: object[], text: string, conflictPreview?: object}>}
+   */
+  async diff(base, head, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!base) throw new Error('base identifier is required');
+    const { diffArticles, diffLocalVsRemote } = await import('./diff.mjs');
+    if (base.includes('/') && (!head || opts.local)) {
+      return diffLocalVsRemote(base, { ...opts, home: this._home });
+    }
+    if (!head) throw new Error('head identifier is required (or use opts.local)');
+    return diffArticles(base, head, { ...opts, home: this._home });
+  },
+
+  /**
    * Get the current agent identity.
    * @returns {{agentId, keyType}}
    */

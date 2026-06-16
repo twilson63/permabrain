@@ -18,6 +18,7 @@ import { historyForKey } from './history.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
+import { diffArticles, diffLocalVsRemote } from './diff.mjs';
 
 import fs from 'node:fs';
 
@@ -60,6 +61,7 @@ export async function runCommand(command, args) {
   if (command === 'fork') return forkCommand(args);
   if (command === 'list-forks') return listForksCommand(args);
   if (command === 'merge') return mergeCommand(args);
+  if (command === 'diff') return diffCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1009,6 +1011,36 @@ async function listForksCommand(args) {
       console.log(`  ${fork.key} (v${fork.version}): ${fork.title || '(untitled)'} — forked from v${fork.sourceVersion}`);
     }
   }
+  return result;
+}
+
+async function diffCommand(args) {
+  const base = args._[0];
+  const head = args._[1];
+
+  // Support single-key local-vs-remote diff: permabrain diff <key> --local
+  if (base && base.includes('/') && (!head || args.local)) {
+    const result = await diffLocalVsRemote(base, {
+      useHyperbeam: args['use-hyperbeam'] ?? false,
+      format: args.json ? 'json' : (args.format || 'unified'),
+      context: args.context ? Number(args.context) : undefined
+    });
+    if (args.json) printJson(result);
+    else if (args.format === 'json') printJson(result);
+    else process.stdout.write(result.text + '\n');
+    return result;
+  }
+
+  if (!base || !head) throw new Error('diff requires <base> <head> (identifiers, keys, or id:id)');
+  const result = await diffArticles(base, head, {
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    format: args.json ? 'json' : (args.format || 'unified'),
+    context: args.context ? Number(args.context) : undefined,
+    preview: args['no-preview'] ? false : true
+  });
+  if (args.json) printJson(result);
+  else if (args.format === 'json') printJson(result);
+  else process.stdout.write(result.text + '\n');
   return result;
 }
 

@@ -58,5 +58,8 @@ export { mergeArticles, threeWayMerge } from './merge.mjs';
 // Sync with merge
 export { syncWithMerge, syncArticlesAndAttestationsBase } from './sync.mjs';
 
+// Diff
+export { diffArticles, diffLocalVsRemote } from './diff.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

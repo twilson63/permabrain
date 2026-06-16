@@ -35,7 +35,8 @@ const COMMANDS = [
   'reference',
   'transport-status',
   'watch',
-  'history'
+  'history',
+  'diff'
 ];
 
 function printHelp(command = null) {
@@ -255,6 +256,26 @@ Options:
   --use-hyperbeam      Resolve history via HyperBEAM transport
   --no-consensus       Skip computing the consensus summary
   --json               Output structured history report`,
+  'diff': `Usage: permabrain diff <base> <head> [--use-hyperbeam] [--json] [--format unified|json] [--context N] [--no-preview]
+       permabrain diff <canonical-key> --local [--json] [--format unified|json] [--context N]
+
+Compare two article versions and emit a unified diff.
+
+Identifiers can be DataItem IDs or canonical article keys. If two keys are
+provided, their latest versions are compared. With a single canonical key and
+--local, the local cached/last-synced version is compared against the latest
+remote version.
+
+By default a three-way conflict preview is computed when a common ancestor is
+available. Use --no-preview to skip it.
+
+Options:
+  --use-hyperbeam      Resolve identifiers via HyperBEAM transport
+  --json               Output structured diff report (implies --format json)
+  --format             Output format: unified (default) or json
+  --context N          Context lines around each hunk (default 3)
+  --no-preview         Skip three-way conflict preview
+  --local              Compare local vs remote for a single key`,
   'export-bundle': `Usage: permabrain export-bundle <canonical-key> [--id <id>] [--no-attestations] [--no-versions] [--output <path>] [--json]
 
 Exports a single article, its version chain, and attestations into a
