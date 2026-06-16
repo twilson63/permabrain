@@ -31,7 +31,8 @@ const COMMANDS = [
   'whois',
   'reference',
   'transport-status',
-  'watch'
+  'watch',
+  'history'
 ];
 
 function printHelp(command = null) {
@@ -230,6 +231,20 @@ Options:
   --no-verify-chain    Skip resolving the previous version chain
   --no-verify-target   Skip resolving attestation target article
   --json               Output structured verification report`,
+  'history': `Usage: permabrain history <canonical-key> [--use-hyperbeam] [--no-consensus] [--json]
+
+Lists the full version chain and attestation timeline for an article key.
+
+The output includes every published version (version number, id, title,
+content hash, source, author, timestamp) and every attestation cast against
+any version of the key (opinion, confidence, reason, agent, target version).
+By default a consensus summary for the latest version is included; use
+--no-consensus to skip it. Use --json for machine-readable output.
+
+Options:
+  --use-hyperbeam      Resolve history via HyperBEAM transport
+  --no-consensus       Skip computing the consensus summary
+  --json               Output structured history report`,
   'export-bundle': `Usage: permabrain export-bundle <canonical-key> [--id <id>] [--no-attestations] [--no-versions] [--output <path>] [--json]
 
 Exports a single article, its version chain, and attestations into a

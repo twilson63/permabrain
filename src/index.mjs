@@ -46,5 +46,8 @@ export { HyperbeamTransport, ArweaveTransport, LocalTransport, getTransport, pro
 // Verification
 export { verifyDataItemById, verifyByKey, verifyItem } from './verify.mjs';
 
+// History
+export { historyForKey, buildVersionChain, summarizeVersion } from './history.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

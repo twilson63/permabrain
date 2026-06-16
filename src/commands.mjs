@@ -14,6 +14,7 @@ import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 import { parseGoalFile, planFromGoal, importArticlesFromGoal, attestationsFromGoal } from './goal.mjs';
 import { verifyDataItemById, verifyByKey } from './verify.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
+import { historyForKey } from './history.mjs';
 
 import fs from 'node:fs';
 
@@ -51,6 +52,8 @@ export async function runCommand(command, args) {
   if (command === 'export-all') return exportAllCommand(args);
   if (command === 'import-bundle') return importBundleCommand(args);
   if (command === 'transport-status') return transportStatusCommand(args);
+  if (command === 'watch') return watchCommand(args);
+  if (command === 'history') return historyCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -858,6 +861,45 @@ async function exportAllCommand(args) {
     printJson(result);
   } else {
     console.log(`Exported ${result.articles.length} articles and ${result.attestations.length} attestations to ${args.output}`);
+  }
+  return result;
+}
+
+async function historyCommand(args) {
+  const key = args._[0];
+  if (!key) throw new Error('history requires <canonical-key>');
+  const result = await historyForKey(key, {
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    includeConsensus: args['no-consensus'] !== true
+  });
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(`History for ${result.key}`);
+    console.log(`Versions: ${result.versionCount} | Attestations: ${result.attestationCount}`);
+    for (const event of result.timeline) {
+      if (event.type === 'version') {
+        console.log(`\n[v${event.version}] ${event.title || '(untitled)'}`);
+        console.log(`  ID: ${event.id}`);
+        console.log(`  Hash: ${event.contentHash || 'n/a'}`);
+        console.log(`  Source: ${event.sourceName || 'n/a'} (${event.sourceUrl || 'n/a'})`);
+        console.log(`  Author: ${event.authorAgentId || 'unknown'} | Updated: ${event.updatedAt || 'unknown'}`);
+        if (event.previousId) console.log(`  Previous: ${event.previousId}`);
+        if (event.encrypted) console.log(`  Visibility: encrypted`);
+      } else {
+        console.log(`\n[attestation] ${event.targetKey}: ${event.opinion} (${event.confidence}) by ${event.agentId}`);
+        console.log(`  Target version: ${event.targetVersion ?? 'unknown'}`);
+        console.log(`  Reason: ${event.reason || 'none'}`);
+        console.log(`  ID: ${event.id} | Created: ${event.createdAt || 'unknown'}`);
+      }
+    }
+    if (result.consensus) {
+      console.log(`\nConsensus (latest v${result.consensus.latestVersion}): ${result.consensus.status} score=${result.consensus.score}`);
+      console.log(`  Total attestations considered: ${result.consensus.totalAttestations}`);
+      if (Object.keys(result.consensus.opinionCounts).length) {
+        console.log('  Opinions:', JSON.stringify(result.consensus.opinionCounts));
+      }
+    }
   }
   return result;
 }

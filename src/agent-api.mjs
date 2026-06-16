@@ -677,6 +677,22 @@ const api = {
   },
 
   /**
+   * Get full version chain + attestation timeline for a canonical article key.
+   * @param {string} key - Canonical key
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {boolean} [opts.includeConsensus]
+   * @returns {Promise<{key, versionCount, versions, attestationCount, attestations, timeline, consensus}>}
+   */
+  async history(key, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!key) throw new Error('key is required');
+    const { historyForKey } = await import('./history.mjs');
+    return historyForKey(key, { ...opts, home: this._home });
+  },
+
+  /**
    * Verify a DataItem or article by ID or canonical key.
    * @param {string} idOrKey - DataItem ID or canonical article/attestation key (e.g., "subject/foo")
    * @param {Object} [opts]
