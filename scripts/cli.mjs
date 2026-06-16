@@ -37,7 +37,8 @@ const COMMANDS = [
   'watch',
   'history',
   'diff',
-  'status'
+  'status',
+  'search'
 ];
 
 function printHelp(command = null) {
@@ -361,7 +362,29 @@ Imports articles and attestations from a PermaBrain bundle file. Each entry
 is verified (unless --no-verify is passed), signatures are checked, and
 duplicates are skipped by default. Use --use-hyperbeam to submit through a
 HyperBEAM node.`,
-  };
+  'search': `Usage: permabrain search <query> [--kind <kind>] [--topic <topic>] [--author <agent-id>] [--key <key>] [--after <iso-date>] [--before <iso-date>] [--limit N] [--offset N] [--use-hyperbeam] [--json]
+
+Full-text search across article titles, topics, keys, source names, and
+plaintext content.
+
+Performs relevance ranking (title > topic > key > source > content) and
+returns snippets, match terms, and encrypted-article flags. Results are
+merged from remote transport and the local cache, with the latest version per
+canonical key. Use filters to narrow by kind, topic, author, key, or date
+range.
+
+Options:
+  --kind <kind>        Filter by article kind
+  --topic <topic>      Filter by topic
+  --author <agent-id>  Filter by author agent id
+  --key <key>          Filter by exact canonical key
+  --after <date>       Only include articles updated on or after this ISO date
+  --before <date>      Only include articles updated on or before this ISO date
+  --limit N            Maximum results (default 20)
+  --offset N           Pagination offset (default 0)
+  --use-hyperbeam      Search via HyperBEAM transport
+  --json               Output structured search report`,
+};
   console.log(help[command] || `Unknown command: ${command}`);
 }
 

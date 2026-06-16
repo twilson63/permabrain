@@ -17,6 +17,18 @@ export function latestByArticleKey(items) {
   return latest;
 }
 
+export function latestByArticleKeyFromSummaries(summaries) {
+  const latest = new Map();
+  for (const summary of summaries) {
+    if (!summary.key) continue;
+    const version = Number(summary.version || 0);
+    const prev = latest.get(summary.key);
+    const prevVersion = prev ? Number(prev.version || 0) : -1;
+    if (!prev || version > prevVersion || (version === prevVersion && String(summary.updatedAt) > String(prev.updatedAt))) latest.set(summary.key, summary);
+  }
+  return latest;
+}
+
 export function summarizeArticle(item) {
   const tags = tagsToObject(item.tags || []);
   return {

@@ -64,5 +64,8 @@ export { diffArticles, diffLocalVsRemote } from './diff.mjs';
 // Status
 export { status } from './status.mjs';
 
+// Search
+export { searchArticles } from './search.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

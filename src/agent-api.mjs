@@ -25,6 +25,7 @@ import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
+import { searchArticles } from './search.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -900,6 +901,35 @@ const api = {
     requireInit(this._home);
     const { status } = await import('./status.mjs');
     return status({ ...opts, home: this._home, config: this._config });
+  },
+
+  /**
+   * Search articles by query, kind, topic, author, or date range.
+   *
+   * Performs full-text scoring across titles, topics, keys, source names,
+   * and plaintext content. Encrypted articles are returned when their metadata
+   * matches but their content is not searchable. Results may be boosted by a
+   * consensus map supplied in opts.consensusByKey.
+   *
+   * @param {string} query - Free-text search terms
+   * @param {Object} [opts]
+   * @param {string} [opts.kind] - Article kind filter
+   * @param {string} [opts.topic] - Topic filter
+   * @param {string} [opts.author] - Author agent id filter
+   * @param {string} [opts.key] - Exact canonical key filter
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {number} [opts.limit=20] - Maximum results to return
+   * @param {number} [opts.offset=0] - Pagination offset
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {Object} [opts.consensusByKey] - Optional map from key to consensus score
+   * @returns {Promise<{query, total, limit, offset, results: object[], took}>}
+   */
+  async search(query, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!query) throw new Error('query is required');
+    return searchArticles(query, { ...opts, home: this._home });
   },
 
   /**

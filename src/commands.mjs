@@ -20,6 +20,7 @@ import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
 import { diffArticles, diffLocalVsRemote } from './diff.mjs';
 import { status } from './status.mjs';
+import { searchArticles } from './search.mjs';
 
 import fs from 'node:fs';
 
@@ -64,6 +65,7 @@ export async function runCommand(command, args) {
   if (command === 'merge') return mergeCommand(args);
   if (command === 'diff') return diffCommand(args);
   if (command === 'status') return statusCommand(args);
+  if (command === 'search') return searchCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1071,6 +1073,44 @@ async function statusCommand(args) {
       for (const f of result.forkHeads) {
         console.log(`    ${f.key} (from ${f.sourceKey}) v${f.version}: ${f.id}`);
       }
+    }
+  }
+  return result;
+}
+
+async function searchCommand(args) {
+  const query = args._[0];
+  if (!query) throw new Error('search requires <query>');
+  const opts = {
+    home: getHome(),
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    limit: args.limit ? Number(args.limit) : undefined,
+    offset: args.offset ? Number(args.offset) : undefined,
+    kind: args.kind,
+    topic: args.topic,
+    author: args.author,
+    key: args.key,
+    after: args.after,
+    before: args.before
+  };
+  const result = await searchArticles(query, opts);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(`PermaBrain search: "${result.query}" — ${result.total} result(s) (limit ${result.limit}, offset ${result.offset})`);
+    for (const item of result.results) {
+      const meta = [
+        `v${item.version}`,
+        item.kind,
+        item.topic,
+        item.sourceName,
+        item.updatedAt ? new Date(item.updatedAt).toISOString().slice(0, 10) : ''
+      ].filter(Boolean).join(' · ');
+      const encryptedFlag = item.encrypted ? ' [encrypted]' : '';
+      console.log(`  ${item.key}${encryptedFlag}`);
+      console.log(`    ${item.title || '(untitled)'} — ${meta}`);
+      if (item.matchedTerms?.length) console.log(`    matched: ${item.matchedTerms.join(', ')}`);
+      if (item.snippet) console.log(`    ${item.snippet}`);
     }
   }
   return result;
