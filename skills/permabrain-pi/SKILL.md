@@ -209,6 +209,60 @@ node scripts/cli.mjs batch-attest --file attestations.json --json
 node scripts/cli.mjs auto-import --file urls.json --json
 ```
 
+### Goal / PRD Integration
+
+Parse a PRD or goal markdown file into a PermaBrain execution plan.
+
+```javascript
+const parsed = await api.parseGoal(text);
+const plan = await api.planFromGoal(parsed);
+// or in one call:
+const plan = await api.goalFromFile('docs/prd.md', { topic: 'ai' });
+```
+
+`plan` contains:
+- `steps` — ordered implementation steps with success criteria
+- `importArticles` — URLs found in the PRD, ready for `api.autoImport`
+- `publishArticles` — step articles that can be published as PermaBrain subjects
+- `attestations` — ready-to-run batch attestation spec
+
+CLI:
+```sh
+node scripts/cli.mjs goal docs/prd.md --json --topic ai
+node scripts/cli.mjs plan docs/prd.md --json --topic ai
+node scripts/cli.mjs goal docs/prd.md --import --json --topic ai
+node scripts/cli.mjs goal docs/prd.md --batch-attest --json --topic ai
+# Execute the full workflow:
+node scripts/cli.mjs goal docs/prd.md --execute --topic ai
+```
+
+### Goal / PRD Integration
+
+Parse a PRD or goal markdown file into a PermaBrain execution plan.
+
+```javascript
+const parsed = await api.parseGoal(text);
+const plan = await api.planFromGoal(parsed);
+// or in one call:
+const plan = await api.goalFromFile('docs/prd.md', { topic: 'ai' });
+```
+
+`plan` contains:
+- `steps` — ordered implementation steps with success criteria
+- `importArticles` — URLs found in the PRD, ready for `api.autoImport`
+- `publishArticles` — step articles that can be published as PermaBrain subjects
+- `attestations` — ready-to-run batch attestation spec
+
+CLI:
+```sh
+node scripts/cli.mjs goal docs/prd.md --json --topic ai
+node scripts/cli.mjs plan docs/prd.md --json --topic ai
+node scripts/cli.mjs goal docs/prd.md --import --json --topic ai
+node scripts/cli.mjs goal docs/prd.md --batch-attest --json --topic ai
+# Execute the full workflow:
+node scripts/cli.mjs goal docs/prd.md --execute --topic ai
+```
+
 ## Safety
 
 - PermaBrain publishing is **public and permanent** — never publish private/sensitive data

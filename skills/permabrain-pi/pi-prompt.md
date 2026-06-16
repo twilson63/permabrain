@@ -29,11 +29,14 @@ await api.init({ keyType: 'ed25519' });
 - `api.consensus(key)` — check consensus
 - `api.sync()` — refresh local cache
 - `api.importWikipedia({ title, kind, topic })` — import from Wikipedia
+- `api.parseGoal(text)` / `api.goalFromFile(path)` — parse a PRD into a PermaBrain plan
 
 ## CLI Fallback
 ```sh
 cd /home/node/.openclaw/workspace/permabrain
 node scripts/cli.mjs <command> [options]
+node scripts/cli.mjs goal docs/prd.md --json --topic ai
+node scripts/cli.mjs plan docs/prd.md --json --topic ai
 ```
 
 ## Safety

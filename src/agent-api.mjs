@@ -26,6 +26,10 @@ import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 
+function requireGoalModule() {
+  return import('./goal.mjs');
+}
+
 function requireInit(home) {
   if (!home) throw new Error('PermaBrain not initialized. Call api.init() first.');
 }
@@ -606,6 +610,69 @@ const api = {
     }
 
     return { results, succeeded, failed };
+  },
+
+  /**
+   * Parse a PRD/goal markdown document into an ordered implementation plan.
+   * @param {string} text - Markdown content
+   * @param {Object} [opts]
+   * @param {string[]} [opts.kinds] - Override inferred article kinds
+   * @param {string[]} [opts.topics] - Override inferred topics
+   * @returns {Promise<Object>} Parsed goal structure
+   */
+  async parseGoal(text, opts = {}) {
+    const { parseGoal } = await requireGoalModule();
+    return parseGoal(text, opts);
+  },
+
+  /**
+   * Build a PermaBrain plan object from parsed goal output.
+   * @param {Object} parsed - Output of parseGoal
+   * @param {Object} [opts]
+   * @param {string} [opts.topic] - Override topic
+   * @param {string} [opts.kind] - Override kind
+   * @returns {Promise<Object>} Plan with steps, import/publish articles, and attestations
+   */
+  async planFromGoal(parsed, opts = {}) {
+    const { planFromGoal: buildPlan } = await requireGoalModule();
+    return buildPlan(parsed, opts);
+  },
+
+  /**
+   * Parse a PRD/goal file and generate a plan in one call.
+   * @param {string} filePath
+   * @param {Object} [opts]
+   * @returns {Promise<Object>} Plan object
+   */
+  async goalFromFile(filePath, opts = {}) {
+    const { parseGoalFile, planFromGoal: buildPlan } = await requireGoalModule();
+    return buildPlan(parseGoalFile(filePath, opts), opts);
+  },
+
+  /**
+   * Generate auto-import article specs from a parsed goal.
+   * @param {Object} parsed
+   * @param {Object} [opts]
+   * @param {string} [opts.topic] - Override topic
+   * @param {string} [opts.kind] - Override kind
+   * @returns {Promise<Array<{url, kind, topic, title, key}>>}
+   */
+  async importArticlesFromGoal(parsed, opts = {}) {
+    const { importArticlesFromGoal: extract } = await requireGoalModule();
+    return extract(parsed, opts);
+  },
+
+  /**
+   * Generate batch attestation specs from a parsed goal.
+   * @param {Object} parsed
+   * @param {Object} [opts]
+   * @param {string} [opts.topic] - Override topic
+   * @param {string} [opts.kind] - Override kind
+   * @returns {Promise<Array<{key, opinion, confidence, reason}>>}
+   */
+  async attestationsFromGoal(parsed, opts = {}) {
+    const { attestationsFromGoal: extract } = await requireGoalModule();
+    return extract(parsed, opts);
   },
 
   /**

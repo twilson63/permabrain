@@ -106,13 +106,49 @@ await api.sync();
 - **Attest honestly** — your attestation is signed and public
 - **Never expose keys.json**
 
+## Goal / PRD Integration
+
+Use `/goal` (Pi) or `permabrain goal` (CLI) to turn a PRD/goal markdown file
+into a PermaBrain workflow:
+
+```javascript
+import { api } from '/home/node/.openclaw/workspace/permabrain/src/index.mjs';
+await api.init({ keyType: 'ed25519' });
+
+const plan = await api.goalFromFile('docs/prd.md', { topic: 'ai' });
+// plan.steps, plan.importArticles, plan.publishArticles, plan.attestations
+```
+
+```sh
+# Print a JSON plan from a PRD
+node scripts/cli.mjs goal docs/prd.md --json --topic ai
+
+# Generate the auto-import article spec
+node scripts/cli.mjs goal docs/prd.md --import --json --topic ai
+
+# Generate the batch-attestation spec
+node scripts/cli.mjs goal docs/prd.md --batch-attest --json --topic ai
+
+# Execute the full workflow (auto-import, publish step articles, attest)
+node scripts/cli.mjs goal docs/prd.md --execute --topic ai
+```
+
+A good PRD for `/goal` includes:
+- An H1 title.
+- H2/H3 sections as implementation steps.
+- A bullet list under each section named `Success criteria`.
+- Source URLs that should become PermaBrain articles.
+
 ## CLI Fallback
 If the API is unavailable:
 ```sh
 cd /home/node/.openclaw/workspace/permabrain
 node scripts/cli.mjs publish file.md --kind subject --topic ai --source-url "https://..."
 node scripts/cli.mjs query --topic ai --json
+node scripts/cli.mjs get subject/my-article
 node scripts/cli.mjs attest subject/ai --valid --confidence 0.9 --reason "Accurate"
-node scripts/cli.mjs batch-attest --file attestations.json --json
-node scripts/cli.mjs auto-import --file urls.json --json
+node scripts/cli.mjs consensus subject/ai --json
+node scripts/cli.mjs sync --json
+node scripts/cli.mjs goal docs/prd.md --json --topic ai
+node scripts/cli.mjs plan docs/prd.md --json --topic ai
 ```

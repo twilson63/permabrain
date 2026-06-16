@@ -19,6 +19,8 @@ const COMMANDS = [
   'provision-agent',
   'batch-attest',
   'auto-import',
+  'goal',
+  'plan',
   'match',
   'deploy-consensus',
   'meta-info',
@@ -58,6 +60,8 @@ Commands:
   provision-agent              Generate identity for an external agent
   batch-attest                 Batch attest to multiple articles from a JSON file
   auto-import                  Auto-import articles from URLs via a JSON file
+  goal <file>                  Parse a PRD/goal markdown file and generate a plan
+  plan <file>                  Generate a PermaBrain plan JSON from a PRD/goal file
   match                        Query the HyperBEAM match device by tag key/value
   deploy-consensus             Deploy PermaBrain consensus Lua modules to HyperBEAM
   meta-info                    Show HyperBEAM node metadata
@@ -141,6 +145,25 @@ With --use-hyperbeam, each article uploads via the HyperBEAM ~bundler@1.0 device
 With --use-hyperbeam-reference, also creates/updates ~reference@1.0 pointers.
 Each URL is fetched, HTML is stripped to text, and the result is published.
 Title is derived from content or URL if not provided.`,
+    'goal': `Usage: permabrain goal <file> [--topic <topic>] [--kind <kind>] [--plan] [--import] [--json]
+
+Parses a PRD or goal markdown file and turns it into a PermaBrain workflow.
+
+Options:
+  --topic <topic>   Override inferred topic for generated articles
+  --kind <kind>     Override inferred article kind
+  --plan            Output a JSON plan (default)
+  --import          Output the auto-import articles array
+  --batch-attest    Output the batch attestation spec
+  --execute         Execute the workflow via the agent API (init, auto-import,
+                    publish step articles, batch-attest). Requires network.
+
+Without --execute, the command only prints the generated workflow. Use --json
+for machine-readable output.`,
+    'plan': `Usage: permabrain plan <file> [--topic <topic>] [--kind <kind>] [--json]
+
+Alias for 'permabrain goal <file> --plan'. Generates a PermaBrain plan JSON
+from a PRD/goal markdown file.`,
     'probe-devices': `Usage: permabrain probe-devices [--url http://localhost:10000] [--json]
 
 Probes all HyperBEAM device endpoints used by PermaBrain:

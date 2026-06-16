@@ -11,6 +11,7 @@ import { HyperbeamQuery } from './hb-query.mjs';
 import { HyperbeamConsensus } from './hb-consensus.mjs';
 import { DEVICES, bundlerUploadUrl } from './hb-devices.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
+import { parseGoalFile, planFromGoal, importArticlesFromGoal, attestationsFromGoal } from './goal.mjs';
 
 import fs from 'node:fs';
 
@@ -34,6 +35,7 @@ export async function runCommand(command, args) {
   if (command === 'provision-agent') return provisionAgentCommand(args);
   if (command === 'batch-attest') return batchAttestCommand(args);
   if (command === 'auto-import') return autoImportCommand(args);
+  if (command === 'goal' || command === 'plan') return goalCommand(args);
   if (command === 'probe-devices') return probeDevicesCommand(args);
   if (command === 'match') return matchCommand(args);
   if (command === 'deploy-consensus') return deployConsensusCommand(args);
@@ -665,4 +667,124 @@ async function transportStatusCommand(args) {
     if (Object.keys(status.metrics.histograms).length === 0) console.log('  (no transport calls recorded yet)');
   }
   return status;
+}
+
+async function goalCommand(args) {
+  const filePath = args._[0];
+  if (!filePath) throw new Error('goal/plan requires <prd-file> (markdown PRD or goal)');
+
+  const opts = {};
+  if (args.topic) opts.topics = [args.topic];
+  if (args.kind) opts.kinds = [args.kind];
+
+  const parsed = parseGoalFile(filePath, opts);
+
+  if (args.import) {
+    const articles = importArticlesFromGoal(parsed);
+    if (args.json) printJson(articles);
+    else {
+      console.log(`Import articles from goal: ${articles.length}`);
+      for (const art of articles) {
+        console.log(`  ${art.key}: ${art.url}`);
+      }
+    }
+    return articles;
+  }
+
+  if (args['batch-attest']) {
+    const attestations = attestationsFromGoal(parsed);
+    if (args.json) printJson(attestations);
+    else {
+      console.log(`Attestations from goal: ${attestations.length}`);
+      for (const att of attestations) {
+        console.log(`  ${att.key}: ${att.opinion} (${att.confidence})`);
+      }
+    }
+    return attestations;
+  }
+
+  if (args.execute) {
+    const { api } = await import('./agent-api.mjs');
+    await api.ensureInit();
+
+    const plan = planFromGoal(parsed);
+    const result = {
+      planKey: plan.planKey,
+      topic: plan.topic,
+      imported: { succeeded: 0, failed: 0, results: [] },
+      published: { succeeded: 0, failed: 0, results: [] },
+      attested: { succeeded: 0, failed: 0, results: [] }
+    };
+
+    if (plan.importArticles.length) {
+      const importResult = await api.autoImport({
+        articles: plan.importArticles,
+        useHyperbeam: args['use-hyperbeam'] ?? false,
+        useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
+      });
+      result.imported = importResult;
+    }
+
+    if (plan.publishArticles.length) {
+      for (const art of plan.publishArticles) {
+        try {
+          const pub = await api.publish({
+            content: art.content,
+            kind: art.kind,
+            topic: art.topic,
+            title: art.title,
+            key: art.key,
+            sourceUrl: art.sourceUrl,
+            useHyperbeam: args['use-hyperbeam'] ?? false,
+            useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
+          });
+          result.published.results.push({ key: art.key, status: 'ok', summary: pub.summary });
+          result.published.succeeded++;
+        } catch (err) {
+          result.published.results.push({ key: art.key, status: 'error', error: err.message });
+          result.published.failed++;
+        }
+      }
+    }
+
+    if (plan.attestations.length) {
+      const attestResult = await api.batchAttest({
+        attestations: plan.attestations,
+        useHyperbeam: args['use-hyperbeam'] ?? false,
+        useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined)
+      });
+      result.attested = attestResult;
+    }
+
+    if (args.json) printJson(result);
+    else {
+      console.log(`Executed goal plan '${plan.title}'`);
+      console.log(`  Imported: ${result.imported.succeeded} succeeded, ${result.imported.failed} failed`);
+      console.log(`  Published: ${result.published.succeeded} succeeded, ${result.published.failed} failed`);
+      console.log(`  Attested: ${result.attested.succeeded} succeeded, ${result.attested.failed} failed`);
+    }
+    return result;
+  }
+
+  const plan = planFromGoal(parsed);
+  if (args.json) printJson(plan);
+  else {
+    console.log(`Plan: ${plan.title}`);
+    console.log(`Key: ${plan.planKey}`);
+    console.log(`Topic: ${plan.topic} | Kind: ${plan.kind}`);
+    console.log(`\nSteps:`);
+    for (const step of plan.steps) {
+      console.log(`  ${step.order}. ${step.title}`);
+      for (const c of step.criteria) {
+        console.log(`     ✓ ${c}`);
+      }
+    }
+    console.log(`\nImportable URLs: ${plan.importArticles.length}`);
+    for (const art of plan.importArticles) {
+      console.log(`  - ${art.url} → ${art.key}`);
+    }
+    console.log(`\nPublishable step articles: ${plan.publishArticles.length}`);
+    console.log(`Attestations: ${plan.attestations.length}`);
+  }
+  return plan;
 }
