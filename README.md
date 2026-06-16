@@ -165,12 +165,15 @@ State is persisted to `.permabrain/cache/watch-state.json`.
 
 ```sh
 npm test
+npm run test:transport-resilience
 npm run test:hyperbeam
 npm run test:wikipedia
 npm run test:arweave
 npm run test:public-upload
 npm run test:watch
 ```
+
+Transport calls (HyperBEAM and Arweave) are wrapped with exponential-backoff retries and per-target circuit breakers. After repeated failures the breaker opens for 30 seconds, rejects fast, then tries a few half-open probes before closing. You can inspect breaker state through the probe output or programmatically via `api.getCircuitBreakerStatus()`.
 
 HyperBEAM, Wikipedia, and Arweave integration tests skip cleanly when dependencies are unavailable unless required environment flags are set.
 

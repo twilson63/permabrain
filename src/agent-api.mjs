@@ -24,6 +24,7 @@ import { consensusForArticle } from './consensus.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
+import { getCircuitBreakerStatus } from './transport.mjs';
 
 function requireInit(home) {
   if (!home) throw new Error('PermaBrain not initialized. Call api.init() first.');
@@ -309,6 +310,14 @@ const api = {
       attestationCount: Object.values(index.attestations).reduce((n, xs) => n + xs.length, 0),
       updatedAt: index.updatedAt
     };
+  },
+
+  /**
+   * Inspect transport circuit breaker state.
+   * @returns {Object} Map of breaker names to state/status/counters.
+   */
+  getCircuitBreakerStatus() {
+    return getCircuitBreakerStatus();
   },
 
   /**

@@ -24,6 +24,7 @@
 
 import { createDataItem } from './dataitem.mjs';
 import { DEVICES, referenceUrl } from './hb-devices.mjs';
+import { resilientCall } from './resilience.mjs';
 
 // Default DataItem builder; tests can override via setDataItemBuilder.
 let buildDataItem = null;
@@ -52,9 +53,14 @@ async function createReferenceDataItem({ payload, tags, identity }) {
  * - Topic directories: reference sets mapping topic names to article references
  */
 export class HyperbeamReference {
-  constructor(baseUrl, config = {}) {
+  constructor(baseUrl, config = {}, opts = {}) {
     this.baseUrl = baseUrl;
     this.config = config;
+    this.breakers = opts.breakers;
+  }
+
+  _breaker(name) {
+    return this.breakers?.get(name) || null;
   }
 
   /**
@@ -70,31 +76,37 @@ export class HyperbeamReference {
    * @returns {Promise<{referenceId: string, value: Object}>}
    */
   async create(value, signer, opts = {}) {
-    const tags = [
-      { name: 'Data-Protocol', value: 'ao' },
-      { name: 'Type', value: 'Message' },
-      { name: 'Variant', value: 'ao.TN.1' },
-      { name: 'device', value: DEVICES.reference },
-      ...Object.entries(value).map(([k, v]) => ({
-        name: `reference-value-${k}`,
-        value: typeof v === 'string' ? v : JSON.stringify(v),
-      })),
-    ];
-    if (opts.authority) {
-      tags.push({ name: 'authority', value: opts.authority });
-    }
+    return resilientCall(async () => {
+      const tags = [
+        { name: 'Data-Protocol', value: 'ao' },
+        { name: 'Type', value: 'Message' },
+        { name: 'Variant', value: 'ao.TN.1' },
+        { name: 'device', value: DEVICES.reference },
+        ...Object.entries(value).map(([k, v]) => ({
+          name: `reference-value-${k}`,
+          value: typeof v === 'string' ? v : JSON.stringify(v),
+        })),
+      ];
+      if (opts.authority) {
+        tags.push({ name: 'authority', value: opts.authority });
+      }
 
-    const item = await createReferenceDataItem({ payload: JSON.stringify(value), tags, identity: signer });
-    const bytes = Buffer.from(item.ans104Base64, 'base64url');
+      const item = await createReferenceDataItem({ payload: JSON.stringify(value), tags, identity: signer });
+      const bytes = Buffer.from(item.ans104Base64, 'base64url');
 
-    const res = await fetch(`${this.baseUrl}/${DEVICES.bundler}/tx?codec-device=ans104@1.0`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/octet-stream' },
-      body: new Blob([bytes], { type: 'application/octet-stream' }),
-    });
-    if (!res.ok) throw new Error(`Reference init upload failed: HTTP ${res.status}`);
+      const res = await fetch(`${this.baseUrl}/${DEVICES.bundler}/tx?codec-device=ans104@1.0`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: new Blob([bytes], { type: 'application/octet-stream' }),
+      });
+      if (!res.ok) {
+        const err = new Error(`Reference init upload failed: HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
 
-    return { referenceId: item.id, value };
+      return { referenceId: item.id, value };
+    }, { breaker: this._breaker('hyperbeam:reference'), label: 'hyperbeam:reference:create', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   /**
@@ -111,31 +123,37 @@ export class HyperbeamReference {
    * @returns {Promise<{referenceId: string, value: Object, timestamp: number}>}
    */
   async update(referenceId, value, signer, opts = {}) {
-    const timestamp = opts.timestamp || Date.now();
-    const tags = [
-      { name: 'Data-Protocol', value: 'ao' },
-      { name: 'Type', value: 'Message' },
-      { name: 'Variant', value: 'ao.TN.1' },
-      { name: 'device', value: DEVICES.reference },
-      { name: 'reference-id', value: referenceId },
-      { name: 'timestamp', value: String(timestamp) },
-      ...Object.entries(value).map(([k, v]) => ({
-        name: `reference-value-${k}`,
-        value: typeof v === 'string' ? v : JSON.stringify(v),
-      })),
-    ];
+    return resilientCall(async () => {
+      const timestamp = opts.timestamp || Date.now();
+      const tags = [
+        { name: 'Data-Protocol', value: 'ao' },
+        { name: 'Type', value: 'Message' },
+        { name: 'Variant', value: 'ao.TN.1' },
+        { name: 'device', value: DEVICES.reference },
+        { name: 'reference-id', value: referenceId },
+        { name: 'timestamp', value: String(timestamp) },
+        ...Object.entries(value).map(([k, v]) => ({
+          name: `reference-value-${k}`,
+          value: typeof v === 'string' ? v : JSON.stringify(v),
+        })),
+      ];
 
-    const item = await createReferenceDataItem({ payload: JSON.stringify(value), tags, identity: signer });
-    const bytes = Buffer.from(item.ans104Base64, 'base64url');
+      const item = await createReferenceDataItem({ payload: JSON.stringify(value), tags, identity: signer });
+      const bytes = Buffer.from(item.ans104Base64, 'base64url');
 
-    const res = await fetch(`${this.baseUrl}/${DEVICES.bundler}/tx?codec-device=ans104@1.0`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/octet-stream' },
-      body: new Blob([bytes], { type: 'application/octet-stream' }),
-    });
-    if (!res.ok) throw new Error(`Reference set upload failed: HTTP ${res.status}`);
+      const res = await fetch(`${this.baseUrl}/${DEVICES.bundler}/tx?codec-device=ans104@1.0`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: new Blob([bytes], { type: 'application/octet-stream' }),
+      });
+      if (!res.ok) {
+        const err = new Error(`Reference set upload failed: HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
 
-    return { referenceId, value, timestamp };
+      return { referenceId, value, timestamp };
+    }, { breaker: this._breaker('hyperbeam:reference'), label: 'hyperbeam:reference:update', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   /**
@@ -152,11 +170,17 @@ export class HyperbeamReference {
    * @returns {Promise<Object>} The resolved value
    */
   async resolve(referenceId, path = '') {
-    const url = referenceUrl(this.baseUrl, referenceId, path);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Reference resolve failed: HTTP ${res.status} for ${url}`);
-    const text = await res.text();
-    try { return JSON.parse(text); } catch { return text; }
+    return resilientCall(async () => {
+      const url = referenceUrl(this.baseUrl, referenceId, path);
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = new Error(`Reference resolve failed: HTTP ${res.status} for ${url}`);
+        err.status = res.status;
+        throw err;
+      }
+      const text = await res.text();
+      try { return JSON.parse(text); } catch { return text; }
+    }, { breaker: this._breaker('hyperbeam:reference'), label: 'hyperbeam:reference:resolve', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   /**

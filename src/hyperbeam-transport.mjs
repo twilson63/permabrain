@@ -8,6 +8,7 @@ import {
 } from './hb-devices.mjs';
 import { rawDataItemBytes } from './dataitem.mjs';
 import { validateHyperbeamConfig } from './config.mjs';
+import { resilientCall } from './resilience.mjs';
 
 /**
  * HyperBEAM Transport using native devices for all operations.
@@ -37,17 +38,23 @@ import { validateHyperbeamConfig } from './config.mjs';
  * devices provide indexing, querying, and compute on top.
  */
 export class HyperbeamTransport {
-  constructor(config) {
+  constructor(config, opts = {}) {
     this.config = config;
     validateHyperbeamConfig(config);
     this.baseUrl = config.gateway?.dataUrl || 'http://localhost:10000';
     this.graphqlUrl = config.gateway?.graphqlUrl || `${this.baseUrl}/graphql`;
     this._bundlerUploadUrl = config.bundler?.uploadUrl || bundlerUploadUrl(this.baseUrl);
-    this.query = new HyperbeamQuery(this.baseUrl);
+    this.query = new HyperbeamQuery(this.baseUrl, { breakers: opts.breakers });
     this.consensus = new HyperbeamConsensus(this.baseUrl, {
       consensusProcessId: config.consensus?.processId,
+      breakers: opts.breakers,
     });
-    this.reference = new HyperbeamReference(this.baseUrl, config.reference);
+    this.reference = new HyperbeamReference(this.baseUrl, config.reference, { breakers: opts.breakers });
+    this.breakers = opts.breakers;
+  }
+
+  _breaker(name) {
+    return this.breakers?.get(name) || null;
   }
 
   // --- Device: ~bundler@1.0 ---
@@ -80,7 +87,8 @@ export class HyperbeamTransport {
       body: JSON.stringify({ query: '{ transactions(first: 1) { edges { node { id } } } }' })
     });
 
-    return { url, transport: 'hyperbeam', checks, ok: checks.some((c) => c.name === 'health' && c.ok) };
+    const breakerStatus = this.breakers?.status ? this.breakers.status() : {};
+    return { url, transport: 'hyperbeam', checks, circuitBreakers: breakerStatus, ok: checks.some((c) => c.name === 'health' && c.ok) };
   }
 
   /**
@@ -92,13 +100,19 @@ export class HyperbeamTransport {
    */
   async uploadDataItem(item) {
     const bytes = rawDataItemBytes(item);
-    const res = await fetch(this._bundlerUploadUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/octet-stream' },
-      body: new Blob([bytes], { type: 'application/octet-stream' })
-    });
-    if (!res.ok) throw new Error(`HyperBEAM bundler upload failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
-    return { id: item.id, status: 'uploaded', response: await res.text().catch(() => '') };
+    return resilientCall(async () => {
+      const res = await fetch(this._bundlerUploadUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: new Blob([bytes], { type: 'application/octet-stream' })
+      });
+      if (!res.ok) {
+        const err = new Error(`HyperBEAM bundler upload failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+        err.status = res.status;
+        throw err;
+      }
+      return { id: item.id, status: 'uploaded', response: await res.text().catch(() => '') };
+    }, { breaker: this._breaker('hyperbeam:upload'), label: 'hyperbeam:upload', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   // --- Device: message@1.0 (fetch via httpsig@1.0 formatter) ---
@@ -109,42 +123,48 @@ export class HyperbeamTransport {
    * Falls back to ANS-104 binary parsing for non-HyperBEAM responses.
    */
   async fetchDataItem(id) {
-    const url = fetchUrl(this.baseUrl, id);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HyperBEAM fetch failed for ${id}: HTTP ${res.status}`);
+    return resilientCall(async () => {
+      const url = fetchUrl(this.baseUrl, id);
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = new Error(`HyperBEAM fetch failed for ${id}: HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
 
-    // Try HTTP-SIG formatter: tags as response headers
-    const headerTags = parseHttpsigtHeaders(res.headers);
+      // Try HTTP-SIG formatter: tags as response headers
+      const headerTags = parseHttpsigtHeaders(res.headers);
 
-    if (headerTags.length > 0) {
-      const body = await res.text();
-      return {
-        format: FORMATTERS.httpsig,
-        id,
-        tags: headerTags,
-        payload: body,
-        payloadBase64: Buffer.from(body).toString('base64url'),
-      };
-    }
+      if (headerTags.length > 0) {
+        const body = await res.text();
+        return {
+          format: FORMATTERS.httpsig,
+          id,
+          tags: headerTags,
+          payload: body,
+          payloadBase64: Buffer.from(body).toString('base64url'),
+        };
+      }
 
-    // Fall back to ANS-104 binary parsing
-    const bytes = Buffer.from(await res.arrayBuffer());
-    const text = bytes.toString('utf8');
-    try { return JSON.parse(text); }
-    catch {
-      const { parseAns104 } = await import('./dataitem.mjs');
-      const parsed = parseAns104(bytes);
-      return {
-        format: FORMATTERS.ans104,
-        id: parsed.id,
-        owner: parsed.owner,
-        tags: parsed.tags,
-        payloadBase64: Buffer.from(parsed.rawData).toString('base64url'),
-        ans104Base64: bytes.toString('base64url'),
-        signature: parsed.signature,
-        publicKey: parsed.owner
-      };
-    }
+      // Fall back to ANS-104 binary parsing
+      const bytes = Buffer.from(await res.arrayBuffer());
+      const text = bytes.toString('utf8');
+      try { return JSON.parse(text); }
+      catch {
+        const { parseAns104 } = await import('./dataitem.mjs');
+        const parsed = parseAns104(bytes);
+        return {
+          format: FORMATTERS.ans104,
+          id: parsed.id,
+          owner: parsed.owner,
+          tags: parsed.tags,
+          payloadBase64: Buffer.from(parsed.rawData).toString('base64url'),
+          ans104Base64: bytes.toString('base64url'),
+          signature: parsed.signature,
+          publicKey: parsed.owner
+        };
+      }
+    }, { breaker: this._breaker('hyperbeam:fetch'), label: 'hyperbeam:fetch', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   /**
@@ -153,11 +173,13 @@ export class HyperbeamTransport {
    * endpoint does not expose headers.
    */
   async fetchData(id) {
-    const item = await this.fetchDataItem(id);
-    if (item.format === FORMATTERS.httpsig && typeof item.payload === 'string') {
-      return Buffer.from(item.payload, 'utf8');
-    }
-    return payloadBuffer(item);
+    return resilientCall(async () => {
+      const item = await this.fetchDataItem(id);
+      if (item.format === FORMATTERS.httpsig && typeof item.payload === 'string') {
+        return Buffer.from(item.payload, 'utf8');
+      }
+      return payloadBuffer(item);
+    }, { breaker: this._breaker('hyperbeam:fetch'), label: 'hyperbeam:fetch', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   // --- Device: ~query@1.0 + ~match@1.0 ---
@@ -201,33 +223,39 @@ export class HyperbeamTransport {
    * Used when HyperBEAM's query device is not available or returns errors.
    */
   async queryByTagsGraphQL(filters = {}) {
-    const tags = Object.entries(filters).map(([name, value]) => ({ name, values: [String(value)] }));
-    const first = Number(this.config.gateway?.pageSize || 100);
-    const maxPages = Number(this.config.gateway?.maxPages || 1000);
-    const query = `query($tags: [TagFilter!], $first: Int!, $after: String) { transactions(first: $first, after: $after, tags: $tags) { edges { cursor node { id tags { name value } } } pageInfo { hasNextPage endCursor } } }`;
-    const nodes = [];
-    const seen = new Set();
-    let after = null;
-    for (let page = 0; page < maxPages; page++) {
-      const res = await fetch(this.graphqlUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ query, variables: { tags, first, after } })
-      });
-      if (!res.ok) throw new Error(`GraphQL failed: HTTP ${res.status}`);
-      const json = await res.json();
-      if (json.errors?.length) throw new Error(`GraphQL error: ${json.errors.map((err) => err.message || String(err)).join('; ')}`);
-      const transactions = json.data?.transactions;
-      for (const edge of transactions?.edges || []) {
-        if (!edge.node?.id || seen.has(edge.node.id)) continue;
-        seen.add(edge.node.id);
-        nodes.push(edge.node);
+    return resilientCall(async () => {
+      const tags = Object.entries(filters).map(([name, value]) => ({ name, values: [String(value)] }));
+      const first = Number(this.config.gateway?.pageSize || 100);
+      const maxPages = Number(this.config.gateway?.maxPages || 1000);
+      const query = `query($tags: [TagFilter!], $first: Int!, $after: String) { transactions(first: $first, after: $after, tags: $tags) { edges { cursor node { id tags { name value } } } pageInfo { hasNextPage endCursor } } }`;
+      const nodes = [];
+      const seen = new Set();
+      let after = null;
+      for (let page = 0; page < maxPages; page++) {
+        const res = await fetch(this.graphqlUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query, variables: { tags, first, after } })
+        });
+        if (!res.ok) {
+          const err = new Error(`GraphQL failed: HTTP ${res.status}`);
+          err.status = res.status;
+          throw err;
+        }
+        const json = await res.json();
+        if (json.errors?.length) throw new Error(`GraphQL error: ${json.errors.map((err) => err.message || String(err)).join('; ')}`);
+        const transactions = json.data?.transactions;
+        for (const edge of transactions?.edges || []) {
+          if (!edge.node?.id || seen.has(edge.node.id)) continue;
+          seen.add(edge.node.id);
+          nodes.push(edge.node);
+        }
+        if (!transactions?.pageInfo?.hasNextPage) return nodes;
+        after = transactions.pageInfo.endCursor || transactions.edges?.at(-1)?.cursor;
+        if (!after) throw new Error('GraphQL pagination: missing endCursor');
       }
-      if (!transactions?.pageInfo?.hasNextPage) return nodes;
-      after = transactions.pageInfo.endCursor || transactions.edges?.at(-1)?.cursor;
-      if (!after) throw new Error('GraphQL pagination: missing endCursor');
-    }
-    throw new Error(`GraphQL pagination exceeded ${maxPages} pages`);
+      throw new Error(`GraphQL pagination exceeded ${maxPages} pages`);
+    }, { breaker: this._breaker('hyperbeam:query'), label: 'hyperbeam:query', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   /**

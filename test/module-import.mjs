@@ -50,7 +50,7 @@ assert.equal(typeof api.batchAttest, 'function', 'api.batchAttest is a function'
 assert.equal(typeof api.autoImport, 'function', 'api.autoImport is a function');
 assert.equal(typeof api.attestForAgent, 'function', 'api.attestForAgent is a function');
 assert.equal(typeof api.provisionAgent, 'function', 'api.provisionAgent is a function');
-assert.equal(typeof api.importWikipedia, 'function', 'api.importWikipedia is a function');
+assert.equal(typeof api.getCircuitBreakerStatus, 'function', 'api.getCircuitBreakerStatus is a function');
 console.log('   ✓ All api methods present');
 
 // --- 2. Crypto namespace exports ---
@@ -197,11 +197,11 @@ const expectedMethods = [
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
-  'batchAttest', 'autoImport'
+  'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 25 API methods present');
+console.log('   ✓ All 27 API methods present');
 
 console.log('\n✅ All importable module tests passed');

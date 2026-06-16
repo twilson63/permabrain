@@ -21,13 +21,19 @@ import {
   DEVICES, processUrl, pushUrl,
   PERMABRAIN_CONSENSUS_LUA, PERMABRAIN_QUERY_LUA
 } from './hb-devices.mjs';
+import { resilientCall } from './resilience.mjs';
 
 export class HyperbeamConsensus {
   constructor(baseUrl, config = {}) {
     this.baseUrl = baseUrl;
-    this.query = new HyperbeamQuery(baseUrl);
+    this.query = new HyperbeamQuery(baseUrl, { breakers: config.breakers });
     this.config = config;
     this.processId = config.consensusProcessId;
+    this.breakers = config.breakers;
+  }
+
+  _breaker(name) {
+    return this.breakers?.get(name) || null;
   }
 
   /**
@@ -63,26 +69,30 @@ export class HyperbeamConsensus {
    *         Header: Attestation-Target: {articleId}
    */
   async computeViaLua(articleId) {
-    const url = processUrl(this.baseUrl, this.processId, 'consensus');
-    const res = await fetch(url, {
-      headers: {
-        'Attestation-Target': articleId,
-        'content-type': 'application/json',
-      },
-    });
+    return resilientCall(async () => {
+      const url = processUrl(this.baseUrl, this.processId, 'consensus');
+      const res = await fetch(url, {
+        headers: {
+          'Attestation-Target': articleId,
+          'content-type': 'application/json',
+        },
+      });
 
-    if (!res.ok) {
-      throw new Error(`Lua consensus failed: HTTP ${res.status}`);
-    }
+      if (!res.ok) {
+        const err = new Error(`Lua consensus failed: HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
 
-    const result = await res.json();
-    return {
-      score: parseFloat(result.score || result['Consensus-Score'] || 0),
-      count: parseInt(result.count || result['Consensus-Count'] || 0, 10),
-      validCount: parseInt(result.validCount || result['Consensus-Valid-Count'] || 0, 10),
-      invalidCount: parseInt(result.invalidCount || result['Consensus-Invalid-Count'] || 0, 10),
-      method: 'lua-device',
-    };
+      const result = await res.json();
+      return {
+        score: parseFloat(result.score || result['Consensus-Score'] || 0),
+        count: parseInt(result.count || result['Consensus-Count'] || 0, 10),
+        validCount: parseInt(result.validCount || result['Consensus-Valid-Count'] || 0, 10),
+        invalidCount: parseInt(result.invalidCount || result['Consensus-Invalid-Count'] || 0, 10),
+        method: 'lua-device',
+      };
+    }, { breaker: this._breaker('hyperbeam:consensus'), label: 'hyperbeam:consensus', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   /**
@@ -156,49 +166,57 @@ export class HyperbeamConsensus {
    * Returns the process ID for future consensus calls.
    */
   async deploy(bundlerUploadUrl, signer) {
-    // Step 1: Upload the consensus Lua script
-    const { createDataItem } = await import('./dataitem.mjs');
-    const consensusItem = await createDataItem({
-      payload: PERMABRAIN_CONSENSUS_LUA,
-      tags: [
-        { name: 'Content-Type', value: 'application/lua' },
-        { name: 'App-Name', value: 'PermaBrain' },
-        { name: 'Type', value: 'module' },
-        { name: 'Module-Name', value: 'permabrain-consensus' },
-        { name: 'Device', value: 'lua@5.3a' },
-      ],
-      identity: signer,
-    });
+    return resilientCall(async () => {
+      const { createDataItem } = await import('./dataitem.mjs');
+      const consensusItem = await createDataItem({
+        payload: PERMABRAIN_CONSENSUS_LUA,
+        tags: [
+          { name: 'Content-Type', value: 'application/lua' },
+          { name: 'App-Name', value: 'PermaBrain' },
+          { name: 'Type', value: 'module' },
+          { name: 'Module-Name', value: 'permabrain-consensus' },
+          { name: 'Device', value: 'lua@5.3a' },
+        ],
+        identity: signer,
+      });
 
-    const uploadRes = await fetch(bundlerUploadUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/octet-stream' },
-      body: new Blob([consensusItem.raw], { type: 'application/octet-stream' }),
-    });
-    if (!uploadRes.ok) throw new Error(`Consensus module upload failed: HTTP ${uploadRes.status}`);
-    const moduleId = consensusItem.id;
+      const uploadRes = await fetch(bundlerUploadUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: new Blob([consensusItem.raw], { type: 'application/octet-stream' }),
+      });
+      if (!uploadRes.ok) {
+        const err = new Error(`Consensus module upload failed: HTTP ${uploadRes.status}`);
+        err.status = uploadRes.status;
+        throw err;
+      }
+      const moduleId = consensusItem.id;
 
-    // Step 2: Upload the query Lua script
-    const queryItem = await createDataItem({
-      payload: PERMABRAIN_QUERY_LUA,
-      tags: [
-        { name: 'Content-Type', value: 'application/lua' },
-        { name: 'App-Name', value: 'PermaBrain' },
-        { name: 'Type', value: 'module' },
-        { name: 'Module-Name', value: 'permabrain-query' },
-        { name: 'Device', value: 'lua@5.3a' },
-      ],
-      identity: signer,
-    });
+      const queryItem = await createDataItem({
+        payload: PERMABRAIN_QUERY_LUA,
+        tags: [
+          { name: 'Content-Type', value: 'application/lua' },
+          { name: 'App-Name', value: 'PermaBrain' },
+          { name: 'Type', value: 'module' },
+          { name: 'Module-Name', value: 'permabrain-query' },
+          { name: 'Device', value: 'lua@5.3a' },
+        ],
+        identity: signer,
+      });
 
-    const queryUploadRes = await fetch(bundlerUploadUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/octet-stream' },
-      body: new Blob([queryItem.raw], { type: 'application/octet-stream' }),
-    });
-    if (!queryUploadRes.ok) throw new Error(`Query module upload failed: HTTP ${queryUploadRes.status}`);
+      const queryUploadRes = await fetch(bundlerUploadUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: new Blob([queryItem.raw], { type: 'application/octet-stream' }),
+      });
+      if (!queryUploadRes.ok) {
+        const err = new Error(`Query module upload failed: HTTP ${queryUploadRes.status}`);
+        err.status = queryUploadRes.status;
+        throw err;
+      }
 
-    return { consensusModuleId: moduleId, queryModuleId: queryItem.id };
+      return { consensusModuleId: moduleId, queryModuleId: queryItem.id };
+    }, { breaker: this._breaker('hyperbeam:upload'), label: 'hyperbeam:deploy', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 }
 

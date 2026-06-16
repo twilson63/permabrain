@@ -2,10 +2,16 @@ import {
   queryUrl, matchUrl, parseHttpsigtHeaders,
   buildPermaBrainFilters,
 } from './hb-devices.mjs';
+import { resilientCall } from './resilience.mjs';
 
 export class HyperbeamQuery {
-  constructor(baseUrl) {
+  constructor(baseUrl, opts = {}) {
     this.baseUrl = baseUrl;
+    this.breakers = opts.breakers;
+  }
+
+  _breaker(name) {
+    return this.breakers?.get(name) || null;
   }
 
   /**
@@ -18,39 +24,43 @@ export class HyperbeamQuery {
    * @returns {Promise<string[]|Object[]|number|boolean>}
    */
   async query(filters, opts = {}) {
-    const returnType = opts.returnType || 'messages';
-    const url = queryUrl(this.baseUrl, filters, returnType);
+    return resilientCall(async () => {
+      const returnType = opts.returnType || 'messages';
+      const url = queryUrl(this.baseUrl, filters, returnType);
 
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`HyperBEAM query failed: HTTP ${res.status}`);
-    }
+      const res = await fetch(url);
+      if (!res.ok) {
+        const err = new Error(`HyperBEAM query failed: HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
 
-    const contentType = res.headers.get('content-type') || '';
+      const contentType = res.headers.get('content-type') || '';
 
-    // JSON response (structured@1.0 or json@1.0 formatter)
-    if (contentType.includes('json') || contentType.includes('structured')) {
-      const json = await res.json();
-      return json;
-    }
+      // JSON response (structured@1.0 or json@1.0 formatter)
+      if (contentType.includes('json') || contentType.includes('structured')) {
+        const json = await res.json();
+        return json;
+      }
 
-    // HTTP-SIG response (tags as headers)
-    const headerTags = parseHttpsigtHeaders(res.headers);
-    if (headerTags.length > 0) {
-      return returnType === 'count'
-        ? 1
-        : returnType === 'boolean'
-          ? true
-          : [{ tags: headerTags, body: await res.text() }];
-    }
+      // HTTP-SIG response (tags as headers)
+      const headerTags = parseHttpsigtHeaders(res.headers);
+      if (headerTags.length > 0) {
+        return returnType === 'count'
+          ? 1
+          : returnType === 'boolean'
+            ? true
+            : [{ tags: headerTags, body: await res.text() }];
+      }
 
-    // Plain text response (list of paths/IDs)
-    const text = await res.text();
-    if (returnType === 'count') return parseInt(text, 10) || 0;
-    if (returnType === 'boolean') return text.length > 0;
+      // Plain text response (list of paths/IDs)
+      const text = await res.text();
+      if (returnType === 'count') return parseInt(text, 10) || 0;
+      if (returnType === 'boolean') return text.length > 0;
 
-    // Parse as newline-separated paths/IDs
-    return text.trim().split('\n').filter(Boolean);
+      // Parse as newline-separated paths/IDs
+      return text.trim().split('\n').filter(Boolean);
+    }, { breaker: this._breaker('hyperbeam:query'), label: 'hyperbeam:query', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   /**
@@ -62,17 +72,21 @@ export class HyperbeamQuery {
    * @returns {Promise<string[]>} Array of matching message IDs
    */
   async match(key, value) {
-    const url = matchUrl(this.baseUrl, key, value);
-    const res = await fetch(url);
+    return resilientCall(async () => {
+      const url = matchUrl(this.baseUrl, key, value);
+      const res = await fetch(url);
 
-    if (res.status === 404) return [];
-    if (!res.ok) {
-      throw new Error(`HyperBEAM match failed for ${key}=${value}: HTTP ${res.status}`);
-    }
+      if (res.status === 404) return [];
+      if (!res.ok) {
+        const err = new Error(`HyperBEAM match failed for ${key}=${value}: HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
 
-    const text = await res.text();
-    // Match returns paths or IDs, typically newline-separated
-    return text.trim().split('\n').filter(Boolean);
+      const text = await res.text();
+      // Match returns paths or IDs, typically newline-separated
+      return text.trim().split('\n').filter(Boolean);
+    }, { breaker: this._breaker('hyperbeam:query'), label: `hyperbeam:match:${key}`, retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   // --- PermaBrain-specific queries ---

@@ -4,14 +4,25 @@ import { statePaths } from './config.mjs';
 import { parseAns104, payloadBuffer, payloadText, rawDataItemBytes } from './dataitem.mjs';
 import { tagsToObject } from './tags.mjs';
 import { HyperbeamTransport as ExternalHyperbeamTransport } from './hyperbeam-transport.mjs';
+import { CircuitBreakerRegistry, resilientCall } from './resilience.mjs';
+
+const globalBreakers = new CircuitBreakerRegistry({
+  failureThreshold: 5,
+  recoveryTimeoutMs: 30000,
+  halfOpenMaxAttempts: 3,
+});
 
 export function getTransport(config, home, opts = {}) {
-  if (opts.useHyperbeam) return new ExternalHyperbeamTransport(configForHyperbeam(config));
+  if (opts.useHyperbeam) return new ExternalHyperbeamTransport(configForHyperbeam(config), { breakers: globalBreakers });
   if (config.transport === 'local' || config.gateway?.type === 'local' || config.bundler?.type === 'local') return new LocalTransport(home);
-  if (config.transport === 'arweave' || config.gateway?.type === 'arweave') return new ArweaveTransport(config);
-  if (config.transport === 'hyperbeam') return new ExternalHyperbeamTransport(config);
+  if (config.transport === 'arweave' || config.gateway?.type === 'arweave') return new ArweaveTransport(config, { breakers: globalBreakers });
+  if (config.transport === 'hyperbeam') return new ExternalHyperbeamTransport(config, { breakers: globalBreakers });
   // Default fallback: Arweave
-  return new ArweaveTransport(config);
+  return new ArweaveTransport(config, { breakers: globalBreakers });
+}
+
+export function getCircuitBreakerStatus() {
+  return globalBreakers.status();
 }
 
 function configForHyperbeam(config) {
@@ -142,11 +153,16 @@ export { HyperbeamTransport } from './hyperbeam-transport.mjs';
 // ============================================================================
 
 export class ArweaveTransport {
-  constructor(config) {
+  constructor(config, opts = {}) {
     this.config = config;
     this.graphqlUrl = config.gateway?.graphqlUrl || 'https://arweave.net/graphql';
     this.dataUrl = config.gateway?.dataUrl || 'https://arweave.net';
     this.uploadUrl = config.bundler?.uploadUrl || 'https://up.arweave.net/tx';
+    this.breakers = opts.breakers;
+  }
+
+  _breaker(name) {
+    return this.breakers?.get(name) || null;
   }
 
   /**
@@ -175,77 +191,105 @@ export class ArweaveTransport {
   }
 
   async uploadDataItem(item) {
-    const bytes = rawDataItemBytes(item);
-    const res = await fetch(this.uploadUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/octet-stream' },
-      body: new Blob([bytes], { type: 'application/octet-stream' })
-    });
-    if (!res.ok) throw new Error(`Arweave upload failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
-    return { id: item.id, status: 'uploaded', response: await res.text().catch(() => '') };
+    return resilientCall(async () => {
+      const bytes = rawDataItemBytes(item);
+      const res = await fetch(this.uploadUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: new Blob([bytes], { type: 'application/octet-stream' })
+      });
+      if (!res.ok) {
+        const err = new Error(`Arweave upload failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+        err.status = res.status;
+        throw err;
+      }
+      return { id: item.id, status: 'uploaded', response: await res.text().catch(() => '') };
+    }, { breaker: this._breaker('arweave:upload'), label: 'arweave:upload', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   async fetchDataItem(id) {
-    const contentRes = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
-    if (!contentRes.ok) throw new Error(`Arweave content fetch failed for ${id}: HTTP ${contentRes.status}`);
-    const content = await contentRes.text();
+    return resilientCall(async () => {
+      const contentRes = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
+      if (!contentRes.ok) {
+        const err = new Error(`Arweave content fetch failed for ${id}: HTTP ${contentRes.status}`);
+        err.status = contentRes.status;
+        throw err;
+      }
+      const content = await contentRes.text();
 
-    const tagQuery = `query($id: ID!) { transaction(id: $id) { id owner { address } tags { name value } } }`;
-    const tagRes = await fetch(this.graphqlUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ query: tagQuery, variables: { id } })
-    });
-    if (!tagRes.ok) throw new Error(`Arweave GraphQL tag fetch failed for ${id}: HTTP ${tagRes.status}`);
-    const tagJson = await tagRes.json();
-    if (tagJson.errors?.length) throw new Error(`Arweave GraphQL error: ${tagJson.errors.map((e) => e.message || String(e)).join('; ')}`);
-    const txNode = tagJson.data?.transaction;
-    if (!txNode) throw new Error(`Arweave transaction not found: ${id}`);
+      const tagQuery = `query($id: ID!) { transaction(id: $id) { id owner { address } tags { name value } } }`;
+      const tagRes = await fetch(this.graphqlUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query: tagQuery, variables: { id } })
+      });
+      if (!tagRes.ok) {
+        const err = new Error(`Arweave GraphQL tag fetch failed for ${id}: HTTP ${tagRes.status}`);
+        err.status = tagRes.status;
+        throw err;
+      }
+      const tagJson = await tagRes.json();
+      if (tagJson.errors?.length) throw new Error(`Arweave GraphQL error: ${tagJson.errors.map((e) => e.message || String(e)).join('; ')}`);
+      const txNode = tagJson.data?.transaction;
+      if (!txNode) throw new Error(`Arweave transaction not found: ${id}`);
 
-    return {
-      id: txNode.id,
-      owner: txNode.owner?.address || txNode.owner || '',
-      timestamp: '',
-      tags: txNode.tags || [],
-      payloadBase64: Buffer.from(content, 'utf8').toString('base64url'),
-    };
+      return {
+        id: txNode.id,
+        owner: txNode.owner?.address || txNode.owner || '',
+        timestamp: '',
+        tags: txNode.tags || [],
+        payloadBase64: Buffer.from(content, 'utf8').toString('base64url'),
+      };
+    }, { breaker: this._breaker('arweave:fetch'), label: 'arweave:fetch', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   async fetchData(id) {
-    const res = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
-    if (!res.ok) throw new Error(`Arweave data fetch failed for ${id}: HTTP ${res.status}`);
-    return Buffer.from(await res.arrayBuffer());
+    return resilientCall(async () => {
+      const res = await fetch(`${this.dataUrl}/${encodeURIComponent(id)}`);
+      if (!res.ok) {
+        const err = new Error(`Arweave data fetch failed for ${id}: HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
+      return Buffer.from(await res.arrayBuffer());
+    }, { breaker: this._breaker('arweave:fetch'), label: 'arweave:fetch', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 
   async queryByTags(filters = {}) {
-    const tags = Object.entries(filters).map(([name, value]) => ({ name, values: [String(value)] }));
-    const first = Number(this.config.gateway?.pageSize || 100);
-    const maxPages = Number(this.config.gateway?.maxPages || 100);
-    const query = `query($tags: [TagFilter!], $first: Int!, $after: String) { transactions(first: $first, after: $after, tags: $tags) { edges { cursor node { id tags { name value } } } pageInfo { hasNextPage } } }`;
-    const nodes = [];
-    const seen = new Set();
-    let after = null;
-    for (let page = 0; page < maxPages; page++) {
-      const res = await fetch(this.graphqlUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ query, variables: { tags, first, after } })
-      });
-      if (!res.ok) throw new Error(`Arweave GraphQL failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
-      const json = await res.json();
-      if (json.errors?.length) throw new Error(`Arweave GraphQL error: ${json.errors.map((e) => e.message || String(e)).join('; ')}`);
-      const transactions = json.data?.transactions;
-      const edges = transactions?.edges || [];
-      for (const edge of edges) {
-        if (!edge.node?.id || seen.has(edge.node.id)) continue;
-        seen.add(edge.node.id);
-        nodes.push(edge.node);
+    return resilientCall(async () => {
+      const tags = Object.entries(filters).map(([name, value]) => ({ name, values: [String(value)] }));
+      const first = Number(this.config.gateway?.pageSize || 100);
+      const maxPages = Number(this.config.gateway?.maxPages || 100);
+      const query = `query($tags: [TagFilter!], $first: Int!, $after: String) { transactions(first: $first, after: $after, tags: $tags) { edges { cursor node { id tags { name value } } } pageInfo { hasNextPage } } }`;
+      const nodes = [];
+      const seen = new Set();
+      let after = null;
+      for (let page = 0; page < maxPages; page++) {
+        const res = await fetch(this.graphqlUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query, variables: { tags, first, after } })
+        });
+        if (!res.ok) {
+          const err = new Error(`Arweave GraphQL failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+          err.status = res.status;
+          throw err;
+        }
+        const json = await res.json();
+        if (json.errors?.length) throw new Error(`Arweave GraphQL error: ${json.errors.map((e) => e.message || String(e)).join('; ')}`);
+        const transactions = json.data?.transactions;
+        const edges = transactions?.edges || [];
+        for (const edge of edges) {
+          if (!edge.node?.id || seen.has(edge.node.id)) continue;
+          seen.add(edge.node.id);
+          nodes.push(edge.node);
+        }
+        if (!transactions?.pageInfo?.hasNextPage || edges.length === 0) return nodes;
+        after = edges[edges.length - 1].cursor;
+        if (!after) return nodes;
       }
-      if (!transactions?.pageInfo?.hasNextPage || edges.length === 0) return nodes;
-      after = edges[edges.length - 1].cursor;
-      if (!after) return nodes;
-    }
-    throw new Error(`Arweave GraphQL pagination exceeded ${maxPages} pages`);
+      throw new Error(`Arweave GraphQL pagination exceeded ${maxPages} pages`);
+    }, { breaker: this._breaker('arweave:query'), label: 'arweave:query', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
 }
 
