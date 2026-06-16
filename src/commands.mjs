@@ -21,6 +21,7 @@ import { syncWithMerge } from './sync.mjs';
 import { diffArticles, diffLocalVsRemote } from './diff.mjs';
 import { status } from './status.mjs';
 import { searchArticles } from './search.mjs';
+import { topicFeed, feedToMarkdown } from './topic-feed.mjs';
 
 import fs from 'node:fs';
 
@@ -66,6 +67,7 @@ export async function runCommand(command, args) {
   if (command === 'diff') return diffCommand(args);
   if (command === 'status') return statusCommand(args);
   if (command === 'search') return searchCommand(args);
+  if (command === 'topic') return topicCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1112,6 +1114,29 @@ async function searchCommand(args) {
       if (item.matchedTerms?.length) console.log(`    matched: ${item.matchedTerms.join(', ')}`);
       if (item.snippet) console.log(`    ${item.snippet}`);
     }
+  }
+  return result;
+}
+
+async function topicCommand(args) {
+  const topic = args._[0];
+  if (!topic) throw new Error('topic requires <topic>');
+  const opts = {
+    home: getHome(),
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    kind: args.kind,
+    language: args.language,
+    agent: args.author,
+    sort: args.sort || 'date',
+    limit: args.limit ? Number(args.limit) : undefined,
+    offset: args.offset ? Number(args.offset) : undefined,
+    includeAttestations: args['no-attestations'] !== true
+  };
+  const result = await topicFeed(topic, opts);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(feedToMarkdown(result));
   }
   return result;
 }

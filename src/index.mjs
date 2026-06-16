@@ -67,5 +67,8 @@ export { status } from './status.mjs';
 // Search
 export { searchArticles } from './search.mjs';
 
+// Topic feed
+export { topicFeed, feedToMarkdown } from './topic-feed.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

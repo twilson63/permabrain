@@ -26,6 +26,7 @@ import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
 import { searchArticles } from './search.mjs';
+import { topicFeed } from './topic-feed.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -930,6 +931,13 @@ const api = {
     requireInit(this._home);
     if (!query) throw new Error('query is required');
     return searchArticles(query, { ...opts, home: this._home });
+  },
+
+  async topicFeed(topic, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!topic) throw new Error('topic is required');
+    return topicFeed(topic, { ...opts, home: this._home });
   },
 
   /**

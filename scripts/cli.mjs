@@ -38,7 +38,8 @@ const COMMANDS = [
   'history',
   'diff',
   'status',
-  'search'
+  'search',
+  'topic'
 ];
 
 function printHelp(command = null) {
@@ -384,6 +385,28 @@ Options:
   --offset N           Pagination offset (default 0)
   --use-hyperbeam      Search via HyperBEAM transport
   --json               Output structured search report`,
+  'topic': `Usage: permabrain topic <topic> [--kind <kind>] [--language <lang>] [--author <agent-id>|attested-by:<agent-id>] [--sort date|consensus|title|attestations] [--limit N] [--offset N] [--no-attestations] [--use-hyperbeam] [--json]
+
+Topic feed: list articles tagged with a topic, sorted by date, consensus,
+title, or attestation count.
+
+By default each article includes a consensus summary (number of attestations,
+latest opinion/confidence, score). Use --no-attestations to skip consensus
+enrichment and run faster.
+
+The --author filter accepts either an agent id (only articles authored by that
+agent) or 'attested-by:<agent-id>' (only articles attested by that agent).
+
+Options:
+  --kind <kind>        Filter by article kind
+  --language <lang>    Filter by language code
+  --author <agent-id>  Filter by author or attesting agent
+  --sort <criterion>   Sort: date (default), consensus, title, attestations
+  --limit N            Maximum results (default 50)
+  --offset N           Pagination offset (default 0)
+  --no-attestations    Do not compute consensus per article
+  --use-hyperbeam      Query via HyperBEAM transport
+  --json               Output structured JSON instead of markdown`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }
