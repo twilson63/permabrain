@@ -676,6 +676,23 @@ const api = {
   },
 
   /**
+   * Verify a DataItem or article by ID or canonical key.
+   * @param {string} idOrKey - DataItem ID or canonical article/attestation key (e.g., "subject/foo")
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {boolean} [opts.includeAttestations] - Include consensus summary for articles
+   * @returns {Promise<{id, valid, type, checks, article?, attestation?, consensus?}>}
+   */
+  async verify(idOrKey, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!idOrKey) throw new Error('idOrKey is required');
+    const { verifyByKey, verifyDataItemById } = await import('./verify.mjs');
+    const isKey = idOrKey.includes('/');
+    return isKey ? verifyByKey(idOrKey, { ...opts, home: this._home }) : verifyDataItemById(idOrKey, { ...opts, home: this._home });
+  },
+
+  /**
    * Get the current agent identity.
    * @returns {{agentId, keyType}}
    */

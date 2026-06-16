@@ -14,6 +14,7 @@ const COMMANDS = [
   'attest',
   'consensus',
   'sync',
+  'verify',
   'attest-for-agent',
   'list-agents',
   'provision-agent',
@@ -212,6 +213,17 @@ Examples:
 Show transport metrics and circuit breaker state.
 Reports call counts, successes, failures, latency summaries (p50/p95/p99),
 and per-operation circuit breaker status for Arweave/HyperBEAM transports.`,
+  'verify': `Usage: permabrain verify <id-or-key> [--use-hyperbeam] [--attestations] [--no-verify-chain] [--no-verify-target] [--json]
+
+Verifies a DataItem signature, canonical key, derived key consistency,
+content hash, and optional version chain. For attestations, verifies that
+the target article exists and that the target key matches.
+
+Options:
+  --attestations       Include consensus summary for articles
+  --no-verify-chain    Skip resolving the previous version chain
+  --no-verify-target   Skip resolving attestation target article
+  --json               Output structured verification report`,
   };
   console.log(help[command] || `Unknown command: ${command}`);
 }

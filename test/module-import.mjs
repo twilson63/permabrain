@@ -27,6 +27,7 @@ import {
   slugify, tagsToObject, validateArticleKey, validateConfidence,
   validateKind, validateOpinion
 } from '../src/index.mjs';
+import { verifyDataItemById, verifyByKey, verifyItem } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -90,6 +91,9 @@ assert.equal(typeof createDataItem, 'function', 'createDataItem');
 assert.equal(typeof parseAns104, 'function', 'parseAns104');
 assert.equal(typeof verifyDataItem, 'function', 'verifyDataItem');
 assert.equal(typeof payloadText, 'function', 'payloadText');
+assert.equal(typeof verifyDataItemById, 'function', 'verifyDataItemById');
+assert.equal(typeof verifyByKey, 'function', 'verifyByKey');
+assert.equal(typeof verifyItem, 'function', 'verifyItem');
 assert.equal(typeof buildArticleTags, 'function', 'buildArticleTags');
 assert.equal(typeof buildAttestationTags, 'function', 'buildAttestationTags');
 assert.equal(typeof contentHash, 'function', 'contentHash');
@@ -198,11 +202,12 @@ const expectedMethods = [
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
-  'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus'
+  'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
+  'verify'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 28 API methods present');
+console.log('   ✓ All 29 API methods present');
 
 console.log('\n✅ All importable module tests passed');

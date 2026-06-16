@@ -42,3 +42,6 @@ export {
   buildPermaBrainFilters, buildQueryMessage
 } from './hb-devices.mjs';
 export { HyperbeamTransport, ArweaveTransport, LocalTransport, getTransport, probeTransport, getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
+
+// Verification
+export { verifyDataItemById, verifyByKey, verifyItem } from './verify.mjs';

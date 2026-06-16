@@ -12,6 +12,7 @@ import { HyperbeamConsensus } from './hb-consensus.mjs';
 import { DEVICES, bundlerUploadUrl } from './hb-devices.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 import { parseGoalFile, planFromGoal, importArticlesFromGoal, attestationsFromGoal } from './goal.mjs';
+import { verifyDataItemById, verifyByKey } from './verify.mjs';
 
 import fs from 'node:fs';
 
@@ -44,6 +45,7 @@ export async function runCommand(command, args) {
   if (command === 'reference') return referenceCommand(args);
   if (command === 'get-encrypted') return getEncryptedCommand(args);
   if (command === 'publish-encrypted') return publishEncryptedCommand(args);
+  if (command === 'verify') return verifyCommand(args);
   if (command === 'transport-status') return transportStatusCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
@@ -646,6 +648,33 @@ async function watchCommand(args) {
     process.exit(0);
   });
   return { status: 'watching' };
+}
+
+async function verifyCommand(args) {
+  const id = args._[0];
+  if (!id) throw new Error('verify requires <id-or-key>');
+  const isKey = id.includes('/');
+  const useHyperbeam = args['use-hyperbeam'] ?? false;
+  const opts = {
+    useHyperbeam,
+    includeAttestations: args.attestations === true || args.attestations === 'true',
+    verifyChain: args['verify-chain'] !== false,
+    verifyTarget: args['verify-target'] !== false
+  };
+  const result = isKey ? await verifyByKey(id, opts) : await verifyDataItemById(id, opts);
+  if (args.json) printJson(result);
+  else {
+    const status = result.valid ? 'valid' : 'invalid';
+    console.log(`Verify ${id}: ${status}`);
+    for (const check of result.checks) {
+      console.log(`  ${check.ok ? '✓' : '✗'} ${check.name}${check.error ? `: ${check.error}` : check.note ? `: ${check.note}` : ''}`);
+    }
+    if (result.article?.encrypted) console.log('  (encrypted article — content hash not independently verifiable)');
+    if (result.consensus) {
+      console.log(`  Consensus: ${result.consensus.status} score=${result.consensus.score}`);
+    }
+  }
+  return result;
 }
 
 async function transportStatusCommand(args) {
