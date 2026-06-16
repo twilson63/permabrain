@@ -70,5 +70,8 @@ export { searchArticles } from './search.mjs';
 // Topic feed
 export { topicFeed, feedToMarkdown } from './topic-feed.mjs';
 
+// Activity feed
+export { activityFeed, activityToMarkdown } from './activity.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

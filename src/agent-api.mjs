@@ -27,6 +27,7 @@ import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
 import { searchArticles } from './search.mjs';
 import { topicFeed } from './topic-feed.mjs';
+import { activityFeed } from './activity.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -938,6 +939,32 @@ const api = {
     requireInit(this._home);
     if (!topic) throw new Error('topic is required');
     return topicFeed(topic, { ...opts, home: this._home });
+  },
+
+  /**
+   * Get a chronological activity feed combining publish, attest, fork, and
+   * merge events.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.topic] - Filter by article topic
+   * @param {string} [opts.kind] - Filter by article kind
+   * @param {string} [opts.key] - Filter by canonical key (or attestation target key)
+   * @param {string|string[]} [opts.agent] - Filter by any participating agent
+   * @param {string|string[]} [opts.author] - Filter publish events by author agent
+   * @param {string|string[]} [opts.attestedBy] - Filter by attesting agent
+   * @param {string|string[]} [opts.eventKind] - Filter by event kind: publish, attest, fork, merge
+   * @param {string} [opts.after] - ISO timestamp lower bound
+   * @param {string} [opts.before] - ISO timestamp upper bound
+   * @param {string} [opts.order='desc'] - 'asc' or 'desc'
+   * @param {number} [opts.limit=100]
+   * @param {number} [opts.offset=0]
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<{total, limit, offset, order, filters, events, took}>}
+   */
+  async activity(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return activityFeed({ ...opts, home: this._home });
   },
 
   /**

@@ -39,7 +39,8 @@ const COMMANDS = [
   'diff',
   'status',
   'search',
-  'topic'
+  'topic',
+  'activity'
 ];
 
 function printHelp(command = null) {
@@ -405,6 +406,29 @@ Options:
   --limit N            Maximum results (default 50)
   --offset N           Pagination offset (default 0)
   --no-attestations    Do not compute consensus per article
+  --use-hyperbeam      Query via HyperBEAM transport
+  --json               Output structured JSON instead of markdown`,
+  'activity': `Usage: permabrain activity [--topic <topic>] [--kind <kind>] [--key <key>] [--agent <agent-id>] [--author <agent-id>] [--attested-by <agent-id>] [--event-kind publish|attest|fork|merge] [--after <iso-date>] [--before <iso-date>] [--order asc|desc] [--limit N] [--offset N] [--use-hyperbeam] [--json]
+
+Chronological activity feed combining article publish, attestation, fork, and
+merge events from the transport and local cache.
+
+Filters narrow the feed by article topic/kind/key, participating agent,
+event kind, or date range. By default results are sorted newest-first.
+
+Options:
+  --topic <topic>      Filter by article topic
+  --kind <kind>        Filter by article kind
+  --key <key>          Filter by canonical key
+  --agent <agent-id>   Filter by any participating agent
+  --author <agent-id>  Filter publish events by author
+  --attested-by <id>   Filter by attesting agent (attest/fork/merge events)
+  --event-kind <kind>  Filter by event kind (publish, attest, fork, merge)
+  --after <date>       Only events on or after this ISO date
+  --before <date>      Only events on or before this ISO date
+  --order asc|desc     Sort order (default desc)
+  --limit N            Maximum results (default 100)
+  --offset N           Pagination offset (default 0)
   --use-hyperbeam      Query via HyperBEAM transport
   --json               Output structured JSON instead of markdown`
 };

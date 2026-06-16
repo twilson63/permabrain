@@ -35,9 +35,10 @@ import { mergeArticles, threeWayMerge } from '../src/index.mjs';
 import { diffArticles, diffLocalVsRemote } from '../src/index.mjs';
 import { status } from '../src/index.mjs';
 
-// Search + topic feed
+// Search + topic feed + activity feed
 import { searchArticles } from '../src/index.mjs';
 import { topicFeed, feedToMarkdown } from '../src/index.mjs';
+import { activityFeed, activityToMarkdown } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -132,6 +133,8 @@ assert.equal(typeof status, 'function', 'status');
 assert.equal(typeof searchArticles, 'function', 'searchArticles');
 assert.equal(typeof topicFeed, 'function', 'topicFeed');
 assert.equal(typeof feedToMarkdown, 'function', 'feedToMarkdown');
+assert.equal(typeof activityFeed, 'function', 'activityFeed');
+assert.equal(typeof activityToMarkdown, 'function', 'activityToMarkdown');
 console.log('   ✓ All lower-level exports present');
 
 // --- 5. package.json exports field ---
@@ -231,11 +234,11 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 40 API methods present');
+console.log('   ✓ All 41 API methods present');
 
 console.log('\n✅ All importable module tests passed');

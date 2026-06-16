@@ -22,6 +22,7 @@ import { diffArticles, diffLocalVsRemote } from './diff.mjs';
 import { status } from './status.mjs';
 import { searchArticles } from './search.mjs';
 import { topicFeed, feedToMarkdown } from './topic-feed.mjs';
+import { activityFeed, activityToMarkdown } from './activity.mjs';
 
 import fs from 'node:fs';
 
@@ -68,6 +69,7 @@ export async function runCommand(command, args) {
   if (command === 'status') return statusCommand(args);
   if (command === 'search') return searchCommand(args);
   if (command === 'topic') return topicCommand(args);
+  if (command === 'activity') return activityCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1137,6 +1139,32 @@ async function topicCommand(args) {
     printJson(result);
   } else {
     console.log(feedToMarkdown(result));
+  }
+  return result;
+}
+
+async function activityCommand(args) {
+  const opts = {
+    home: getHome(),
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    topic: args.topic,
+    kind: args.kind,
+    key: args.key,
+    agent: args.agent,
+    author: args.author,
+    attestedBy: args['attested-by'],
+    eventKind: args['event-kind'],
+    after: args.after,
+    before: args.before,
+    order: args.order || 'desc',
+    limit: args.limit ? Number(args.limit) : undefined,
+    offset: args.offset ? Number(args.offset) : undefined
+  };
+  const result = await activityFeed(opts);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(activityToMarkdown(result));
   }
   return result;
 }
