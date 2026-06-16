@@ -324,6 +324,155 @@ node scripts/cli.mjs get-encrypted subject/confidential
 node scripts/cli.mjs get-encrypted subject/confidential --seed-file seed.txt
 ```
 
+## Fork, Merge, Sync, Diff & Status Workflows
+
+PermaBrain supports divergent version branches, three-way merging, and working-state inspection. Use these workflows when you need to evolve an article without destroying prior versions, reconcile remote changes, or review what has changed.
+
+### Fork an article
+
+A fork creates a new canonical key from an existing article while preserving provenance (`Article-Fork-Of`, `Article-Fork-Source-Id`). The original article is untouched.
+
+```javascript
+const fork = await api.fork('subject/artificial-intelligence', {
+  slug: 'agent-centric',
+  title: 'Artificial Intelligence (Agent-Centric View)',
+  content: '# AI\n\nNew angle...',
+  topic: 'ai',
+  kind: 'subject'
+});
+// fork.forkKey -> 'subject/artificial-intelligence-agent-centric'
+```
+
+CLI:
+
+```sh
+permabrain fork subject/artificial-intelligence \
+  --slug agent-centric \
+  --title "Artificial Intelligence (Agent-Centric View)" \
+  --topic ai \
+  --kind subject
+```
+
+- `--target-id <id>` forks a specific source version instead of the latest.
+- `--key <key>` sets an explicit canonical key; otherwise it is derived from `--slug` or the source title.
+
+### Merge a fork back into the original
+
+Merging integrates a source fork into a target article's version chain. It performs a line-level three-way merge, auto-merges non-conflicting changes, and leaves conflict markers when both branches edited the same lines.
+
+```javascript
+const merge = await api.merge('subject/artificial-intelligence', 'subject/artificial-intelligence-agent-centric');
+
+if (merge.hasConflicts) {
+  console.log(`Conflicts: ${merge.conflictCount}`);
+  console.log(merge.mergedContent); // contains <<<<<<< / ======= / >>>>>>> markers
+} else {
+  console.log(`Merged cleanly into ${merge.merged.id}`);
+}
+```
+
+CLI:
+
+```sh
+permabrain merge subject/artificial-intelligence subject/artificial-intelligence-agent-centric
+```
+
+By default, attestations from the source's latest version are re-cast against the new merged target version. Disable with `--no-carry-attestations`.
+
+### Sync with automatic merge
+
+`api.sync()` pulls the latest remote articles/attestations and merges divergent versions automatically when a common ancestor exists. Use `dryRun: true` to preview merges without publishing.
+
+```javascript
+// Preview
+const preview = await api.sync({ dryRun: true });
+console.log(preview.merges);
+console.log(preview.divergences);
+
+// Apply
+const result = await api.sync({ autoMerge: true });
+console.log(`Articles: ${result.articleCount}, Attestations: ${result.attestationCount}`);
+console.log(`Merges: ${result.merges.length}, Divergences: ${result.divergences.length}`);
+```
+
+CLI:
+
+```sh
+permabrain sync --dry-run --json
+permabrain sync --no-auto-merge --json
+```
+
+Encrypted/private divergences and divergences with no common ancestor are reported but not auto-merged.
+
+### Diff versions
+
+Compare two DataItem IDs, two canonical keys, or local-vs-remote.
+
+```javascript
+// Compare latest versions of two keys
+const d = await api.diff('subject/artificial-intelligence', 'subject/artificial-intelligence-agent-centric');
+console.log(d.text);              // unified diff
+console.log(d.conflictPreview);   // three-way preview when an ancestor exists
+
+// Local cache vs remote latest
+const local = await api.diff('subject/artificial-intelligence', null, { local: true });
+```
+
+CLI:
+
+```sh
+# Two keys / IDs
+permabrain diff subject/artificial-intelligence subject/artificial-intelligence-agent-centric
+
+# Local vs remote for one key
+permabrain diff subject/artificial-intelligence --local
+
+# Structured output
+permabrain diff <base-id> <head-id> --json --format json
+```
+
+### Status overview
+
+`api.status()` reports local articles, remote latest versions, fork heads, pending merges/conflicts, transport health, circuit breakers, and metrics.
+
+```javascript
+const s = await api.status();
+console.log(s.summary);
+console.log(s.divergences);
+console.log(s.mergeStatus);
+console.log(s.transportHealth);
+```
+
+CLI:
+
+```sh
+permabrain status --json
+```
+
+Useful checks:
+
+- `summary.conflictCount` — articles with predicted merge conflicts.
+- `summary.mergeableCount` — divergent articles that can be auto-merged.
+- `forkHeads` — list of fork heads per source key.
+- `transportHealth.ok` — whether the transport probe succeeded.
+
+### Version history
+
+For a complete timeline of versions and attestations, use `api.history()` or `permabrain history <key>`.
+
+```javascript
+const h = await api.history('subject/artificial-intelligence');
+console.log(h.versions);
+console.log(h.attestations);
+console.log(h.consensus);
+```
+
+CLI:
+
+```sh
+permabrain history subject/artificial-intelligence --json
+```
+
 ## Architecture Notes
 
 1. **Three transports:** `local` (filesystem), `hyperbeam` (HyperBEAM node), `arweave` (public Arweave via `up.arweave.net`)

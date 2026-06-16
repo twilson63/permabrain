@@ -209,6 +209,62 @@ node scripts/cli.mjs batch-attest --file attestations.json --json
 node scripts/cli.mjs auto-import --file urls.json --json
 ```
 
+## Fork / Merge / Sync / Diff / Status Workflows
+
+When a PRD changes direction, fork the original article instead of overwriting it, then merge back when ready.
+
+```javascript
+// Fork current article to explore a new angle
+const fork = await api.fork('subject/ai-roadmap', {
+  slug: 'agents-first',
+  title: 'AI Roadmap (Agents-First Fork)',
+  content: '# AI Roadmap\n\nAgents first, models second...',
+  topic: 'ai',
+  kind: 'subject'
+});
+
+// Diff before merging
+const d = await api.diff('subject/ai-roadmap', fork.forkKey);
+console.log(d.text);
+console.log(d.conflictPreview);
+
+// Merge the fork back into the main key
+const merge = await api.merge('subject/ai-roadmap', fork.forkKey);
+if (merge.hasConflicts) {
+  // Resolve conflict markers in merge.mergedContent before considering clean
+}
+```
+
+Before publishing new work, sync so you are building on the latest remote versions:
+
+```javascript
+const preview = await api.sync({ dryRun: true });
+if (preview.divergences.length > 0) console.log('Divergences:', preview.divergences);
+await api.sync(); // auto-merge where possible
+```
+
+Inspect working state at any time:
+
+```javascript
+const s = await api.status();
+console.log(s.summary);
+console.log(s.divergences);
+console.log(s.forkHeads);
+console.log(s.mergeStatus);
+```
+
+CLI equivalents:
+
+```sh
+permabrain fork subject/ai-roadmap --slug agents-first --title "AI Roadmap (Agents-First Fork)" --topic ai --kind subject
+permabrain diff subject/ai-roadmap subject/ai-roadmap-agents-first
+permabrain merge subject/ai-roadmap subject/ai-roadmap-agents-first
+permabrain sync --dry-run
+permabrain status --json
+```
+
+Encrypted/private divergences and divergences with no common ancestor are reported but not auto-merged. Merge conflicts are embedded as `<<<<<<< target ... ======= ... >>>>>>> source` markers in the merged content.
+
 ### Goal / PRD Integration
 
 Parse a PRD or goal markdown file into a PermaBrain execution plan.
@@ -236,32 +292,16 @@ node scripts/cli.mjs goal docs/prd.md --batch-attest --json --topic ai
 node scripts/cli.mjs goal docs/prd.md --execute --topic ai
 ```
 
-### Goal / PRD Integration
+### Pi / Build Agent Workflow Checklist
 
-Parse a PRD or goal markdown file into a PermaBrain execution plan.
-
-```javascript
-const parsed = await api.parseGoal(text);
-const plan = await api.planFromGoal(parsed);
-// or in one call:
-const plan = await api.goalFromFile('docs/prd.md', { topic: 'ai' });
-```
-
-`plan` contains:
-- `steps` — ordered implementation steps with success criteria
-- `importArticles` — URLs found in the PRD, ready for `api.autoImport`
-- `publishArticles` — step articles that can be published as PermaBrain subjects
-- `attestations` — ready-to-run batch attestation spec
-
-CLI:
-```sh
-node scripts/cli.mjs goal docs/prd.md --json --topic ai
-node scripts/cli.mjs plan docs/prd.md --json --topic ai
-node scripts/cli.mjs goal docs/prd.md --import --json --topic ai
-node scripts/cli.mjs goal docs/prd.md --batch-attest --json --topic ai
-# Execute the full workflow:
-node scripts/cli.mjs goal docs/prd.md --execute --topic ai
-```
+1. **Plan** — parse the PRD into articles, imports, and attestations.
+2. **Sync** — `api.sync()` to get the latest remote state.
+3. **Fork if uncertain** — when changing an existing article significantly, fork it first.
+4. **Publish / import** — run `autoImport()` and `publish()` for plan items.
+5. **Diff** — compare fork/source or local/remote before merging.
+6. **Merge** — integrate forks back to canonical keys when ready.
+7. **Attest** — `batchAttest()` to the final published keys.
+8. **Status** — run `api.status()` and report summary/conflicts/divergences.
 
 ## Safety
 
@@ -269,3 +309,5 @@ node scripts/cli.mjs goal docs/prd.md --execute --topic ai
 - Never expose private keys (`keys.json`)
 - Always include source URLs when possible
 - Attest honestly — your attestation is signed and permanent
+- Forks always get a new canonical key; the source article is never mutated
+- Merge conflicts must be resolved before a merged version is considered clean
