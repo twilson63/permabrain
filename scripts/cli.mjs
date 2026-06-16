@@ -127,9 +127,14 @@ Publishes a signed attestation against the latest article version. With --use-hy
     consensus: `Usage: permabrain consensus [--use-hyperbeam] <canonical-key> [--json]
 
 Aggregates attestations and computes MVP consensus score. With --use-hyperbeam, resolves the article and its attestations via HyperBEAM first.`,
-    sync: `Usage: permabrain sync [--use-hyperbeam] [--json]
+    sync: `Usage: permabrain sync [--use-hyperbeam] [--no-auto-merge] [--dry-run] [--json]
 
-Queries articles and attestations and writes local cache index. With --use-hyperbeam, uses HyperBEAM query/GraphQL.`,
+Queries articles and attestations and writes local cache index. With --use-hyperbeam, uses HyperBEAM query/GraphQL.
+
+By default, divergent versions of the same article key are auto-merged via a
+three-way line-level merge when a common ancestor exists. Use --no-auto-merge
+to keep the legacy sync behavior. Use --dry-run to preview what would be
+merged without publishing.`,
     'attest-for-agent': `Usage: permabrain attest-for-agent <canonical-key> --identity-file <path> --valid|--invalid|--partially-valid|--outdated|--disputed --confidence <0..1> --reason <text> [--source-url <url>] [--json]
 
 Creates and uploads an attestation signed by an external agent's identity.

@@ -17,13 +17,14 @@
 
 import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
 import { ensureIdentity, loadIdentity } from './keys.mjs';
-import { publishArticle, queryArticles, getArticle, syncArticlesAndAttestations } from './article.mjs';
+import { publishArticle, queryArticles, getArticle } from './article.mjs';
 import { attestArticle } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
+import { syncWithMerge } from './sync.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -304,18 +305,39 @@ const api = {
 
   /**
    * Sync local cache from the transport (Arweave/HyperBEAM).
+   *
+   * When `opts.autoMerge` is true (the default), divergent article versions
+   * sharing a common ancestor are automatically merged via a three-way line
+   * merge. Pass `autoMerge: false` to keep the legacy behavior. Use
+   * `dryRun: true` to preview what would be merged without publishing.
+   *
    * @param {Object} [opts]
    * @param {boolean} [opts.useHyperbeam] - Use HyperbeamTransport for sync
-   * @returns {Promise<{articleCount, attestationCount, updatedAt}>}
+   * @param {boolean} [opts.autoMerge=true] - Auto-merge divergent versions
+   * @param {boolean} [opts.dryRun=false] - Preview merges without publishing
+   * @returns {Promise<{articleCount, attestationCount, updatedAt, merges, divergences}>}
    */
   async sync(opts = {}) {
     await this.ensureInit();
     requireInit(this._home);
-    const index = await syncArticlesAndAttestations({ useHyperbeam: opts.useHyperbeam });
+    const result = await syncWithMerge({
+      home: this._home,
+      config: this._config,
+      useHyperbeam: opts.useHyperbeam,
+      useHyperbeamReference: opts.useHyperbeamReference,
+      autoMerge: opts.autoMerge !== false,
+      dryRun: opts.dryRun === true
+    });
     return {
-      articleCount: Object.keys(index.articles).length,
-      attestationCount: Object.values(index.attestations).reduce((n, xs) => n + xs.length, 0),
-      updatedAt: index.updatedAt
+      articles: result.articles,
+      attestations: result.attestations,
+      updatedAt: result.updatedAt,
+      articleCount: result.articleCount,
+      attestationCount: result.attestationCount,
+      merges: result.report.merges,
+      divergences: result.report.divergences,
+      articlesSynced: result.report.articlesSynced,
+      articlesUnchanged: result.report.articlesUnchanged
     };
   },
 

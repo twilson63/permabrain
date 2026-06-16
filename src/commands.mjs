@@ -1,6 +1,6 @@
 import { initState, loadConfig, getHome, defaultConfig } from './config.mjs';
 import { ensureIdentity, publicIdentity, loadIdentity } from './keys.mjs';
-import { getArticle, publishArticle, queryArticles, syncArticlesAndAttestations } from './article.mjs';
+import { getArticle, publishArticle, queryArticles } from './article.mjs';
 import { importWikipediaArticle } from './wikipedia.mjs';
 import { attestArticle, opinionFromArgs } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
@@ -17,6 +17,7 @@ import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { historyForKey } from './history.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
+import { syncWithMerge } from './sync.mjs';
 
 import fs from 'node:fs';
 
@@ -288,12 +289,32 @@ async function consensusCommand(args) {
 }
 
 async function syncCommand(args) {
-  const index = await syncArticlesAndAttestations({ useHyperbeam: args['use-hyperbeam'] ?? false });
-  if (args.json) printJson(index);
+  const result = await syncWithMerge({
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    autoMerge: args['no-auto-merge'] ? false : true,
+    dryRun: args['dry-run'] === true || args['dry-run'] === 'true'
+  });
+  if (args.json) printJson(result);
   else {
-    console.log(`Synced ${Object.keys(index.articles).length} articles and ${Object.values(index.attestations).reduce((n, xs) => n + xs.length, 0)} attestations.`);
+    console.log(`Synced ${result.articleCount} articles and ${result.attestationCount} attestations.`);
+    if (result.report.merges.length) {
+      console.log(`Auto-merged ${result.report.merges.length} divergent version(s):`);
+      for (const m of result.report.merges) {
+        const conflictNote = m.hasConflicts ? ` ⚠ ${m.conflictCount} conflict(s)` : '';
+        console.log(`  ${m.key}: ${m.localId} + ${m.remoteId} → ${m.mergedId || '(dry-run)'}${conflictNote}`);
+      }
+    }
+    if (result.report.divergences.length) {
+      console.log(`${result.report.divergences.length} divergence(s) need manual resolution:`);
+      for (const d of result.report.divergences) {
+        console.log(`  ${d.key} (${d.status}): ${d.reason}`);
+      }
+    }
+    if (!result.report.merges.length && !result.report.divergences.length) {
+      console.log('No divergent versions detected.');
+    }
   }
-  return index;
+  return result;
 }
 
 // AO commands removed — PermaBrain now uses Arweave GraphQL + local cache directly.
