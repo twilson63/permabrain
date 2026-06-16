@@ -22,6 +22,7 @@ import { attestArticle } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
+import { forkArticle, listForks } from './fork.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -748,6 +749,52 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return importBundle(bundle, { ...opts, transport: opts.useHyperbeam ?? false, home: this._home });
+  },
+
+  /**
+   * Fork an existing article into a new canonical key.
+   *
+   * The fork copies source metadata/content and applies supplied edits,
+   * then publishes a new DataItem starting its own version chain at v1.
+   * Fork lineage is recorded via Article-Fork-Of and Article-Fork-Source-Id tags.
+   *
+   * @param {string} key - Source canonical key
+   * @param {Object} [edits]
+   * @param {string} [edits.key] - Explicit fork canonical key (must differ from source)
+   * @param {string} [edits.slug] - Slug suffix used to derive fork key
+   * @param {string} [edits.title]
+   * @param {string} [edits.content]
+   * @param {string} [edits.topic]
+   * @param {string} [edits.kind]
+   * @param {string} [edits.sourceUrl]
+   * @param {string} [edits.sourceName]
+   * @param {string} [edits.sourceLicense]
+   * @param {string} [edits.language]
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {boolean} [opts.useHyperbeamReference]
+   * @param {string} [opts.targetId] - Fork a specific source version
+   * @returns {Promise<{source: object, fork: object, forkKey: string, editsApplied: string[], item: object, reference?: object}>}
+   */
+  async fork(key, edits = {}, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!key) throw new Error('key is required');
+    return forkArticle(key, edits, { ...opts, home: this._home });
+  },
+
+  /**
+   * List forks of a source article.
+   * @param {string} key - Source canonical key
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<Array<{id, key, title, kind, topic, forkedAt, sourceVersion, version}>>}
+   */
+  async listForks(key, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!key) throw new Error('key is required');
+    return listForks(key, { ...opts, home: this._home });
   },
 
   /**

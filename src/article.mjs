@@ -20,7 +20,7 @@ export function sourceNameFromUrl(url) {
   }
 }
 
-export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [], visibility = 'public' }) {
+export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [], visibility = 'public', extraTags = [] }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
@@ -75,6 +75,13 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   if (encryptionEnvelope) {
     tags.push({ name: 'Encryption-Recipients', value: JSON.stringify(encryptionEnvelope.recipients.map(r => r.publicKeyFingerprint)) });
     tags.push({ name: 'Encryption-Ephemeral-Public-Key', value: encryptionEnvelope.ephemeralPublicKey });
+  }
+
+  // Append caller-supplied extra tags (e.g., fork lineage) before signing.
+  for (const t of extraTags) {
+    if (t && t.name && !tags.some((existing) => existing.name === t.name)) {
+      tags.push(t);
+    }
   }
 
   const item = await createDataItem({ payload: plainContent, tags, identity });

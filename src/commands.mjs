@@ -15,6 +15,7 @@ import { parseGoalFile, planFromGoal, importArticlesFromGoal, attestationsFromGo
 import { verifyDataItemById, verifyByKey } from './verify.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { historyForKey } from './history.mjs';
+import { forkArticle, listForks } from './fork.mjs';
 
 import fs from 'node:fs';
 
@@ -54,6 +55,8 @@ export async function runCommand(command, args) {
   if (command === 'transport-status') return transportStatusCommand(args);
   if (command === 'watch') return watchCommand(args);
   if (command === 'history') return historyCommand(args);
+  if (command === 'fork') return forkCommand(args);
+  if (command === 'list-forks') return listForksCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -932,4 +935,56 @@ async function importBundleCommand(args) {
     }
   }
   return results;
+}
+
+async function forkCommand(args) {
+  const sourceKey = args._[0];
+  if (!sourceKey) throw new Error('fork requires <source-key>');
+
+  const edits = {};
+  if (args.key) edits.key = args.key;
+  if (args.slug) edits.slug = args.slug;
+  if (args.title) edits.title = args.title;
+  if (args.content) edits.content = args.content;
+  if (args.topic) edits.topic = args.topic;
+  if (args.kind) edits.kind = args.kind;
+  if (args['source-url']) edits.sourceUrl = args['source-url'];
+  if (args['source-name']) edits.sourceName = args['source-name'];
+  if (args['source-license']) edits.sourceLicense = args['source-license'];
+  if (args.language) edits.language = args.language;
+
+  const opts = {
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined),
+    targetId: args['target-id']
+  };
+
+  const result = await forkArticle(sourceKey, edits, opts);
+  if (args.json) printJson(result);
+  else {
+    console.log(`Forked ${result.source.key} → ${result.fork.key}`);
+    console.log(`Source ID: ${result.source.id} (v${result.source.version})`);
+    console.log(`Fork ID: ${result.fork.id} (v${result.fork.version})`);
+    if (result.editsApplied.length) {
+      console.log(`Edits: ${result.editsApplied.join(', ')}`);
+    }
+    if (result.reference) {
+      console.log(`Reference: ${result.reference.referenceId} (${result.reference.action})`);
+    }
+  }
+  return result;
+}
+
+async function listForksCommand(args) {
+  const sourceKey = args._[0];
+  if (!sourceKey) throw new Error('list-forks requires <source-key>');
+  const result = await listForks(sourceKey, { useHyperbeam: args['use-hyperbeam'] ?? false });
+  if (args.json) printJson(result);
+  else {
+    console.log(`Forks of ${sourceKey}: ${result.length}`);
+    for (const fork of result) {
+      console.log(`  ${fork.key} (v${fork.version}): ${fork.title || '(untitled)'} — forked from v${fork.sourceVersion}`);
+    }
+  }
+  return result;
 }

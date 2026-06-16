@@ -18,6 +18,8 @@ const COMMANDS = [
   'export-bundle',
   'export-all',
   'import-bundle',
+  'fork',
+  'list-forks',
   'attest-for-agent',
   'list-agents',
   'provision-agent',
@@ -63,6 +65,8 @@ Commands:
   export-bundle                Export an article bundle (versions + attestations)
   export-all                   Export all indexed articles as a bundle
   import-bundle <file>         Import articles/attestations from a bundle file
+  fork <source-key>            Fork an article into a new canonical key
+  list-forks <source-key>      List forks of an article
   attest-for-agent             Attest on behalf of another agent
   list-agents                  List known external agents
   provision-agent              Generate identity for an external agent
@@ -251,6 +255,35 @@ Exports a single article, its version chain, and attestations into a
 self-contained PermaBrain bundle JSON. Use --id to export by DataItem ID
 instead of canonical key. By default both attestation and version data are
 included; use --no-attestations/--no-versions to omit them.`,
+  'fork': `Usage: permabrain fork <source-key> [--key <new-key>] [--slug <slug>] [--title <title>] [--content <text>] [--topic <topic>] [--kind <kind>] [--source-url <url>] [--source-name <name>] [--source-license <license>] [--language <lang>] [--target-id <id>] [--use-hyperbeam] [--use-hyperbeam-reference] [--json]
+
+Creates a new version branch from an existing article. The fork is published
+under a new canonical key, starting its own version chain at v1, while
+tagging the original source key and DataItem ID for provenance
+(Article-Fork-Of and Article-Fork-Source-Id tags).
+
+The source article is unchanged. If no --key/--slug is provided, the fork key
+is derived from the source title plus '-vN-fork'. Edits override source
+metadata: --title, --content, --topic, --kind, --source-url, etc.
+
+Options:
+  --key <key>            Explicit canonical key for the fork (must differ from source)
+  --slug <slug>          Suffix slug used to derive the fork key
+  --title <title>        Override article title
+  --content <text>       Override article content (otherwise copied from source)
+  --topic <topic>        Override article topic
+  --kind <kind>          Override article kind
+  --source-url <url>     Override source URL
+  --source-name <name>   Override source display name
+  --source-license <l>   Override source license
+  --language <lang>      Override language (default from source)
+  --target-id <id>       Fork a specific source version instead of the latest
+  --use-hyperbeam        Upload via HyperBEAM bundler
+  --use-hyperbeam-reference  Create/update HyperBEAM reference for the fork`,
+  'list-forks': `Usage: permabrain list-forks <source-key> [--use-hyperbeam] [--json]
+
+Lists all articles that declare themselves forks of the given source key by
+the Article-Fork-Of tag.`,
   'export-all': `Usage: permabrain export-all [--no-attestations] [--output <path>] [--json]
 
 Exports every article found in the local index plus its version chain and

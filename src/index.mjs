@@ -49,5 +49,8 @@ export { verifyDataItemById, verifyByKey, verifyItem } from './verify.mjs';
 // History
 export { historyForKey, buildVersionChain, summarizeVersion } from './history.mjs';
 
+// Fork
+export { forkArticle, listForks, deriveForkKey } from './fork.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';
