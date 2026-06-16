@@ -43,7 +43,8 @@ export {
 } from './hb-devices.mjs';
 export { HyperbeamTransport, ArweaveTransport, LocalTransport, getTransport, probeTransport, getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 
-// Verification
+// Article directory list
+export { listArticles, listToMarkdown } from './list.mjs';
 export { verifyDataItemById, verifyByKey, verifyItem } from './verify.mjs';
 
 // History

@@ -25,6 +25,7 @@ import { status } from './status.mjs';
 import { searchArticles } from './search.mjs';
 import { topicFeed, feedToMarkdown } from './topic-feed.mjs';
 import { activityFeed, activityToMarkdown } from './activity.mjs';
+import { listArticles, listToMarkdown } from './list.mjs';
 
 import fs from 'node:fs';
 
@@ -74,6 +75,7 @@ export async function runCommand(command, args) {
   if (command === 'search') return searchCommand(args);
   if (command === 'topic') return topicCommand(args);
   if (command === 'activity') return activityCommand(args);
+  if (command === 'list') return listCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1194,6 +1196,28 @@ async function topicCommand(args) {
     printJson(result);
   } else {
     console.log(feedToMarkdown(result));
+  }
+  return result;
+}
+
+async function listCommand(args) {
+  const opts = {
+    home: getHome(),
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    kind: args.kind,
+    topic: args.topic,
+    author: args.author,
+    after: args.after,
+    before: args.before,
+    sort: args.sort || 'date',
+    limit: args.limit ? Number(args.limit) : undefined,
+    offset: args.offset ? Number(args.offset) : undefined
+  };
+  const result = await listArticles(opts);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(listToMarkdown(result));
   }
   return result;
 }

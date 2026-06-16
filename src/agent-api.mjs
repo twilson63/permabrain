@@ -30,6 +30,7 @@ import { syncWithMerge } from './sync.mjs';
 import { searchArticles } from './search.mjs';
 import { topicFeed } from './topic-feed.mjs';
 import { activityFeed } from './activity.mjs';
+import { listArticles } from './list.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1008,6 +1009,31 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return activityFeed({ ...opts, home: this._home });
+  },
+
+  /**
+   * List articles as a paginated directory.
+   *
+   * Filters by kind, topic, author, and date range; sorts by date, title,
+   * consensus, or attestation count; returns attestations and activity
+   * counts per article.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.kind]
+   * @param {string} [opts.topic]
+   * @param {string} [opts.author]
+   * @param {string} [opts.after]
+   * @param {string} [opts.before]
+   * @param {string} [opts.sort='date'] - 'date'|'updated'|'title'|'consensus'|'attestations'|'key'
+   * @param {number} [opts.limit=50]
+   * @param {number} [opts.offset=0]
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<{total, limit, offset, sort, filters, articles, took}>}
+   */
+  async listArticles(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return listArticles({ ...opts, home: this._home });
   },
 
   /**

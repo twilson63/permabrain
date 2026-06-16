@@ -42,7 +42,8 @@ const COMMANDS = [
   'status',
   'search',
   'topic',
-  'activity'
+  'activity',
+  'list'
 ];
 
 function printHelp(command = null) {
@@ -447,6 +448,27 @@ Options:
   --before <date>      Only events on or before this ISO date
   --order asc|desc     Sort order (default desc)
   --limit N            Maximum results (default 100)
+  --offset N           Pagination offset (default 0)
+  --use-hyperbeam      Query via HyperBEAM transport
+  --json               Output structured JSON instead of markdown`,
+  'list': `Usage: permabrain list [--kind <kind>] [--topic <topic>] [--author <agent-id>] [--after <iso-date>] [--before <iso-date>] [--sort date|title|consensus|attestations|key] [--limit N] [--offset N] [--use-hyperbeam] [--json]
+
+Read-only paginated article directory listing the local cache and, when
+available, the configured transport.
+
+Filters narrow by article kind, topic, author, or date range. Sorting
+supports date (default), title, consensus score, attestation count, or
+key. Each article includes its version, attestation count, consensus, and
+activity counters (publish/attest/fork/merge).
+
+Options:
+  --kind <kind>        Filter by article kind
+  --topic <topic>      Filter by topic
+  --author <agent-id>  Filter by author agent id
+  --after <date>       Only articles updated on or after this ISO date
+  --before <date>      Only articles updated on or before this ISO date
+  --sort <criterion>   Sort: date (default), title, consensus, attestations, key
+  --limit N            Maximum results (default 50)
   --offset N           Pagination offset (default 0)
   --use-hyperbeam      Query via HyperBEAM transport
   --json               Output structured JSON instead of markdown`
