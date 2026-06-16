@@ -20,6 +20,7 @@ const COMMANDS = [
   'import-bundle',
   'fork',
   'list-forks',
+  'merge',
   'attest-for-agent',
   'list-agents',
   'provision-agent',
@@ -280,6 +281,30 @@ Options:
   --target-id <id>       Fork a specific source version instead of the latest
   --use-hyperbeam        Upload via HyperBEAM bundler
   --use-hyperbeam-reference  Create/update HyperBEAM reference for the fork`,
+  'merge': `Usage: permabrain merge <target-key> <source-key> [--title <title>] [--topic <topic>] [--kind <kind>] [--source-url <url>] [--source-name <name>] [--source-license <license>] [--language <lang>] [--no-carry-attestations] [--use-hyperbeam] [--use-hyperbeam-reference] [--json]
+
+Merges a source article fork into the target article's version branch.
+
+Performs a three-way line-level merge using the common ancestor (resolved via
+fork lineage tags or shared version chain). Non-conflicting changes are
+applied automatically; conflicts are left as standard conflict markers in the
+merged content. A new version of the target article is published with merge
+provenance tags (Article-Merge-Source-Key, Article-Merge-Source-Id, etc.).
+
+By default, attestations from the source's latest version are re-cast against
+the new merged target version. Use --no-carry-attestations to disable this.
+
+Options:
+  --title <title>           Override merged article title
+  --topic <topic>           Override merged article topic
+  --kind <kind>             Override merged article kind
+  --source-url <url>        Override merged source URL
+  --source-name <name>      Override merged source display name
+  --source-license <l>      Override merged source license
+  --language <lang>         Override merged language
+  --no-carry-attestations   Do not re-attest source attestations to the merged version
+  --use-hyperbeam           Upload merged article via HyperBEAM bundler
+  --use-hyperbeam-reference Create/update HyperBEAM reference for the target key`,
   'list-forks': `Usage: permabrain list-forks <source-key> [--use-hyperbeam] [--json]
 
 Lists all articles that declare themselves forks of the given source key by

@@ -23,6 +23,7 @@ import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, proces
 import { consensusForArticle } from './consensus.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { forkArticle, listForks } from './fork.mjs';
+import { mergeArticles } from './merge.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -795,6 +796,37 @@ const api = {
     requireInit(this._home);
     if (!key) throw new Error('key is required');
     return listForks(key, { ...opts, home: this._home });
+  },
+
+  /**
+   * Merge a source article fork into a target article's version branch.
+   *
+   * Performs a three-way line-level merge, auto-merges non-conflicting
+   * changes, marks conflicts with standard conflict markers, publishes a new
+   * target version with merge provenance tags, and optionally carries forward
+   * source attestations to the new merged version.
+   *
+   * @param {string} targetKey - Canonical key receiving the merge
+   * @param {string} sourceKey - Canonical key being merged in
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {boolean} [opts.useHyperbeamReference]
+   * @param {string} [opts.title] - Override merged title
+   * @param {string} [opts.topic] - Override merged topic
+   * @param {string} [opts.kind] - Override merged kind
+   * @param {string} [opts.sourceUrl] - Override merged source URL
+   * @param {string} [opts.sourceName] - Override merged source name
+   * @param {string} [opts.sourceLicense] - Override merged source license
+   * @param {string} [opts.language] - Override merged language
+   * @param {boolean} [opts.carryAttestations=true] - Re-attest source attestations to the merged version
+   * @returns {Promise<{target: object, source: object, ancestor: object|null, merged: object, mergedContent: string, hasConflicts: boolean, conflictCount: number, editsApplied: string[], carriedAttestations: object[], item: object, reference?: object}>}
+   */
+  async merge(targetKey, sourceKey, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!targetKey) throw new Error('targetKey is required');
+    if (!sourceKey) throw new Error('sourceKey is required');
+    return mergeArticles(targetKey, sourceKey, { ...opts, home: this._home });
   },
 
   /**

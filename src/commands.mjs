@@ -16,6 +16,7 @@ import { verifyDataItemById, verifyByKey } from './verify.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { historyForKey } from './history.mjs';
 import { forkArticle, listForks } from './fork.mjs';
+import { mergeArticles } from './merge.mjs';
 
 import fs from 'node:fs';
 
@@ -57,6 +58,7 @@ export async function runCommand(command, args) {
   if (command === 'history') return historyCommand(args);
   if (command === 'fork') return forkCommand(args);
   if (command === 'list-forks') return listForksCommand(args);
+  if (command === 'merge') return mergeCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -984,6 +986,46 @@ async function listForksCommand(args) {
     console.log(`Forks of ${sourceKey}: ${result.length}`);
     for (const fork of result) {
       console.log(`  ${fork.key} (v${fork.version}): ${fork.title || '(untitled)'} — forked from v${fork.sourceVersion}`);
+    }
+  }
+  return result;
+}
+
+async function mergeCommand(args) {
+  const targetKey = args._[0];
+  const sourceKey = args._[1];
+  if (!targetKey || !sourceKey) throw new Error('merge requires <target-key> <source-key>');
+
+  const opts = {
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined),
+    carryAttestations: args['no-carry-attestations'] ? false : true
+  };
+  if (args.title) opts.title = args.title;
+  if (args.topic) opts.topic = args.topic;
+  if (args.kind) opts.kind = args.kind;
+  if (args['source-url']) opts.sourceUrl = args['source-url'];
+  if (args['source-name']) opts.sourceName = args['source-name'];
+  if (args['source-license']) opts.sourceLicense = args['source-license'];
+  if (args.language) opts.language = args.language;
+
+  const result = await mergeArticles(targetKey, sourceKey, opts);
+  if (args.json) printJson(result);
+  else {
+    const conflicts = result.hasConflicts ? ` ⚠ ${result.conflictCount} conflict(s)` : ' no conflicts';
+    console.log(`Merged ${result.source.key} → ${result.target.key}`);
+    console.log(`Ancestor: ${result.ancestor?.id || '(target used as base)'}`);
+    console.log(`New version: ${result.merged.id} (v${result.merged.version})${conflicts}`);
+    console.log(`Edits applied: ${result.editsApplied.join(', ') || 'none'}`);
+    if (result.carriedAttestations.length) {
+      console.log(`Attestations carried forward: ${result.carriedAttestations.filter((a) => a.id).length}`);
+      for (const att of result.carriedAttestations) {
+        if (att.error) console.log(`  ✗ ${att.sourceAttestationId}: ${att.error}`);
+        else console.log(`  ✓ ${att.id}: ${att.opinion} (${att.confidence}) by ${att.agentId}`);
+      }
+    }
+    if (result.reference) {
+      console.log(`Reference: ${result.reference.referenceId} (${result.reference.action})`);
     }
   }
   return result;

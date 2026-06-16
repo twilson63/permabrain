@@ -52,5 +52,8 @@ export { historyForKey, buildVersionChain, summarizeVersion } from './history.mj
 // Fork
 export { forkArticle, listForks, deriveForkKey } from './fork.mjs';
 
+// Merge
+export { mergeArticles, threeWayMerge } from './merge.mjs';
+
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';
