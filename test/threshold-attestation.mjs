@@ -205,6 +205,44 @@ const reimported = await api.importThresholdEnvelope(exported);
 assert.equal(reimported.envelopeId, sharedEnv.envelopeId, 'import returns same envelope');
 console.log('   ✓ Import/export round-trip works');
 
+console.log('10a. HTTP envelope sharing route round-trip');
+const server2 = await startServer({ port: 0 });
+const baseUrl2 = `http://localhost:${server2.port}`;
+const client2 = createClient({ baseUrl: baseUrl2 });
+
+const sharedEnv2 = await api.createThresholdAttestation({
+  key: article.key,
+  opinion: 'partially-valid',
+  confidence: 0.6,
+  reason: 'HTTP envelope sharing',
+  policy: { threshold: 1, coSignerAgentIds: ['ed25519:shared2'] }
+});
+const httpExported = await client2.getThresholdEnvelope(sharedEnv2.envelopeId);
+assert.equal(httpExported.envelopeId, sharedEnv2.envelopeId, 'GET /api/v1/threshold/envelope/:id returns envelope');
+
+const httpImported = await client2.shareThresholdEnvelope({ envelope: httpExported });
+assert.equal(httpImported.envelopeId, sharedEnv2.envelopeId, 'POST /api/v1/threshold/envelope imports envelope');
+
+await stopServer(server2.server);
+console.log('   ✓ HTTP envelope sharing route round-trip works');
+
+console.log('10b. CLI envelope import/export subcommands');
+const cliExportPath = path.join(process.env.PERMABRAIN_HOME, 'cli-exported-envelope.json');
+const cliExported = await runCommand('threshold-attest', {
+  _: ['export-envelope', sharedEnv.envelopeId],
+  output: cliExportPath,
+  json: true
+});
+assert.equal(cliExported.envelopeId, sharedEnv.envelopeId, 'CLI export-envelope returns same envelope');
+assert.equal(fs.existsSync(cliExportPath), true, 'CLI export-envelope wrote file');
+
+const cliImported = await runCommand('threshold-attest', {
+  _: ['import-envelope', cliExportPath],
+  json: true
+});
+assert.equal(cliImported.envelopeId, sharedEnv.envelopeId, 'CLI import-envelope returns same envelope');
+console.log('   ✓ CLI envelope import/export subcommands work');
+
 console.log('11. normalizeThresholdPolicy validation');
 assert.throws(() => threshold.normalizeThresholdPolicy({ threshold: 0, coSignerAgentIds: ['a'] }), /threshold must be a positive integer/);
 assert.throws(() => threshold.normalizeThresholdPolicy({ threshold: 2, coSignerAgentIds: ['a'] }), /threshold 2 exceeds co-signer count 1/);
@@ -213,3 +251,4 @@ assert.deepEqual(normalized, { threshold: 2, coSignerAgentIds: ['b', 'a'] }, 'po
 console.log('   ✓ Policy validation works');
 
 console.log('\nOK All threshold attestation tests passed');
+

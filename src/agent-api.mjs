@@ -1609,8 +1609,9 @@ const api = {
    * @param {string} envelopeId
    * @returns {Object}
    */
-  exportThresholdEnvelope(envelopeId) {
-    return import('./threshold-attestation.mjs').then(({ exportThresholdEnvelope }) => exportThresholdEnvelope(envelopeId));
+  async exportThresholdEnvelope(envelopeId) {
+    const threshold = await import('./threshold-attestation.mjs');
+    return threshold.exportThresholdEnvelope(envelopeId);
   },
 
   /**

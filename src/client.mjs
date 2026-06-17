@@ -265,6 +265,12 @@ export function createClient(options = {}) {
     importThresholdEnvelope: (body) => request('POST', '/api/v1/threshold-attest/import', body),
 
     /** @returns {Promise<Object>} */
+    getThresholdEnvelope: (envelopeId) => request('GET', `/api/v1/threshold/envelope/${encodeURIComponent(envelopeId)}`),
+
+    /** @returns {Promise<Object>} */
+    shareThresholdEnvelope: (body) => request('POST', '/api/v1/threshold/envelope', body),
+
+    /** @returns {Promise<Object>} */
     doctor: (body = {}) => request('GET', `/api/v1/doctor${toQuery(body)}`)
   };
 

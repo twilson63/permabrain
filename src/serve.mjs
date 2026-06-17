@@ -755,7 +755,21 @@ async function handleRequest(req, res, home) {
     if (method === 'POST' && route === '/api/v1/threshold-attest/import') {
       const body = await readBody(req);
       if (!body.envelope) return sendError(res, 400, 'envelope is required');
-      const stored = api.importThresholdEnvelope(body.envelope);
+      const stored = await api.importThresholdEnvelope(body.envelope);
+      return sendJson(res, 200, stored);
+    }
+
+    const envelopeMatch = route.match(/^\/api\/v1\/threshold\/envelope\/(.+)$/);
+    if (envelopeMatch && method === 'GET') {
+      const envelopeId = decodeURIComponent(envelopeMatch[1]);
+      const envelope = await api.exportThresholdEnvelope(envelopeId);
+      return sendJson(res, 200, envelope);
+    }
+
+    if (method === 'POST' && route === '/api/v1/threshold/envelope') {
+      const body = await readBody(req);
+      if (!body.envelope) return sendError(res, 400, 'envelope is required');
+      const stored = await api.importThresholdEnvelope(body.envelope);
       return sendJson(res, 200, stored);
     }
 
@@ -802,9 +816,9 @@ export async function startServer(options = {}) {
     server.listen(requestedPort, (err) => (err ? reject(err) : resolve()));
   });
   const actualPort = server.address()?.port || requestedPort;
-  const identity = await ensureIdentity(home).catch(() => null);
-  if (identity && !api._home) setApiHome(home);
-  return { server, home, port: actualPort, agentId: identity?.agentId || api._identity?.agentId || null, wss };
+  await ensureApiInit(home);
+  const identity = api._identity;
+  return { server, home, port: actualPort, agentId: identity?.agentId || null, wss };
 }
 
 export function stopServer(server) {

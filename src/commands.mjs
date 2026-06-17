@@ -46,7 +46,8 @@ import {
   verifyThresholdEnvelope,
   verifyThresholdSignature,
   signThresholdDigest,
-  importThresholdEnvelope
+  importThresholdEnvelope,
+  exportThresholdEnvelope
 } from './threshold-attestation.mjs';
 
 import fs from 'node:fs';
@@ -2104,6 +2105,36 @@ Examples:
   if (subcommand === 'import') {
     const filePath = args._[1] || args.file;
     if (!filePath) throw new Error('import requires <envelope-file>');
+    const envelope = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const stored = importThresholdEnvelope(envelope);
+    if (args.json) printJson({ envelopeId: stored.envelopeId, imported: true });
+    else console.log(`Imported threshold envelope: ${stored.envelopeId}`);
+    return stored;
+  }
+
+  if (subcommand === 'export-envelope') {
+    const envelopeId = args._[1] || args.envelopeId;
+    if (!envelopeId) throw new Error('export-envelope requires <envelopeId>');
+    const output = args.output;
+    const exported = exportThresholdEnvelope(envelopeId);
+    if (output) {
+      fs.writeFileSync(output, JSON.stringify(exported, null, 2) + '\n');
+    }
+    if (args.json || !output) {
+      printJson(exported);
+    } else {
+      console.log(`Exported threshold envelope: ${exported.envelopeId}`);
+      console.log(`  Key: ${exported.targetKey}`);
+      console.log(`  Threshold: ${exported.policy.threshold} of ${exported.policy.coSignerAgentIds.length}`);
+      console.log(`  Signatures: ${exported.signers.length}`);
+      console.log(`  Written to: ${output}`);
+    }
+    return exported;
+  }
+
+  if (subcommand === 'import-envelope') {
+    const filePath = args._[1] || args.file;
+    if (!filePath) throw new Error('import-envelope requires <envelope-file>');
     const envelope = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     const stored = importThresholdEnvelope(envelope);
     if (args.json) printJson({ envelopeId: stored.envelopeId, imported: true });

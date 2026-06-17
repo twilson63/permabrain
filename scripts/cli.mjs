@@ -70,6 +70,17 @@ const COMMANDS = [
   'validate'
 ];
 
+// Alias support: map legacy/import-export subcommands to canonical names.
+const THRESHOLD_SUBCOMMAND_ALIASES = {
+  'export-envelope': 'export-envelope',
+  'import-envelope': 'import-envelope',
+  'create': 'create',
+  'add-sig': 'add-sig',
+  'finalize': 'finalize',
+  'verify': 'verify',
+  'import': 'import'
+};
+
 function printVersion() {
   console.log(pkg.version);
 }
@@ -137,7 +148,7 @@ Commands:
   client [action] [args]         HTTP client SDK for a permabrain serve instance
   completion <shell>           Generate shell completion script (bash|zsh|fish)
   validate <type> [path]         Validate article/attestation metadata against JSON Schema
-  threshold-attest             Create/collect/finalize threshold multi-sig attestations
+  threshold-attest             Create/collect/finalize/share threshold multi-sig attestations
 
 Common examples:
   permabrain init
@@ -816,11 +827,17 @@ Subcommands:
          Verify all co-signer signatures and print threshold status.
   import <envelope-path>
          Load a shared envelope into the in-memory pending map.
+  export-envelope <envelopeId> [--output <path>]
+         Export a pending envelope to JSON (stdout or file) for sharing.
+  import-envelope <envelope-path>
+         Alias for import — load a shared envelope into the pending map.
 
 Examples:
   permabrain threshold-attest create subject/ai --valid --confidence 0.95 \\
       --reason "Cross-checked" --threshold 2 --co-signers sage,relay --output env.json
   permabrain threshold-attest finalize env.json
+  permabrain threshold-attest export-envelope 0e567ba2-... --output env.json
+  permabrain threshold-attest import-envelope env.json
 `,
     'validate': `Usage: permabrain validate <article|attestation> [path] [--json]
 
@@ -866,6 +883,11 @@ async function main() {
     return;
   }
   const args = parseArgs(rest);
+  // Handle threshold-attest aliases directly so --help and dispatch work cleanly.
+  if (command === 'threshold-attest' && args._[0]) {
+    const canonical = THRESHOLD_SUBCOMMAND_ALIASES[args._[0]];
+    if (canonical) args._[0] = canonical;
+  }
   if (args.help || args.h) {
     printHelp(command);
     return;
