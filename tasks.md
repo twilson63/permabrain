@@ -1,22 +1,20 @@
 # PermaBrain Build Tasks
 
 ## In Progress
-_No active in-progress tasks._
+- [ ] Web viewer chunk 3: version history tab and stats dashboard integration in `viewer/index.html` (local API `/api/v1/articles/:key/history` + `/api/v1/stats` with UI tabs).
 
 ## Next
 _No active next tasks._
 
 ## Backlog
-- [ ] Re-deploy AO process with process.lua v2 and fallback hardening.
-- [ ] Encrypted article sharing via CAP recipients + ZenBin.
-- [ ] Mobile PWA viewer.
-- [ ] JSON Schema validation for article metadata.
+- [ ] Web viewer: enhance viewer/index.html with real Arweave data — dark mode, topic filters, sort by date/title/consensus, version history tab, stats dashboard, refresh button, ANS-104 content fetch fallback (raw endpoint), IndexedDB v2, Viewblock link, source link on attestations, mobile improvements
 - [ ] Re-deploy AO process with process.lua v2 and fallback hardening.
 - [ ] Encrypted article sharing via CAP recipients + ZenBin.
 - [ ] Mobile PWA viewer.
 - [ ] JSON Schema validation for article metadata.
 
 ## Done
+- [x] Web viewer chunk 2: ANS-104 raw content fetch fallback (`/raw` endpoint) and source/Viewblock links for articles and attestations.
 - [x] **Threshold / multi-sig attestation support.** — Implemented in `src/threshold-attestation.mjs` and integrated with API, CLI, HTTP, consensus, and tags. Tests pass and pushed (`390f9a4`).
 - [x] Cron build loop checkpoint (2026-06-17 17:04 UTC): implemented real-time event stream / WebSocket endpoint for `permabrain serve`. Added `src/events.mjs` with singleton EventEmitter event bus (`getEventBus`, `emitEvent`, `subscribeEvents`) and WebSocket/SSE broadcast helpers. Wired `logAction` in `src/log.mjs` to emit structured events on publish/attest/fork/merge/import/export/etc. Upgraded `src/serve.mjs` with WebSocket server on `/api/v1/events/ws`, Server-Sent Events endpoint `/api/v1/events/stream`, per-client subscription lifecycle, and stream URL advertisement in `/health`. Added `api.events()` async iterable to `src/agent-api.mjs` and re-exported event helpers from `src/index.mjs`. Added `ws` to `package.json` dependencies. Added `test/events.mjs` (4 tests) and `test/serve-events.mjs` (5 tests) covering WebSocket open/publish/attest events and SSE streaming, wired into `npm test` and `test:events` / `test:serve-events` scripts. Updated `test/module-import.mjs` to expect 73 API methods and assert events exports. Full `npm test` suite passes.
 - [x] Cron build loop checkpoint (2026-06-17 16:34 UTC): implemented CLI autocomplete for bash/zsh/fish. Added `src/completion.mjs` with `generateCompletion`, `listSupportedShells`, command/option tables, and generators for bash (`_permabrain_completion`), zsh (`#compdef`), and fish (`complete -c permabrain`). Wired `permabrain completion <shell>` in `scripts/cli.mjs` and `src/commands.mjs` with help text and install examples. Exposed `api.completion()` in `src/agent-api.mjs` and re-exported completion helpers from `src/index.mjs`. Added `test/completion.mjs` (8 tests), wired into `npm test` and `test:completion` script, and updated `test/module-import.mjs` to expect 72 API methods plus completion exports. Updated README with a Shell Completion section. Full `npm test` suite passes; committed and pushed to `origin/main`.
