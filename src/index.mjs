@@ -80,6 +80,9 @@ export { activityFeed, activityToMarkdown } from './activity.mjs';
 // Config manager
 export { runConfigCommand, loadEffectiveConfig, validateConfig, configToMarkdown, getConfigValue, setConfigValue, ENV_MAP } from './config-manager.mjs';
 
+// Named remotes
+export { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
+
 // Article-level metrics
 export { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 

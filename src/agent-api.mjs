@@ -34,6 +34,7 @@ import { listArticles } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
+import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1100,6 +1101,32 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return computeMetrics({ ...opts, home: this._home });
+  },
+
+  /**
+   * Manage named remote endpoints.
+   *
+   * Actions: list, add, remove, default, probe, query, sync.
+   *
+   * @param {string} action
+   * @param {Object} [params]
+   * @param {string} [params.name]
+   * @param {string} [params.url]
+   * @param {string} [params.transport]
+   * @returns {Promise<Object>}
+   */
+  async remote(action, params = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const home = this._home;
+    if (action === 'list') return listRemotes(home);
+    if (action === 'add') return addRemote(params.name, params, home);
+    if (action === 'remove' || action === 'rm') return removeRemote(params.name, home);
+    if (action === 'default') return setDefaultRemote(params.name, home);
+    if (action === 'probe') return probeRemote(params.name, home);
+    if (action === 'query') return queryRemote(params.name, params.filters || {}, home);
+    if (action === 'sync') return syncRemote(params.name, params, home);
+    throw new Error(`Unknown remote action: ${action}`);
   },
 
   /**

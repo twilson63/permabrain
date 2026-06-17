@@ -29,6 +29,7 @@ import { listArticles, listToMarkdown } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
+import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 
 import fs from 'node:fs';
 
@@ -82,6 +83,7 @@ export async function runCommand(command, args) {
   if (command === 'export-articles') return exportArticlesCommand(args);
   if (command === 'config') return configCommand(args);
   if (command === 'metrics') return metricsCommand(args);
+  if (command === 'remote') return remoteCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1338,6 +1340,67 @@ async function activityCommand(args) {
     console.log(activityToMarkdown(result));
   }
   return result;
+}
+
+async function remoteCommand(args) {
+  const action = args._[0] || 'list';
+  const name = args._[1] || args.name || undefined;
+  const url = args.url || args._[2] || undefined;
+
+  if (action === 'list') {
+    const data = listRemotes(getHome());
+    if (args.json) printJson(data);
+    else console.log(remotesToMarkdown(data));
+    return data;
+  }
+
+  if (action === 'add') {
+    if (!name) throw new Error('remote add requires <name>');
+    if (!url) throw new Error('remote add requires <url>');
+    const values = {
+      url,
+      transport: args.transport,
+      graphqlUrl: args['graphql-url'],
+      dataUrl: args['data-url'],
+      uploadUrl: args['upload-url'],
+      hyperbeamReferences: args['hyperbeam-references'],
+      description: args.description
+    };
+    const result = addRemote(name, values, getHome());
+    if (args.json) printJson(result);
+    else console.log(`Added remote '${result.remote.name}' as default '${result.defaultRemote}'`);
+    return result;
+  }
+
+  if (action === 'remove' || action === 'rm') {
+    if (!name) throw new Error('remote remove requires <name>');
+    const result = removeRemote(name, getHome());
+    if (args.json) printJson(result);
+    else console.log(`Removed remote '${result.remote.name}'. Default is now '${result.defaultRemote || '(none)'}'`);
+    return result;
+  }
+
+  if (action === 'default') {
+    if (!name) throw new Error('remote default requires <name>');
+    const result = setDefaultRemote(name, getHome());
+    if (args.json) printJson(result);
+    else console.log(`Default remote set to '${result.defaultRemote}'`);
+    return result;
+  }
+
+  if (action === 'probe') {
+    const result = await probeRemote(name, getHome());
+    if (args.json) printJson(result);
+    else {
+      console.log(`Remote '${result.name}' probe: ${result.url} (${result.transport})`);
+      for (const check of result.checks) {
+        console.log(`${check.ok ? 'ok' : 'fail'} ${check.name} ${check.status || check.error || ''}`.trim());
+      }
+    }
+    return result;
+  }
+
+  throw new Error(`Unknown remote action: ${action}`);
 }
 
 async function mergeCommand(args) {

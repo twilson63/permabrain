@@ -45,6 +45,7 @@ import { listArticles, listToMarkdown } from '../src/index.mjs';
 import { exportArticles, exportArticlesToMarkdown } from '../src/index.mjs';
 import { computeMetrics, metricsToMarkdown } from '../src/index.mjs';
 import { runConfigCommand, loadEffectiveConfig, validateConfig, configToMarkdown, getConfigValue, setConfigValue, ENV_MAP } from '../src/index.mjs';
+import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -150,6 +151,15 @@ assert.equal(typeof runConfigCommand, 'function', 'runConfigCommand');
 assert.equal(typeof loadEffectiveConfig, 'function', 'loadEffectiveConfig');
 assert.equal(typeof validateConfig, 'function', 'validateConfig');
 assert.equal(typeof configToMarkdown, 'function', 'configToMarkdown');
+assert.equal(typeof listRemotes, 'function', 'listRemotes');
+assert.equal(typeof addRemote, 'function', 'addRemote');
+assert.equal(typeof removeRemote, 'function', 'removeRemote');
+assert.equal(typeof setDefaultRemote, 'function', 'setDefaultRemote');
+assert.equal(typeof probeRemote, 'function', 'probeRemote');
+assert.equal(typeof queryRemote, 'function', 'queryRemote');
+assert.equal(typeof syncRemote, 'function', 'syncRemote');
+assert.equal(typeof remotesToMarkdown, 'function', 'remotesToMarkdown');
+assert.equal(typeof buildRemoteConfig, 'function', 'buildRemoteConfig');
 console.log('   ✓ All lower-level exports present');
 
 // --- 5. package.json exports field ---
@@ -249,11 +259,11 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'config'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'config', 'remote'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 47 API methods present');
+console.log('   ✓ All 48 API methods present');
 
 console.log('\n✅ All importable module tests passed');

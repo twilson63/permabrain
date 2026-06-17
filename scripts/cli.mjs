@@ -46,7 +46,8 @@ const COMMANDS = [
   'list',
   'export-articles',
   'metrics',
-  'config'
+  'config',
+  'remote'
 ];
 
 function printHelp(command = null) {
@@ -99,6 +100,7 @@ Commands:
   export-articles              Export a filtered article directory to JSON or markdown
   metrics                      Show aggregate article/attestation metrics
   config                       Get, set, validate, or inspect PermaBrain config
+  remote                       Manage named remote endpoints
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -532,7 +534,25 @@ Examples:
   permabrain config set transport hyperbeam
   permabrain config set gateway.dataUrl http://localhost:10000
   permabrain config validate
-  permabrain config env`
+  permabrain config env`,
+    'remote': `Usage: permabrain remote <action> [name] [url] [--transport local|arweave|hyperbeam] [--graphql-url <url>] [--data-url <url>] [--upload-url <url>] [--hyperbeam-references] [--description <text>] [--json]
+
+Manage named remote endpoints stored in remotes.json.
+
+Actions:
+  remote list                  List all remotes and the default
+  remote add <name> <url>      Add a new remote (url may be base or graphql)
+  remote remove <name>         Remove a remote
+  remote default <name>        Set the default remote
+  remote probe [name]          Probe a remote (default if omitted)
+
+Options:
+  --transport <type>           Transport: local, arweave, or hyperbeam
+  --graphql-url <url>          Override GraphQL endpoint
+  --data-url <url>             Override data gateway endpoint
+  --upload-url <url>           Override bundler upload endpoint
+  --hyperbeam-references       Enable HyperBEAM reference creation for this remote
+  --description <text>         Optional description`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }
