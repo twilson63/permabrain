@@ -316,7 +316,9 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'events', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard', 'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
+  'events', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
+  'validateMetadata', 'validateDataItem',
+  'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
   'sync', 'localIndex', 'importWikipedia', 'attestForAgent', 'provisionAgent',
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
@@ -328,7 +330,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 79 API methods present');
+console.log('   ✓ All 81 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -366,6 +368,24 @@ assert.equal(typeof getEventBus, 'function', 'getEventBus');
 assert.equal(typeof emitEvent, 'function', 'emitEvent');
 assert.equal(typeof subscribeEvents, 'function', 'subscribeEvents');
 
-console.log('   OK Events exports present');
+// Schema exports
+import {
+  ARTICLE_METADATA_SCHEMA,
+  ATTESTATION_METADATA_SCHEMA,
+  validateMetadata,
+  validateArticleMetadata,
+  validateAttestationMetadata,
+  validateDataItemTags,
+  formatValidationErrors
+} from '../src/index.mjs';
+assert.equal(typeof ARTICLE_METADATA_SCHEMA, 'object', 'ARTICLE_METADATA_SCHEMA');
+assert.equal(typeof ATTESTATION_METADATA_SCHEMA, 'object', 'ATTESTATION_METADATA_SCHEMA');
+assert.equal(typeof validateMetadata, 'function', 'validateMetadata');
+assert.equal(typeof validateArticleMetadata, 'function', 'validateArticleMetadata');
+assert.equal(typeof validateAttestationMetadata, 'function', 'validateAttestationMetadata');
+assert.equal(typeof validateDataItemTags, 'function', 'validateDataItemTags');
+assert.equal(typeof formatValidationErrors, 'function', 'formatValidationErrors');
+
+console.log('   OK Events + schema exports present');
 
 console.log('\nOK All importable module tests passed');

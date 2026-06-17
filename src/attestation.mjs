@@ -6,6 +6,7 @@ import { buildAttestationTags, tagsToObject } from './tags.mjs';
 import { summarizeAttestation, updateAttestationInCache } from './cache.mjs';
 import { resolveLatestArticle } from './article.mjs';
 import { HyperbeamTransport } from './transport.mjs';
+import { validateAttestationMetadata } from './schema.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -21,7 +22,7 @@ export function opinionFromArgs(args) {
   return opinions[0][0];
 }
 
-export async function attestArticle({ key, opinion, confidence, reason, sourceUrl = '', targetId, useHyperbeamReference = null, useHyperbeam = false }) {
+export async function attestArticle({ key, opinion, confidence, reason, sourceUrl = '', targetId, useHyperbeamReference = null, useHyperbeam = false, opts = {} }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
@@ -38,6 +39,16 @@ export async function attestArticle({ key, opinion, confidence, reason, sourceUr
   });
   const payload = JSON.stringify({ targetKey: key, targetId: targetId || resolved.summary.id, opinion, confidence: Number(confidence), reason, sourceUrl }, null, 2);
   const item = await createDataItem({ payload, tags, identity });
+
+  // Optional strict metadata validation before upload.
+  if (opts?.strict !== false) {
+    const validation = validateAttestationMetadata(tagsToObject(item.tags || []));
+    if (!validation.valid) {
+      const details = validation.errors.map(e => `${e.path}: ${e.message}`).join('; ');
+      throw new Error(`Attestation metadata validation failed: ${details}`);
+    }
+  }
+
   await transport.uploadDataItem(item);
   updateAttestationInCache(home, item);
 

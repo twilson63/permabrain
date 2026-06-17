@@ -122,6 +122,17 @@ export { generateCompletion, listSupportedShells } from './completion.mjs';
 // Real-time event bus and subscriptions
 export { getEventBus, emitEvent, subscribeEvents } from './events.mjs';
 
+// JSON Schema metadata validation
+export {
+  ARTICLE_METADATA_SCHEMA,
+  ATTESTATION_METADATA_SCHEMA,
+  validateMetadata,
+  validateArticleMetadata,
+  validateAttestationMetadata,
+  validateDataItemTags,
+  formatValidationErrors
+} from './schema.mjs';
+
 // ZenBin client helpers
 export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest, ZENBIN_BASE_URL, ZENBIN_PUBLISH_PATH } from './zenbin.mjs';
 

@@ -38,6 +38,7 @@ import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 import { queryLog, logToMarkdown, logAction, tailLog, followLog, exportLog, importLog } from './log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
+import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
 import {
   createThresholdEnvelope,
   addCoSigner,
@@ -112,6 +113,7 @@ export async function runCommand(command, args) {
   if (command === 'dashboard') return dashboardCommand(args);
   if (command === 'client') return clientCommand(args);
   if (command === 'completion') return completionCommand(args);
+  if (command === 'validate') return validateCommand(args);
   if (command === 'threshold-attest' || command === 'threshold') return thresholdAttestCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
@@ -1889,6 +1891,69 @@ async function clientCommand(args) {
   }
 
   throw new Error(`Unknown client action: ${action}. Try: health, status, get, query, publish`);
+}
+
+async function validateCommand(args) {
+  const subcommand = args._[0];
+  if (!subcommand || subcommand === '--help' || subcommand === 'help') {
+    console.log(`Usage: permabrain validate <article|attestation> [path] [--json]
+
+Validate article or attestation metadata against the PermaBrain JSON Schema.
+If [path] is omitted, validates a built-in example.
+
+Examples:
+  permabrain validate article ./tags.json
+  permabrain validate attestation ./tags.json --json`);
+    return { ok: true, help: true };
+  }
+  if (!['article', 'attestation'].includes(subcommand)) throw new Error("validate subcommand must be 'article' or 'attestation'");
+  const file = args._[1];
+  let tags;
+  if (file) {
+    const text = fs.readFileSync(file, 'utf8');
+    tags = text.trim().startsWith('{') ? JSON.parse(text) : Object.fromEntries(text.split('\n').filter(Boolean).map((line) => {
+      const idx = line.indexOf(':');
+      if (idx === -1) return null;
+      return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()];
+    }).filter(Boolean));
+  } else {
+    tags = subcommand === 'article' ? {
+      'App-Name': 'PermaBrain',
+      'App-Version': '0.2.0',
+      'PermaBrain-Type': 'article',
+      'Article-Key': 'subject/demo',
+      'Article-Kind': 'subject',
+      'Article-Title': 'Demo',
+      'Article-Slug': 'demo',
+      'Article-Topic': 'test',
+      'Article-Language': 'en',
+      'Article-Version': 1,
+      'Article-Source-Name': 'Example',
+      'Article-Source-Url': 'https://example.com/demo',
+      'Article-Content-Hash': 'sha256:0000000000000000000000000000000000000000000000000000000000000000',
+      'Article-Published-At': new Date().toISOString(),
+      'Article-Updated-At': new Date().toISOString(),
+      'Author-Agent-Id': 'ed25519:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'Visibility': 'public'
+    } : {
+      'App-Name': 'PermaBrain',
+      'App-Version': '0.2.0',
+      'PermaBrain-Type': 'attestation',
+      'Attestation-Target-Id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'Attestation-Target-Key': 'subject/demo',
+      'Attestation-Opinion': 'valid',
+      'Attestation-Confidence': 0.95,
+      'Attestation-Reason': 'Looks good',
+      'Attestation-Agent-Id': 'ed25519:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'Attestation-Created-At': new Date().toISOString()
+    };
+  }
+  const result = subcommand === 'article' ? validateArticleMetadata(tags) : validateAttestationMetadata(tags);
+  if (args.json) printJson(result);
+  else {
+    console.log(result.valid ? 'OK' : formatValidationErrors(result));
+  }
+  return result;
 }
 
 async function completionCommand(args) {

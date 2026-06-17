@@ -66,7 +66,8 @@ const COMMANDS = [
   'dashboard',
   'client',
   'completion',
-  'threshold-attest'
+  'threshold-attest',
+  'validate'
 ];
 
 function printVersion() {
@@ -135,6 +136,7 @@ Commands:
   dashboard                    Build a self-contained web dashboard snapshot
   client [action] [args]         HTTP client SDK for a permabrain serve instance
   completion <shell>           Generate shell completion script (bash|zsh|fish)
+  validate <type> [path]         Validate article/attestation metadata against JSON Schema
   threshold-attest             Create/collect/finalize threshold multi-sig attestations
 
 Common examples:
@@ -147,6 +149,7 @@ Common examples:
   permabrain dashboard --output dashboard.html --publish
   permabrain log --tail 10
   permabrain serve --port 8765
+  permabrain validate article ./tags.json
 
 Run 'permabrain <command> --help' for detailed command help.
 
@@ -796,35 +799,39 @@ Examples:
 Install to your shell and reload, or source the generated script in your rc file.`,
     'threshold-attest': `Usage: permabrain threshold-attest <subcommand> [args]
 
-Create, collect, and finalize threshold/multi-signature attestations.
+Create/collect/finalize threshold multi-sig attestations.
 
 Subcommands:
-  create <key> --opinion <opinion> --confidence <0..1> --reason <text>
+  create <key> --opinion <opinion> --confidence <0-1> --reason <reason>
          --threshold <n> --co-signers <id1,id2,...> [--source-url <url>]
-         [--target-id <id>] [--output <path>] [--json]
-         Create a threshold envelope signed by the local identity. The
-         envelope is not published until 'finalize' is called.
-  add-sig <file> --agent-id <id> --signature <base64url>
+         [--target-id <id>] [--output <path>]
+         Create a threshold envelope and output it (JSON or file).
+  add-sig <envelope-path> --agent-id <id> --signature <base64url>
          [--signature-type ed25519|arweave-rsa4096] [--public-key <base64url>]
-         Add a co-signer signature to an envelope file and rewrite it.
-  finalize <file> [--use-hyperbeam] [--json]
-         Verify the threshold is met, publish the multi-sig attestation,
-         and delete the envelope file on success.
-  verify <file> [--json]
+         Add a co-signer signature to the envelope.
+  finalize <envelope-path> [--use-hyperbeam]
+         Verify threshold, publish the multi-sig attestation, and remove
+         the envelope file on success.
+  verify <envelope-path>
          Verify all co-signer signatures and print threshold status.
-  import <file> [--json]
-         Load a shared envelope into the pending map so signatures can be
-         added or it can be finalized.
+  import <envelope-path>
+         Load a shared envelope into the in-memory pending map.
 
 Examples:
   permabrain threshold-attest create subject/ai --valid --confidence 0.95 \\
-      --reason "Cross-checked by Sage and Relay" --threshold 2 \\
-      --co-signers sage,relay --output env.json
+      --reason "Cross-checked" --threshold 2 --co-signers sage,relay --output env.json
   permabrain threshold-attest finalize env.json
+`,
+    'validate': `Usage: permabrain validate <article|attestation> [path] [--json]
 
-A co-signer produces a signature using the envelope's 'digest' field:
-  echo -n $digest | openssl dgst -sha256 -sign agent.key | base64 -w0`
-};
+Validate article or attestation metadata against the PermaBrain JSON Schema.
+If [path] is omitted, validates a built-in example.
+
+Examples:
+  permabrain validate article ./tags.json
+  permabrain validate attestation ./tags.json --json
+`
+  };
   console.log(help[command] || `Unknown command: ${command}`);
 }
 

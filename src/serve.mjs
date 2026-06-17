@@ -722,6 +722,36 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 200, result);
     }
 
+    if (method === 'POST' && route === '/api/v1/validate') {
+      const body = await readBody(req);
+      if (!body.tags && !body.dataItem) return sendError(res, 400, 'tags or dataItem is required');
+      const type = body.type === 'attestation' ? 'attestation' : 'article';
+      let result;
+      try {
+        if (body.dataItem) {
+          result = api.validateDataItem(body.dataItem, { type });
+        } else {
+          result = api.validateMetadata(body.tags, { type });
+        }
+      } catch (err) {
+        return sendError(res, 400, err.message);
+      }
+      return sendJson(res, result.valid ? 200 : 422, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/validate/example') {
+      const type = url.searchParams.get('type') === 'attestation' ? 'attestation' : 'article';
+      return sendJson(res, 200, { type, note: 'POST to /api/v1/validate with tags or dataItem' });
+    }
+
+    if (method === 'GET' && route === '/api/v1/schema') {
+      const { ARTICLE_METADATA_SCHEMA, ATTESTATION_METADATA_SCHEMA } = await import('./schema.mjs');
+      return sendJson(res, 200, {
+        article: ARTICLE_METADATA_SCHEMA,
+        attestation: ATTESTATION_METADATA_SCHEMA
+      });
+    }
+
     if (method === 'POST' && route === '/api/v1/threshold-attest/import') {
       const body = await readBody(req);
       if (!body.envelope) return sendError(res, 400, 'envelope is required');

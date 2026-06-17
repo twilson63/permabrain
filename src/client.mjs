@@ -244,6 +244,12 @@ export function createClient(options = {}) {
     completion: (body = {}) => request('POST', '/api/v1/completion', body),
 
     /** @returns {Promise<Object>} */
+    validate: (body) => request('POST', '/api/v1/validate', body),
+
+    /** @returns {Promise<Object>} */
+    schema: () => request('GET', '/api/v1/schema'),
+
+    /** @returns {Promise<Object>} */
     createThresholdAttestation: (body) => request('POST', '/api/v1/threshold-attest', body),
 
     /** @returns {Promise<Object>} */

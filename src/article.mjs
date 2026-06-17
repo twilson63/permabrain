@@ -7,6 +7,7 @@ import { getTransport } from './transport.mjs';
 import { buildArticleTags, contentHash, deriveKey, deriveTitleFromFile, tagsToObject } from './tags.mjs';
 import { latestByArticleKey, loadIndex, summarizeArticle, updateArticleInCache, writeIndex, writePageCache } from './cache.mjs';
 import { HyperbeamTransport } from './transport.mjs';
+import { validateArticleMetadata } from './schema.mjs';
 import * as pbcrypto from './crypto.mjs';
 
 export function sourceNameFromUrl(url) {
@@ -20,7 +21,7 @@ export function sourceNameFromUrl(url) {
   }
 }
 
-export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [], visibility = 'public', extraTags = [] }) {
+export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [], visibility = 'public', extraTags = [], opts = {} }) {
   const home = getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
@@ -85,6 +86,16 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   }
 
   const item = await createDataItem({ payload: plainContent, tags, identity });
+
+  // Optional strict metadata validation before upload.
+  if (opts?.strict !== false) {
+    const validation = validateArticleMetadata(tagsToObject(item.tags || []));
+    if (!validation.valid) {
+      const details = validation.errors.map(e => `${e.path}: ${e.message}`).join('; ');
+      throw new Error(`Article metadata validation failed: ${details}`);
+    }
+  }
+
   await transport.uploadDataItem(item);
   updateArticleInCache(home, item);
   writePageCache(home, finalKey, finalContent);

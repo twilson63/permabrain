@@ -18,7 +18,8 @@ import { createDataItem, rawDataItemBytes } from '../src/dataitem.mjs';
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'permabrain-article-ref-'));
 process.env.PERMABRAIN_HOME = home;
 process.env.PERMABRAIN_TRANSPORT = 'hyperbeam';
-initState({ env: { ...process.env, PERMABRAIN_HOME: home, PERMABRAIN_TRANSPORT: 'hyperbeam' } });
+process.env.PERMABRAIN_HYPERBEAM_URL = 'http://localhost:10000';
+initState({ env: { ...process.env, PERMABRAIN_HOME: home, PERMABRAIN_TRANSPORT: 'hyperbeam', PERMABRAIN_HYPERBEAM_URL: 'http://localhost:10000' } });
 await ensureIdentity(home, { keyType: 'ed25519' });
 
 function Response(body, opts = {}) {

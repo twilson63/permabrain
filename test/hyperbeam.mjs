@@ -33,7 +33,7 @@ try {
 
 const check = (name) => probeJson.checks.find((c) => c.name === name);
 if (!check('health')?.ok) skip(`HyperBEAM health check failed at ${url}`);
-if (!check('upload')?.ok) skip(`HyperBEAM is reachable but upload route is not compatible`);
+if (!check('bundler-upload')?.ok) skip(`HyperBEAM is reachable but upload route is not compatible`);
 
 const hasGraphql = check('graphql')?.ok;
 if (!hasGraphql) console.log('HyperBEAM GraphQL not available; skipping GraphQL query test');

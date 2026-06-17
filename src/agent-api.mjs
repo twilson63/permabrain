@@ -42,6 +42,7 @@ import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } from './log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
+import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
@@ -316,7 +317,7 @@ const api = {
     if (!params.opinion) throw new Error('opinion is required');
     if (params.confidence === undefined) throw new Error('confidence is required');
     if (!params.reason) throw new Error('reason is required');
-    const { opinion, confidence, reason, sourceUrl, useHyperbeam, useHyperbeamReference } = params;
+    const { opinion, confidence, reason, sourceUrl, useHyperbeam, useHyperbeamReference, strict } = params;
     const result = await attestArticle({
       key,
       opinion,
@@ -324,7 +325,8 @@ const api = {
       reason,
       sourceUrl: sourceUrl || '',
       useHyperbeam,
-      useHyperbeamReference
+      useHyperbeamReference,
+      opts: { strict }
     });
     return { summary: result.summary, reference: result.reference };
   },
@@ -764,6 +766,37 @@ const api = {
   async attestationsFromGoal(parsed, opts = {}) {
     const { attestationsFromGoal: extract } = await requireGoalModule();
     return extract(parsed, opts);
+  },
+
+  /**
+   * Validate article or attestation tag metadata against the built-in JSON
+   * Schema. Useful for import pipelines and pre-flight checks.
+   *
+   * @param {Object} tagsObject - Object mapping tag names to string values
+   * @param {Object} [opts]
+   * @param {'article'|'attestation'} [opts.type='article']
+   * @returns {{valid: boolean, errors: Array<{path:string, message:string}>}}
+   */
+  validateMetadata(tagsObject, opts = {}) {
+    if (!tagsObject || typeof tagsObject !== 'object') throw new Error('tagsObject is required');
+    const type = opts.type || 'article';
+    const result = opts.type === 'attestation' ? validateAttestationMetadata(tagsObject) : validateArticleMetadata(tagsObject);
+    return { ...result, type };
+  },
+
+  /**
+   * Validate a published DataItem's tags without uploading.
+   *
+   * @param {Object} dataItem - Object with a `tags` array
+   * @param {Object} [opts]
+   * @param {'article'|'attestation'} [opts.type='article']
+   * @returns {{valid: boolean, errors: Array, type: string}}
+   */
+  validateDataItem(dataItem, opts = {}) {
+    if (!dataItem || !Array.isArray(dataItem.tags)) throw new Error('dataItem.tags is required');
+    const type = opts.type || 'article';
+    const result = validateDataItemTags(dataItem, type);
+    return { ...result, type };
   },
 
   /**

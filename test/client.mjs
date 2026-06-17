@@ -153,6 +153,39 @@ try {
 }
 console.log('   ✓ error handling');
 
+console.log('21. validate via client');
+const validateArticle = await client.validate({ type: 'article', tags: {
+  'App-Name': 'PermaBrain',
+  'App-Version': '0.2.0',
+  'PermaBrain-Type': 'article',
+  'Article-Key': 'subject/client-validate',
+  'Article-Kind': 'subject',
+  'Article-Title': 'Client Validate',
+  'Article-Slug': 'client-validate',
+  'Article-Topic': 'client-sdk',
+  'Article-Language': 'en',
+  'Article-Version': '1',
+  'Article-Source-Name': 'Test',
+  'Article-Source-Url': 'https://example.com/v',
+  'Article-Content-Hash': 'sha256:' + 'a'.repeat(64),
+  'Article-Published-At': '2024-01-01T00:00:00Z',
+  'Article-Updated-At': '2024-01-01T00:00:00Z',
+  'Author-Agent-Id': 'ed25519:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  'Visibility': 'public'
+} });
+assert.equal(validateArticle.valid, true, 'article tags valid');
+
+const validateInvalid = await client.validate({ type: 'article', tags: { 'Article-Key': 'bad key' } }).catch(e => e.body || e);
+assert.equal(validateInvalid.valid, false, 'invalid article tags rejected');
+assert.ok(validateInvalid.errors.some(e => e.path === 'Article-Key'), 'errors include Article-Key');
+console.log('   ✓ validate via client');
+
+console.log('22. schema via client');
+const schemas = await client.schema();
+assert.ok(schemas.article, 'article schema present');
+assert.ok(schemas.attestation, 'attestation schema present');
+console.log('   ✓ schema via client');
+
 await stopServer(server);
 
 api._home = undefined;
