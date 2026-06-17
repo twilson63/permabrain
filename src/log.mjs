@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getHome, statePaths } from './config.mjs';
 import { loadIdentity } from './keys.mjs';
+import { emitEvent } from './events.mjs';
 
 const LOG_FILE = 'audit-log.jsonl';
 const MAX_LOG_LINES = 10000;
@@ -124,6 +125,17 @@ export function logAction(opts = {}) {
 
   // Best-effort rotation: keep the log from growing unbounded.
   rotateLog(home);
+
+  // Emit a real-time event for server streams (WebSocket / SSE).
+  emitEvent(action, {
+    status: entry.status,
+    agentId: entry.agentId,
+    key: entry.key,
+    id: entry.id,
+    message: entry.message,
+    details: entry.details,
+    createdAt: entry.createdAt
+  });
 
   return entry;
 }

@@ -1308,6 +1308,25 @@ const api = {
   },
 
   /**
+   * Return a real-time event stream for the local node.
+   *
+   * Events are generated from the audit log (publish, attest, fork, merge,
+   * import, export, backup, init, etc.) and optionally from explicit server
+   * broadcasts. Yields structured event objects with name, timestamp,
+   * and action metadata. Heartbeat events are emitted periodically.
+   *
+   * @param {Object} [opts]
+   * @param {string[]} [opts.events] - Filter by event name(s); omit for all
+   * @param {number} [opts.heartbeatMs=30000]
+   * @param {AbortSignal} [opts.signal]
+   * @returns {{[Symbol.asyncIterator]: function, cancel: function}}
+   */
+  events(opts = {}) {
+    requireInit(this._home);
+    return import('./events.mjs').then(({ subscribeEvents }) => subscribeEvents(opts));
+  },
+
+  /**
    * Validate and optionally repair the local PermaBrain state.
    *
    * @param {Object} [opts]

@@ -25,21 +25,69 @@
  *   POST /api/v1/verify                → verify id or key
  *   GET  /api/v1/config                → get config
  *   POST /api/v1/config                → set/validate/reset config
+ *   GET  /api/v1/events/stream       → Server-Sent Events real-time stream
+ *   GET  /api/v1/events/ws           → WebSocket upgrade for real-time events
  *
  * Errors return JSON with { error, status } and appropriate HTTP status codes.
  */
 
 import http from 'node:http';
 import { URL } from 'node:url';
+import { WebSocketServer } from 'ws';
 import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
 import { ensureIdentity, loadIdentity, publicIdentity } from './keys.mjs';
 import { api } from './agent-api.mjs';
+import { getEventBus, subscribeEvents, broadcastToWebSockets, writeSseEvent } from './events.mjs';
 
 const DEFAULT_PORT = 8765;
+const DEFAULT_SSE_HEARTBEAT_MS = 30000;
 
 function sendJson(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json' });
   res.end(JSON.stringify(body, null, 2));
+}
+
+const wsClients = new Set();
+let eventSubscription = null;
+let sseClients = new Set();
+
+function stopEventSubscription() {
+  if (eventSubscription) {
+    eventSubscription.cancel();
+    eventSubscription = null;
+  }
+}
+
+async function startEventSubscription() {
+  if (eventSubscription) return;
+  const sub = subscribeEvents({ events: [], heartbeatMs: DEFAULT_SSE_HEARTBEAT_MS });
+  eventSubscription = sub;
+  try {
+    for await (const event of sub) {
+      broadcastToWebSockets(wsClients, event);
+      writeSseEventToAll(sseClients, event);
+    }
+  } catch {
+    // Subscription cancelled or bus error; restart on next client connect.
+    eventSubscription = null;
+  }
+}
+
+function writeSseEventToAll(clients, event) {
+  const text = `data: ${JSON.stringify(event)}\n\n`;
+  for (const res of clients) {
+    try {
+      if (!res.writableEnded) res.write(text);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function maybeStartEventSubscription() {
+  if (wsClients.size > 0 || sseClients.size > 0) {
+    startEventSubscription().catch(() => {});
+  }
 }
 
 function sendError(res, status, message) {
@@ -159,8 +207,28 @@ async function handleRequest(req, res, home) {
         ok: true,
         transport,
         agentId: api._identity?.agentId || null,
-        home: api._home || home
+        home: api._home || home,
+        streams: {
+          websocket: '/api/v1/events/ws',
+          sse: '/api/v1/events/stream'
+        }
       });
+    }
+
+    if (method === 'GET' && route === '/api/v1/events/stream') {
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        'connection': 'keep-alive'
+      });
+      res.write(`data: ${JSON.stringify({ type: 'open', timestamp: new Date().toISOString() })}\n\n`);
+      sseClients.add(res);
+      maybeStartEventSubscription();
+      req.on('close', () => {
+        sseClients.delete(res);
+        if (sseClients.size === 0 && wsClients.size === 0) stopEventSubscription();
+      });
+      return;
     }
 
     if (method === 'POST' && route === '/api/v1/init') {
@@ -630,11 +698,34 @@ async function handleRequest(req, res, home) {
 export function createServer(options = {}) {
   const home = options.home || process.env.PERMABRAIN_HOME || getHome();
   const server = http.createServer((req, res) => handleRequest(req, res, home));
-  return { server, home };
+
+  const wss = new WebSocketServer({ noServer: true });
+  server.on('upgrade', (request, socket, head) => {
+    const url = new URL(request.url, `http://localhost`);
+    if (url.pathname.replace(/\/$/, '') === '/api/v1/events/ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wsClients.add(ws);
+        ws.send(JSON.stringify({ type: 'open', timestamp: new Date().toISOString() }));
+        maybeStartEventSubscription();
+        ws.on('close', () => {
+          wsClients.delete(ws);
+          if (wsClients.size === 0 && sseClients.size === 0) stopEventSubscription();
+        });
+        ws.on('error', () => {
+          wsClients.delete(ws);
+          if (wsClients.size === 0 && sseClients.size === 0) stopEventSubscription();
+        });
+      });
+    } else {
+      socket.destroy();
+    }
+  });
+
+  return { server, home, wss };
 }
 
 export async function startServer(options = {}) {
-  const { server, home } = createServer(options);
+  const { server, home, wss } = createServer(options);
   const requestedPort = options.port ?? (process.env.PERMABRAIN_PORT || DEFAULT_PORT);
   await new Promise((resolve, reject) => {
     server.listen(requestedPort, (err) => (err ? reject(err) : resolve()));
@@ -642,9 +733,20 @@ export async function startServer(options = {}) {
   const actualPort = server.address()?.port || requestedPort;
   const identity = await ensureIdentity(home).catch(() => null);
   if (identity && !api._home) setApiHome(home);
-  return { server, home, port: actualPort, agentId: identity?.agentId || api._identity?.agentId || null };
+  return { server, home, port: actualPort, agentId: identity?.agentId || api._identity?.agentId || null, wss };
 }
 
 export function stopServer(server) {
-  return new Promise((resolve) => server.close(resolve));
+  return new Promise((resolve) => {
+    stopEventSubscription();
+    for (const ws of wsClients) {
+      try { ws.close(); } catch {}
+    }
+    wsClients.clear();
+    for (const res of sseClients) {
+      try { res.end(); } catch {}
+    }
+    sseClients.clear();
+    server.close(resolve);
+  });
 }

@@ -290,7 +290,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard', 'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
+  'events', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard', 'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
   'sync', 'localIndex', 'importWikipedia', 'attestForAgent', 'provisionAgent',
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
@@ -301,7 +301,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 72 API methods present');
+console.log('   ✓ All 73 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -333,6 +333,12 @@ console.log('15. Completion exports');
 assert.equal(typeof generateCompletion, 'function', 'generateCompletion');
 assert.equal(typeof listSupportedShells, 'function', 'listSupportedShells');
 assert.equal(typeof api.completion, 'function', 'api.completion is a function');
-console.log('   ✓ Completion exports present');
+// Events exports
+import { getEventBus, emitEvent, subscribeEvents } from '../src/index.mjs';
+assert.equal(typeof getEventBus, 'function', 'getEventBus');
+assert.equal(typeof emitEvent, 'function', 'emitEvent');
+assert.equal(typeof subscribeEvents, 'function', 'subscribeEvents');
 
-console.log('\n✅ All importable module tests passed');
+console.log('   OK Events exports present');
+
+console.log('\nOK All importable module tests passed');
