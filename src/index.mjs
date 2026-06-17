@@ -101,6 +101,9 @@ export { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdo
 // Local HTTP API server
 export { createServer, startServer, stopServer } from './serve.mjs';
 
+// HTTP client SDK for permabrain serve
+export { createClient } from './client.mjs';
+
 // State doctor / repair
 export { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 

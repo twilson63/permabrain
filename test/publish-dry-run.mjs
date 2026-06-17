@@ -34,7 +34,7 @@ assert(changelog.includes(pkg.version), `CHANGELOG should mention current versio
 const child = spawnSync('npm', ['pack', '--dry-run'], { cwd: root, encoding: 'utf8' });
 const dryRun = `${child.stdout}\n${child.stderr}`;
 assert(dryRun.includes('npm notice'), `npm pack --dry-run should produce notice output: ${dryRun.slice(0, 200)}`);
-for (const entry of ['src/', 'scripts/', 'viewer/']) {
+for (const entry of ['src/', 'scripts/', 'viewer/', 'src/client.mjs']) {
   assert(dryRun.includes(entry), `npm pack --dry-run should include ${entry}`);
 }
 

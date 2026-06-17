@@ -221,6 +221,27 @@ permabrain dashboard --output dashboard.html --publish
 permabrain status
 ```
 
+### HTTP Client SDK
+
+```sh
+permabrain client health [--url http://localhost:8765]
+permabrain client status [--url http://localhost:8765]
+permabrain client get person/ada-lovelace [--url http://localhost:8765]
+permabrain client query --topic computing
+permabrain client publish article.md --kind subject --topic ai --source-url https://example.com/ai
+```
+
+Programmatically:
+
+```javascript
+import { createClient } from 'permabrain';
+const client = createClient({ baseUrl: 'http://localhost:8765' });
+
+await client.health();
+const article = await client.get('person/ada-lovelace');
+const { score } = await client.consensus('person/ada-lovelace');
+```
+
 ### Local HTTP API
 
 ```sh
@@ -402,12 +423,31 @@ Only enable public upload when you are ready to publish permanent public test da
 Most CLI commands are also available programmatically through `src/agent-api.mjs`:
 
 ```javascript
-import { createAgentAPI } from 'permabrain';
-const api = createAgentAPI({ home: process.env.PERMABRAIN_HOME });
+import { api } from 'permabrain';
 await api.init();
-const result = await api.publish({ file: 'article.md', kind: 'subject', topic: 'ai' });
+const result = await api.publish({ content: '# AI\n...', kind: 'subject', topic: 'ai', sourceUrl: 'https://example.com/ai' });
 const article = await api.get('subject/artificial-intelligence');
 const report = await api.doctor({ fix: true });
 ```
 
-See `src/agent-api.mjs` for the full method list.
+You can also talk to a running `permabrain serve` instance with the HTTP client SDK:
+
+```javascript
+import { createClient } from 'permabrain';
+const client = createClient({ baseUrl: 'http://localhost:8765' });
+
+await client.health();
+const { summary } = await client.publish({
+  content: '# Ada Lovelace\n...',
+  kind: 'person',
+  topic: 'computing',
+  sourceUrl: 'https://en.wikipedia.org/wiki/Ada_Lovelace'
+});
+const article = await client.get('person/ada-lovelace');
+const { score } = await client.consensus('person/ada-lovelace');
+const html = await client.dashboardHTML();
+```
+
+The client mirrors the agent API surface and returns JSON responses from the REST endpoints. Every method rejects with `{ status, error }` when the server responds with a non-2xx status code.
+
+See `src/agent-api.mjs` and `src/client.mjs` for the full method lists.

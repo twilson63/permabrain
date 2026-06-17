@@ -63,7 +63,8 @@ const COMMANDS = [
   'doctor',
   'log',
   'template',
-  'dashboard'
+  'dashboard',
+  'client'
 ];
 
 function printVersion() {
@@ -130,6 +131,7 @@ Commands:
   log [filters]                Query the local audit log
   template <file>              Publish an article from a markdown template
   dashboard                    Build a self-contained web dashboard snapshot
+  client [action] [args]         HTTP client SDK for a permabrain serve instance
 
 Common examples:
   permabrain init
@@ -760,7 +762,24 @@ Options:
   --private-jwk <json>  Override ZenBin private JWK (JSON string)
   --markdown              Output markdown instead of the default summary
   --json                  Output structured JSON dashboard data
-  --use-hyperbeam         Query via HyperBEAM transport`
+  --use-hyperbeam         Query via HyperBEAM transport`,
+    'client': `Usage: permabrain client [health|status|get|query|publish] [args] [--url <base-url>] [--json]
+
+HTTP client SDK command for interacting with a running permabrain serve instance.
+This is a thin convenience wrapper over the typed SDK in src/client.mjs; it is
+useful for quick remote checks and shell scripts.
+
+Actions:
+  client health                       GET /health
+  client status                       GET /api/v1/status
+  client get <key>                    GET /api/v1/articles/:key
+  client query [--topic <topic>] [--kind <kind>] [--key <key>]
+  client publish <file> --kind <kind> --topic <topic> --source-url <url>
+
+Options:
+  --url <base-url>    Server base URL (default http://localhost:8765)
+  --use-hyperbeam     Pass useHyperbeam=true to the server
+  --json              Output structured JSON`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

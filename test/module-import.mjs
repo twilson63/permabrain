@@ -187,12 +187,16 @@ assert.equal(typeof computeFingerprint, 'function', 'computeFingerprint');
 assert.equal(typeof contentDigest, 'function', 'contentDigest');
 assert.equal(typeof signRequest, 'function', 'signRequest');
 
+// SDK exports
+import { createClient } from '../src/index.mjs';
+
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
 assert.equal(typeof createServer, 'function', 'createServer');
 assert.equal(typeof startServer, 'function', 'startServer');
 assert.equal(typeof stopServer, 'function', 'stopServer');
-console.log('   ✓ All lower-level exports present (including dashboard + ZenBin)');
+assert.equal(typeof createClient, 'function', 'createClient');
+console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client)');
 
 // --- 5. package.json exports field ---
 console.log('5. package.json exports field');
@@ -296,7 +300,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 70 API methods present');
+console.log('   ✓ All 71 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');

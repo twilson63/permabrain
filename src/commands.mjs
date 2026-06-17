@@ -100,6 +100,7 @@ export async function runCommand(command, args) {
   if (command === 'log') return logCommand(args);
   if (command === 'template') return templateCommand(args);
   if (command === 'dashboard') return dashboardCommand(args);
+  if (command === 'client') return clientCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1810,6 +1811,72 @@ async function logCommand(args = {}) {
   if (args.json) printJson(result);
   else console.log(args.markdown ? logToMarkdown(result) : logToMarkdown(result));
   return result;
+}
+
+async function clientCommand(args) {
+  const baseUrl = args.url || args['base-url'] || 'http://localhost:8765';
+  const action = args._[0] || 'health';
+  const { createClient } = await import('./client.mjs');
+  const client = createClient({ baseUrl });
+
+  if (action === 'health') {
+    const result = await client.health();
+    if (args.json) printJson(result);
+    else console.log(`PermaBrain client → ${baseUrl}: ok=${result.ok} transport=${result.transport} agentId=${result.agentId}`);
+    return result;
+  }
+
+  if (action === 'status') {
+    const result = await client.status();
+    if (args.json) printJson(result);
+    else console.log(`PermaBrain client status → ${baseUrl}: ${result.home} (${result.transport})`);
+    return result;
+  }
+
+  if (action === 'get') {
+    const key = args._[1];
+    if (!key) throw new Error('client get requires <canonical-key>');
+    const result = await client.get(key, { useHyperbeam: args['use-hyperbeam'] });
+    if (args.json) printJson(result);
+    else process.stdout.write(result.content || '');
+    return result;
+  }
+
+  if (action === 'query') {
+    const result = await client.query({
+      topic: args.topic,
+      kind: args.kind,
+      key: args.key,
+      'use-hyperbeam': args['use-hyperbeam']
+    });
+    if (args.json) printJson(result);
+    else {
+      for (const a of result.articles) console.log(`${a.key}\tv${a.version}\t${a.title}\t${a.topic}`);
+    }
+    return result;
+  }
+
+  if (action === 'publish') {
+    const file = args._[1];
+    if (!file) throw new Error('client publish requires <file>');
+    const fs = await import('node:fs');
+    const content = fs.readFileSync(file, 'utf8');
+    const result = await client.publish({
+      content,
+      kind: args.kind,
+      topic: args.topic,
+      sourceUrl: args['source-url'],
+      sourceName: args['source-name'],
+      title: args.title,
+      key: args.key,
+      language: args.language || 'en'
+    });
+    if (args.json) printJson(result.summary);
+    else console.log(`Published ${result.summary.key} (id=${result.summary.id}, v${result.summary.version})`);
+    return result;
+  }
+
+  throw new Error(`Unknown client action: ${action}. Try: health, status, get, query, publish`);
 }
 
 async function serveCommand(args) {
