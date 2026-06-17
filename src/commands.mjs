@@ -38,6 +38,15 @@ import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 import { queryLog, logToMarkdown, logAction, tailLog, followLog, exportLog, importLog } from './log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
+import {
+  createThresholdEnvelope,
+  addCoSigner,
+  finalizeThresholdAttestation,
+  verifyThresholdEnvelope,
+  verifyThresholdSignature,
+  signThresholdDigest,
+  importThresholdEnvelope
+} from './threshold-attestation.mjs';
 
 import fs from 'node:fs';
 
@@ -103,6 +112,7 @@ export async function runCommand(command, args) {
   if (command === 'dashboard') return dashboardCommand(args);
   if (command === 'client') return clientCommand(args);
   if (command === 'completion') return completionCommand(args);
+  if (command === 'threshold-attest' || command === 'threshold') return thresholdAttestCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1900,6 +1910,143 @@ Install to your shell and reload, or source the generated script in your rc file
   const script = generateCompletion(shell);
   console.log(script);
   return { shell, script };
+}
+
+async function thresholdAttestCommand(args) {
+  const subcommand = args._[0];
+  if (!subcommand || subcommand === '--help' || subcommand === 'help') {
+    console.log(`Usage: permabrain threshold-attest <subcommand> [args]
+
+Subcommands:
+  create <key> --opinion <opinion> --confidence <0-1> --reason <reason>
+         --threshold <n> --co-signers <id1,id2,...> [--source-url <url>]
+         [--target-id <id>] [--output <path>]
+         Create a threshold envelope and output it (JSON or file).
+  add-sig <envelope-path> --agent-id <id> --signature <base64url>
+         [--signature-type ed25519|arweave-rsa4096] [--public-key <base64url>]
+         Add a co-signer signature to the envelope.
+  finalize <envelope-path> [--use-hyperbeam]
+         Verify threshold, publish the multi-sig attestation, and remove
+         the envelope file on success.
+  verify <envelope-path>
+         Verify all co-signer signatures and print threshold status.
+  import <envelope-path>
+         Load a shared envelope into the in-memory pending map.
+
+Examples:
+  permabrain threshold-attest create subject/ai --valid --confidence 0.95 \\
+      --reason "Cross-checked" --threshold 2 --co-signers sage,relay --output env.json
+  permabrain threshold-attest finalize env.json
+`);
+    return { subcommand };
+  }
+
+  if (subcommand === 'create') {
+    const key = args._[1];
+    if (!key) throw new Error('create requires <canonical-key>');
+    const opinion = opinionFromArgs(args);
+    const threshold = Number(args.threshold);
+    if (!Number.isInteger(threshold) || threshold < 1) throw new Error('--threshold must be a positive integer');
+    const coSigners = args['co-signers'] ? String(args['co-signers']).split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (!coSigners.length) throw new Error('--co-signers is required');
+    if (threshold > coSigners.length) throw new Error(`--threshold ${threshold} exceeds co-signer count ${coSigners.length}`);
+    if (!args.reason) throw new Error('--reason is required');
+    if (args.confidence === undefined) throw new Error('--confidence is required');
+
+    const envelope = await createThresholdEnvelope({
+      key,
+      opinion,
+      confidence: args.confidence,
+      reason: args.reason,
+      sourceUrl: args['source-url'],
+      targetId: args['target-id'],
+      policy: { threshold, coSignerAgentIds: coSigners }
+    });
+
+    const output = args.output;
+    if (output) {
+      fs.writeFileSync(output, JSON.stringify(envelope, null, 2) + '\n');
+    }
+    if (args.json || !output) {
+      printJson(envelope);
+    } else {
+      console.log(`Created threshold envelope: ${envelope.envelopeId}`);
+      console.log(`  Key: ${envelope.targetKey}`);
+      console.log(`  Opinion: ${envelope.opinion} (${envelope.confidence})`);
+      console.log(`  Threshold: ${envelope.policy.threshold} of ${envelope.policy.coSignerAgentIds.length}`);
+      console.log(`  Signatures: ${envelope.signers.length}`);
+      console.log(`  Written to: ${output}`);
+    }
+    return envelope;
+  }
+
+  if (subcommand === 'add-sig') {
+    const filePath = args._[1] || args.file;
+    if (!filePath) throw new Error('add-sig requires <envelope-file>');
+    if (!args['agent-id']) throw new Error('--agent-id is required');
+    if (!args.signature) throw new Error('--signature is required');
+    const envelope = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    importThresholdEnvelope(envelope);
+    const signer = {
+      agentId: args['agent-id'],
+      signatureType: args['signature-type'] || 'ed25519',
+      signature: args.signature,
+      publicKey: args['public-key']
+    };
+    const updated = addCoSigner(envelope.envelopeId, signer);
+    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2) + '\n');
+    if (args.json) printJson(updated);
+    else {
+      const verified = await verifyThresholdEnvelope(updated);
+      console.log(`Added signature from ${signer.agentId}`);
+      console.log(`  Valid signatures: ${verified.valid}/${verified.required}`);
+      console.log(`  Threshold met: ${verified.ok ? 'yes' : 'no'}`);
+    }
+    return updated;
+  }
+
+  if (subcommand === 'finalize') {
+    const filePath = args._[1] || args.file;
+    if (!filePath) throw new Error('finalize requires <envelope-file>');
+    const envelope = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    importThresholdEnvelope(envelope);
+    const result = await finalizeThresholdAttestation(envelope.envelopeId, { useHyperbeam: args['use-hyperbeam'] ?? false });
+    fs.rmSync(filePath, { force: true });
+    if (args.json) printJson({ summary: result.summary, envelopeId: result.envelope.envelopeId, itemId: result.item.id });
+    else {
+      console.log(`Published threshold attestation: ${result.item.id}`);
+      console.log(`  Key: ${result.summary.targetKey}`);
+      console.log(`  Opinion: ${result.summary.opinion} (${result.summary.confidence})`);
+      console.log(`  Signatures: ${result.envelope.signers.length}/${result.envelope.policy.threshold}`);
+    }
+    return result;
+  }
+
+  if (subcommand === 'verify') {
+    const filePath = args._[1] || args.file;
+    if (!filePath) throw new Error('verify requires <envelope-file>');
+    const envelope = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const result = await verifyThresholdEnvelope(envelope);
+    if (args.json) printJson(result);
+    else {
+      console.log(`Threshold verification: ${result.ok ? 'OK' : 'NOT MET'}`);
+      console.log(`  Valid signatures: ${result.valid}/${result.required}`);
+      if (result.invalid.length) console.log(`  Invalid signers: ${result.invalid.join(', ')}`);
+    }
+    return result;
+  }
+
+  if (subcommand === 'import') {
+    const filePath = args._[1] || args.file;
+    if (!filePath) throw new Error('import requires <envelope-file>');
+    const envelope = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const stored = importThresholdEnvelope(envelope);
+    if (args.json) printJson({ envelopeId: stored.envelopeId, imported: true });
+    else console.log(`Imported threshold envelope: ${stored.envelopeId}`);
+    return stored;
+  }
+
+  throw new Error(`Unknown threshold-attest subcommand: ${subcommand}`);
 }
 
 async function serveCommand(args) {

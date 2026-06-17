@@ -688,6 +688,47 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 201, result);
     }
 
+    if (method === 'POST' && route === '/api/v1/threshold-attest') {
+      const body = await readBody(req);
+      if (!body.key) return sendError(res, 400, 'key is required');
+      if (!body.opinion) return sendError(res, 400, 'opinion is required');
+      if (body.confidence === undefined) return sendError(res, 400, 'confidence is required');
+      if (!body.reason) return sendError(res, 400, 'reason is required');
+      if (!body.policy?.threshold) return sendError(res, 400, 'policy.threshold is required');
+      if (!body.policy?.coSignerAgentIds?.length) return sendError(res, 400, 'policy.coSignerAgentIds is required');
+      const envelope = await api.createThresholdAttestation(body);
+      return sendJson(res, 201, envelope);
+    }
+
+    if (method === 'POST' && route === '/api/v1/threshold-attest/sign') {
+      const body = await readBody(req);
+      if (!body.envelopeId) return sendError(res, 400, 'envelopeId is required');
+      if (!body.signer?.agentId || !body.signer?.signature) return sendError(res, 400, 'signer.agentId and signer.signature are required');
+      const updated = api.addThresholdSigner(body.envelopeId, body.signer);
+      return sendJson(res, 200, updated);
+    }
+
+    if (method === 'POST' && route === '/api/v1/threshold-attest/finalize') {
+      const body = await readBody(req);
+      if (!body.envelopeId) return sendError(res, 400, 'envelopeId is required');
+      const result = await api.finalizeThresholdAttestation(body.envelopeId, { useHyperbeam: parseBool(body.useHyperbeam) });
+      return sendJson(res, 201, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/threshold-attest/verify') {
+      const body = await readBody(req);
+      if (!body.envelope) return sendError(res, 400, 'envelope is required');
+      const result = await api.verifyThresholdEnvelope(body.envelope);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/threshold-attest/import') {
+      const body = await readBody(req);
+      if (!body.envelope) return sendError(res, 400, 'envelope is required');
+      const stored = api.importThresholdEnvelope(body.envelope);
+      return sendJson(res, 200, stored);
+    }
+
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
   } catch (err) {
     const status = err.status || (err.message?.includes('required') ? 400 : 500);

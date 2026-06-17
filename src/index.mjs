@@ -124,3 +124,18 @@ export { getEventBus, emitEvent, subscribeEvents } from './events.mjs';
 
 // ZenBin client helpers
 export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest, ZENBIN_BASE_URL, ZENBIN_PUBLISH_PATH } from './zenbin.mjs';
+
+// Threshold / multi-sig attestations
+export {
+  createThresholdEnvelope,
+  addCoSigner,
+  finalizeThresholdAttestation,
+  exportThresholdEnvelope,
+  importThresholdEnvelope,
+  verifyThresholdEnvelope,
+  verifyThresholdSignature,
+  signThresholdDigest,
+  thresholdAttestationDigest,
+  normalizeThresholdPolicy,
+  summarizeThresholdAttestation
+} from './threshold-attestation.mjs';

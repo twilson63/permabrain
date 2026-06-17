@@ -83,6 +83,8 @@ export function createClient(options = {}) {
 
   const client = {
     request,
+    post: (path, body, extraHeaders) => request('POST', path, body, extraHeaders),
+    get: (path, extraHeaders) => request('GET', path, undefined, extraHeaders),
 
     /** @returns {Promise<{ok: boolean, transport: string, agentId: string|null, home: string}>} */
     health: () => request('GET', '/health'),
@@ -237,6 +239,24 @@ export function createClient(options = {}) {
 
     /** @returns {Promise<Object>} */
     diff: (opts = {}) => request('GET', `/api/v1/diff${toQuery(opts)}`),
+
+    /** @returns {Promise<Object>} */
+    completion: (body = {}) => request('POST', '/api/v1/completion', body),
+
+    /** @returns {Promise<Object>} */
+    createThresholdAttestation: (body) => request('POST', '/api/v1/threshold-attest', body),
+
+    /** @returns {Promise<Object>} */
+    addThresholdSigner: (body) => request('POST', '/api/v1/threshold-attest/sign', body),
+
+    /** @returns {Promise<Object>} */
+    finalizeThresholdAttestation: (body) => request('POST', '/api/v1/threshold-attest/finalize', body),
+
+    /** @returns {Promise<Object>} */
+    verifyThresholdEnvelope: (body) => request('POST', '/api/v1/threshold-attest/verify', body),
+
+    /** @returns {Promise<Object>} */
+    importThresholdEnvelope: (body) => request('POST', '/api/v1/threshold-attest/import', body),
 
     /** @returns {Promise<Object>} */
     doctor: (body = {}) => request('GET', `/api/v1/doctor${toQuery(body)}`)

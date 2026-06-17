@@ -1540,6 +1540,83 @@ const api = {
   },
 
   /**
+   * Create a threshold/multi-sig attestation envelope.
+   *
+   * @param {Object} params
+   * @param {string} params.key - Target article key
+   * @param {string} params.opinion
+   * @param {number} params.confidence
+   * @param {string} params.reason
+   * @param {Object} params.policy - { threshold: number, coSignerAgentIds: string[] }
+   * @param {string} [params.sourceUrl]
+   * @param {string} [params.targetId]
+   * @returns {Promise<Object>} Envelope
+   */
+  async createThresholdAttestation(params = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const threshold = await import('./threshold-attestation.mjs');
+    return threshold.createThresholdEnvelope({ ...params, now: params.now });
+  },
+
+  /**
+   * Add a co-signer signature to a pending threshold envelope.
+   *
+   * @param {string} envelopeId
+   * @param {Object} signer - { agentId, signatureType, signature, publicKey? }
+   * @returns {Object} Updated envelope
+   */
+  addThresholdSigner(envelopeId, signer) {
+    return import('./threshold-attestation.mjs').then(({ addCoSigner }) => addCoSigner(envelopeId, signer));
+  },
+
+  /**
+   * Export a threshold envelope for sharing with co-signers.
+   *
+   * @param {string} envelopeId
+   * @returns {Object}
+   */
+  exportThresholdEnvelope(envelopeId) {
+    return import('./threshold-attestation.mjs').then(({ exportThresholdEnvelope }) => exportThresholdEnvelope(envelopeId));
+  },
+
+  /**
+   * Finalize and publish a threshold attestation once signatures meet threshold.
+   *
+   * @param {string} envelopeId
+   * @param {Object} [opts]
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<Object>}
+   */
+  async finalizeThresholdAttestation(envelopeId, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const threshold = await import('./threshold-attestation.mjs');
+    return threshold.finalizeThresholdAttestation(envelopeId, opts);
+  },
+
+  /**
+   * Verify all co-signer signatures in a threshold envelope.
+   *
+   * @param {Object} envelope
+   * @returns {Promise<{ok:boolean, valid:number, required:number, invalid:string[]}>}
+   */
+  async verifyThresholdEnvelope(envelope) {
+    const threshold = await import('./threshold-attestation.mjs');
+    return threshold.verifyThresholdEnvelope(envelope);
+  },
+
+  /**
+   * Import a threshold envelope shared by another co-signer.
+   *
+   * @param {Object} envelope
+   * @returns {Object}
+   */
+  importThresholdEnvelope(envelope) {
+    return import('./threshold-attestation.mjs').then(({ importThresholdEnvelope }) => importThresholdEnvelope(envelope));
+  },
+
+  /**
    * Get the current agent identity.
    * @returns {{agentId, keyType}}
    */

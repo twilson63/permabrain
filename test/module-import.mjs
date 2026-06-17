@@ -187,6 +187,32 @@ assert.equal(typeof computeFingerprint, 'function', 'computeFingerprint');
 assert.equal(typeof contentDigest, 'function', 'contentDigest');
 assert.equal(typeof signRequest, 'function', 'signRequest');
 
+// Threshold exports
+import {
+  createThresholdEnvelope as createThresholdEnvelopeExport,
+  addCoSigner as addCoSignerExport,
+  finalizeThresholdAttestation as finalizeThresholdAttestationExport,
+  verifyThresholdEnvelope as verifyThresholdEnvelopeExport,
+  importThresholdEnvelope as importThresholdEnvelopeExport,
+  exportThresholdEnvelope as exportThresholdEnvelopeExport,
+  verifyThresholdSignature,
+  signThresholdDigest,
+  thresholdAttestationDigest,
+  normalizeThresholdPolicy,
+  summarizeThresholdAttestation
+} from '../src/index.mjs';
+assert.equal(typeof createThresholdEnvelopeExport, 'function', 'createThresholdEnvelope');
+assert.equal(typeof addCoSignerExport, 'function', 'addCoSigner');
+assert.equal(typeof finalizeThresholdAttestationExport, 'function', 'finalizeThresholdAttestation');
+assert.equal(typeof verifyThresholdEnvelopeExport, 'function', 'verifyThresholdEnvelope');
+assert.equal(typeof importThresholdEnvelopeExport, 'function', 'importThresholdEnvelope');
+assert.equal(typeof exportThresholdEnvelopeExport, 'function', 'exportThresholdEnvelope');
+assert.equal(typeof verifyThresholdSignature, 'function', 'verifyThresholdSignature');
+assert.equal(typeof signThresholdDigest, 'function', 'signThresholdDigest');
+assert.equal(typeof thresholdAttestationDigest, 'function', 'thresholdAttestationDigest');
+assert.equal(typeof normalizeThresholdPolicy, 'function', 'normalizeThresholdPolicy');
+assert.equal(typeof summarizeThresholdAttestation, 'function', 'summarizeThresholdAttestation');
+
 // SDK exports
 import { createClient } from '../src/index.mjs';
 import { generateCompletion, listSupportedShells } from '../src/index.mjs';
@@ -296,12 +322,13 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
+  'createThresholdAttestation', 'addThresholdSigner', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 73 API methods present');
+console.log('   ✓ All 79 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');

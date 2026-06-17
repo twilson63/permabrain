@@ -112,6 +112,10 @@ export function summarizeAttestationItem(item) {
     createdAt: tags['Attestation-Created-At'] || item.timestamp,
     proxy: tags['Attestation-Proxy'] === 'true',
     requesterId: tags['Attestation-Requester-Id'] || null,
-    requesterFingerprint: tags['Attestation-Requester-Fingerprint'] || null
+    requesterFingerprint: tags['Attestation-Requester-Fingerprint'] || null,
+    threshold: Number(tags['Attestation-Threshold'] || 0),
+    coSignerCount: Number(tags['Attestation-Co-Signer-Count'] || 0),
+    coSignerIds: (tags['Attestation-Co-Signer-Ids'] || '').split(',').filter(Boolean),
+    multiSig: tags['Attestation-Multi-Sig'] === 'true'
   };
 }

@@ -4,11 +4,25 @@ import { loadIndex } from './cache.mjs';
 import { queryAttestationsForKey, summarizeAttestationItem } from './attestation.mjs';
 
 const OPINION_WEIGHT = { valid: 1, 'partially-valid': 0.5, invalid: -1, disputed: -0.75, outdated: -0.5 };
+const MULTI_SIG_BONUS = 0.25;
+
+function isMultiSigAttestation(attestation) {
+  return attestation.multiSig === true || Number(attestation.threshold) > 0;
+}
+
+function effectiveAgentKey(attestation) {
+  // For multi-sig attestations, use a stable key combining the primary agent and co-signers
+  if (isMultiSigAttestation(attestation) && attestation.coSignerIds?.length) {
+    const ids = [attestation.agentId || attestation.id, ...attestation.coSignerIds].sort();
+    return ids.join(',');
+  }
+  return `${attestation.agentId || attestation.id}:${attestation.targetId || attestation.targetKey || ''}`;
+}
 
 function latestAttestationsByAgentAndTarget(attestations) {
   const latest = new Map();
   for (const attestation of attestations) {
-    const key = `${attestation.agentId || attestation.id}:${attestation.targetId || attestation.targetKey || ''}`;
+    const key = effectiveAgentKey(attestation);
     const current = latest.get(key);
     if (!current || String(attestation.createdAt || '') >= String(current.createdAt || '')) latest.set(key, attestation);
   }
@@ -35,7 +49,8 @@ export function consensusScore(attestations, { latestArticleId = null, now = new
     const opinionWeight = OPINION_WEIGHT[attestation.opinion] ?? 0;
     const targetVersionWeight = latestArticleId && attestation.targetId && attestation.targetId !== latestArticleId ? 0.5 : 1;
     const recencyWeight = freshnessWeight(attestation.createdAt, now instanceof Date ? now : new Date(now));
-    const weight = targetVersionWeight * recencyWeight;
+    const multiSigBonus = isMultiSigAttestation(attestation) ? MULTI_SIG_BONUS : 0;
+    const weight = targetVersionWeight * recencyWeight * (1 + multiSigBonus);
     const contribution = opinionWeight * confidence * weight;
     weightedSum += contribution;
     totalWeight += weight;
@@ -48,6 +63,7 @@ export function consensusScore(attestations, { latestArticleId = null, now = new
       opinionWeight,
       targetVersionWeight,
       freshnessWeight: Number(recencyWeight.toFixed(6)),
+      multiSigBonus,
       contribution: Number(contribution.toFixed(6))
     });
   }

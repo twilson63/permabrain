@@ -66,7 +66,8 @@ export const COMMANDS = [
   'template',
   'dashboard',
   'client',
-  'completion'
+  'completion',
+  'threshold-attest'
 ];
 
 export const GLOBAL_OPTIONS = [
@@ -134,6 +135,8 @@ export const COMMAND_OPTIONS = {
   log: ['--action', '--status', '--key', '--agent', '--after', '--before', '--search', '--order', '--limit', '--offset', '--tail', '--follow', '--interval', '--markdown'],
   template: ['--source', '--topic', '--kind', '--title', '--key', '--app', '--source-url', '--variables', '--encrypt', '--recipient'],
   dashboard: ['--kind', '--topic', '--author', '--key', '--agent', '--after', '--before', '--sort', '--order', '--article-limit', '--activity-limit', '--log-limit', '--output', '--title', '--publish', '--page-id', '--recipient-key-id', '--recipient', '--subdomain', '--key-id', '--private-jwk', '--markdown'],
+  threshold: ['--opinion', '--confidence', '--reason', '--source-url', '--target-id'],
+  'threshold-attest': ['--opinion', '--confidence', '--reason', '--source-url', '--target-id', '--threshold', '--co-signers', '--output', '--signature', '--signature-type', '--public-key', '--agent-id'],
   client: ['--url'],
   completion: []
 };

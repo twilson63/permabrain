@@ -128,7 +128,10 @@ export function buildAttestationTags({
   reason,
   agentId,
   sourceUrl = '',
-  now = new Date().toISOString()
+  now = new Date().toISOString(),
+  threshold,
+  coSignerAgentIds,
+  multiSig = false
 }) {
   if (!targetId) throw new Error('Attestation-Target-Id is required');
   validateArticleKey(targetKey);
@@ -136,7 +139,7 @@ export function buildAttestationTags({
   const normalizedConfidence = validateConfidence(confidence);
   if (!reason) throw new Error('Attestation-Reason is required');
   if (!agentId) throw new Error('Attestation-Agent-Id is required');
-  return objectToTags({
+  const tags = objectToTags({
     'App-Name': 'PermaBrain',
     'App-Version': APP_VERSION,
     'PermaBrain-Type': 'attestation',
@@ -147,6 +150,11 @@ export function buildAttestationTags({
     'Attestation-Reason': reason,
     'Attestation-Agent-Id': agentId,
     'Attestation-Source-Url': sourceUrl,
-    'Attestation-Created-At': now
+    'Attestation-Created-At': now,
+    'Attestation-Threshold': threshold,
+    'Attestation-Co-Signer-Count': Array.isArray(coSignerAgentIds) ? coSignerAgentIds.length : undefined,
+    'Attestation-Co-Signer-Ids': Array.isArray(coSignerAgentIds) && coSignerAgentIds.length ? coSignerAgentIds.join(',') : undefined,
+    'Attestation-Multi-Sig': multiSig ? 'true' : undefined
   });
+  return tags;
 }
