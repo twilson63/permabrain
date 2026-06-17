@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
+
 const COMMANDS = [
   'init',
   'probe',
@@ -59,9 +66,13 @@ const COMMANDS = [
   'dashboard'
 ];
 
+function printVersion() {
+  console.log(pkg.version);
+}
+
 function printHelp(command = null) {
   if (!command) {
-    console.log(`PermaBrain — public signed third brain
+    console.log(`PermaBrain — public signed third brain v${pkg.version}
 
 Usage:
   permabrain <command> [options]
@@ -772,6 +783,10 @@ async function main() {
   const [command, ...rest] = process.argv.slice(2);
   if (!command || command === '--help' || command === '-h') {
     printHelp();
+    return;
+  }
+  if (command === '--version' || command === '-v') {
+    printVersion();
     return;
   }
   if (!COMMANDS.includes(command)) {
