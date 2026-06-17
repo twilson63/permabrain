@@ -103,3 +103,6 @@ export { createServer, startServer, stopServer } from './serve.mjs';
 
 // State doctor / repair
 export { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
+
+// Local audit log
+export { logAction, queryLog, logToMarkdown } from './log.mjs';

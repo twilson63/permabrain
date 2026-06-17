@@ -274,11 +274,18 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 57 API methods present');
+console.log('   ✓ All 60 API methods present');
+
+// --- 12. Log API methods ---
+console.log('12. Log API methods');
+assert.equal(typeof api.log, 'function', 'api.log is a function');
+assert.equal(typeof api.auditLog, 'function', 'api.auditLog is a function');
+assert.equal(typeof api.logToMarkdown, 'function', 'api.logToMarkdown is a function');
+console.log('   ✓ Log API methods present');
 
 console.log('\n✅ All importable module tests passed');

@@ -53,7 +53,8 @@ const COMMANDS = [
   'backup',
   'restore',
   'serve',
-  'doctor'
+  'doctor',
+  'log'
 ];
 
 function printHelp(command = null) {
@@ -113,6 +114,7 @@ Commands:
   restore                      Restore a PermaBrain home from an encrypted snapshot
   serve [ --port N ]           Start the local HTTP API server (default port 8765)
   doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
+  log [filters]                Query the local audit log
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -633,7 +635,8 @@ Press Ctrl+C to stop.`,
 Validate the local PermaBrain state (config, identity, cache index, object files)
 and report any issues. With --fix, attempts safe auto-repairs: recreates missing
 config.json, rebuilds a stale index from cache/objects, and restores a missing
-identity-init.json when keys.json is present.`
+identity-init.json when keys.json is present.`,
+    'log': `Usage: permabrain log [--action <action>] [--status ok|error|pending] [--key <key>] [--agent <agent-id>] [--after <iso-date>] [--before <iso-date>] [--search <term>] [--order asc|desc] [--limit N] [--offset N] [--markdown] [--json]\n\nQuery the local audit log of actions performed by this node.\n\nThe audit log is local-only and separate from the transport activity feed.\nIt records actions like publish, attest, fork, merge, import, export, init,\nand identity events, along with their status and metadata.\n\nOptions:\n  --action <action>    Filter by action name (comma-separated for multiple)\n  --status <status>    Filter by status: ok, error, pending\n  --key <key>          Filter by canonical article key\n  --agent <agent-id>   Filter by agent id\n  --after <date>       Only events on or after this ISO date\n  --before <date>      Only events on or before this ISO date\n  --search <term>      Substring search across action/key/message/details\n  --order asc|desc     Sort order (default desc)\n  --limit N            Maximum results (default 50)\n  --offset N           Pagination offset (default 0)\n  --markdown           Render results as markdown\n  --json               Output structured JSON`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

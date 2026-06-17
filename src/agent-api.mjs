@@ -38,7 +38,7 @@ import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups } from './backup.mjs';
-import { loadIndex } from './cache.mjs';
+import { logAction, queryLog, logToMarkdown } from './log.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
@@ -1271,6 +1271,55 @@ const api = {
       return { ...report, markdown: doctorReportToMarkdown(report) };
     }
     return report;
+  },
+
+  /**
+   * Record a local audit-log event.
+   *
+   * @param {Object} opts
+   * @param {string} opts.action - Action name, e.g. 'publish', 'attest', 'fork'.
+   * @param {string} [opts.status='ok'] - 'ok' | 'error' | 'pending'.
+   * @param {string} [opts.key] - Article key, if any.
+   * @param {string} [opts.id] - DataItem/id, if any.
+   * @param {string} [opts.message] - Human-readable summary.
+   * @param {Object} [opts.details] - Structured metadata.
+   * @returns {Object} The written log entry.
+   */
+  auditLog(opts = {}) {
+    requireInit(this._home);
+    return logAction({ ...opts, home: this._home });
+  },
+
+  /**
+   * Query the local audit log.
+   *
+   * @param {Object} [opts]
+   * @param {string|string[]} [opts.action]
+   * @param {string|string[]} [opts.status]
+   * @param {string|string[]} [opts.key]
+   * @param {string|string[]} [opts.agentId]
+   * @param {string} [opts.after]
+   * @param {string} [opts.before]
+   * @param {string} [opts.order='desc']
+   * @param {number} [opts.limit=50]
+   * @param {number} [opts.offset=0]
+   * @param {string} [opts.search]
+   * @param {boolean} [opts.markdown=false]
+   * @returns {Object}
+   */
+  log(opts = {}) {
+    requireInit(this._home);
+    return queryLog({ ...opts, home: this._home });
+  },
+
+  /**
+   * Render audit log results as markdown.
+   *
+   * @param {Object} result - Result from `api.log()`.
+   * @returns {string}
+   */
+  logToMarkdown(result) {
+    return logToMarkdown(result);
   },
 
   /**

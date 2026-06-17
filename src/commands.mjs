@@ -34,6 +34,7 @@ import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, re
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
 import { startServer, stopServer } from './serve.mjs';
 import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
+import { queryLog, logToMarkdown, logAction } from './log.mjs';
 
 import fs from 'node:fs';
 
@@ -94,6 +95,7 @@ export async function runCommand(command, args) {
   if (command === 'backup') return backupCommand(args);
   if (command === 'serve') return serveCommand(args);
   if (command === 'doctor') return doctorCommand(args);
+  if (command === 'log') return logCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1588,6 +1590,27 @@ async function doctorCommand(args) {
   else console.log(doctorReportToMarkdown(report));
   if (!report.ok && process.env.PERMABRAIN_REQUIRE_DOCTOR_OK === '1') throw new Error('PermaBrain doctor found issues');
   return report;
+}
+
+async function logCommand(args) {
+  const home = getHome();
+  const result = queryLog({
+    home,
+    action: args.action,
+    status: args.status,
+    key: args.key,
+    agentId: args.agent || args['agent-id'],
+    after: args.after,
+    before: args.before,
+    search: args.search,
+    order: args.order,
+    limit: args.limit ? Number(args.limit) : undefined,
+    offset: args.offset ? Number(args.offset) : undefined,
+    markdown: args.markdown
+  });
+  if (args.json) printJson(result);
+  else console.log(args.markdown ? logToMarkdown(result) : logToMarkdown(result));
+  return result;
 }
 
 async function serveCommand(args) {

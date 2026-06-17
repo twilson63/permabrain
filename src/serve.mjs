@@ -488,6 +488,18 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 200, result);
     }
 
+    if (method === 'GET' && route === '/api/v1/log') {
+      const result = await api.log(Object.fromEntries(url.searchParams));
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/log') {
+      const body = await readBody(req);
+      if (!body.action) return sendError(res, 400, 'action is required');
+      const result = await api.auditLog(body);
+      return sendJson(res, 201, result);
+    }
+
     if (method === 'GET' && route === '/api/v1/identity') {
       const id = publicIdentity(api._identity);
       return sendJson(res, 200, id);
