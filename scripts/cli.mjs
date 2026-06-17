@@ -47,7 +47,9 @@ const COMMANDS = [
   'export-articles',
   'metrics',
   'config',
-  'remote'
+  'remote',
+  'archive',
+  'restore'
 ];
 
 function printHelp(command = null) {
@@ -101,6 +103,8 @@ Commands:
   metrics                      Show aggregate article/attestation metrics
   config                       Get, set, validate, or inspect PermaBrain config
   remote                       Manage named remote endpoints
+  archive                      Create an encrypted snapshot of the local PermaBrain home
+  restore                      Restore a PermaBrain home from an encrypted snapshot
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -552,7 +556,26 @@ Options:
   --data-url <url>             Override data gateway endpoint
   --upload-url <url>           Override bundler upload endpoint
   --hyperbeam-references       Enable HyperBEAM reference creation for this remote
-  --description <text>         Optional description`
+  --description <text>         Optional description`,
+    'archive': `Usage: permabrain archive --passphrase <text> [--recipient <key>] [--output <path>] [--dry-run] [--json]
+
+Create an encrypted snapshot of the local PermaBrain home.
+
+The archive includes keys.json, identity-init.json, config.json, cache/index.json,
+and all cache/objects/*.json files. Plaintext cache/pages/*.md files are deliberately
+excluded. The archive is encrypted using X25519 ECDH + AES-256-GCM.
+
+By default a passphrase-derived key is added so the same passphrase can restore later.
+Additional --recipient X25519 public keys can be provided for escrow or migration.
+Use --output to write to a file; otherwise the archive JSON is printed.`,
+    'restore': `Usage: permabrain restore <file> [--passphrase <text>] [--seed <base64url-seed>] [--home <path>] [--dry-run] [--json]
+
+Restore a PermaBrain home from an encrypted archive snapshot.
+
+The passphrase must match the one used when creating the archive. If --seed is
+provided, it is used as the X25519 seed directly. The current identity's derived
+encryption key is tried as a fallback. Use --dry-run to validate decryption without
+writing files.`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

@@ -30,6 +30,7 @@ import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
+import { archive, restore } from './archive.mjs';
 
 import fs from 'node:fs';
 
@@ -84,6 +85,8 @@ export async function runCommand(command, args) {
   if (command === 'config') return configCommand(args);
   if (command === 'metrics') return metricsCommand(args);
   if (command === 'remote') return remoteCommand(args);
+  if (command === 'archive') return archiveCommand(args);
+  if (command === 'restore') return restoreCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1401,6 +1404,52 @@ async function remoteCommand(args) {
   }
 
   throw new Error(`Unknown remote action: ${action}`);
+}
+
+async function archiveCommand(args) {
+  const home = getHome();
+  const passphrase = args.passphrase;
+  const recipients = args.recipient ? (Array.isArray(args.recipient) ? args.recipient : [args.recipient]) : [];
+  const dryRun = args['dry-run'] === true || args['dry-run'] === 'true';
+
+  const ar = await archive({ home, passphrase, recipients });
+
+  if (args.output) {
+    fs.writeFileSync(args.output, JSON.stringify(ar, null, 2) + '\n');
+  }
+
+  if (args.json || !args.output) {
+    printJson(ar);
+  } else {
+    console.log(`Archive created for ${ar.agentId}`);
+    console.log(`  Files: ${ar.entries.length}`);
+    console.log(`  Recipients: ${ar.encryption.recipientCount}`);
+    console.log(`  Passphrase: ${ar.encryption.hasPassphrase ? 'yes' : 'no'}`);
+    console.log(`  Written to: ${args.output || '(stdout)'}`);
+  }
+  return ar;
+}
+
+async function restoreCommand(args) {
+  const file = args._[0] || args.file;
+  if (!file) throw new Error('restore requires <file>');
+  const home = args.home || getHome();
+  const passphrase = args.passphrase;
+  const dryRun = args['dry-run'] === true || args['dry-run'] === 'true';
+
+  const raw = fs.readFileSync(file, 'utf8');
+  const ar = JSON.parse(raw);
+  const result = await restore(ar, { home, passphrase, dryRun });
+
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(`Restore ${result.dryRun ? '(dry-run)' : 'complete'}: ${result.entriesRestored} files`);
+    for (const p of result.paths) {
+      console.log(`  ${p}`);
+    }
+  }
+  return result;
 }
 
 async function mergeCommand(args) {

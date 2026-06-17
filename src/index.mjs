@@ -90,3 +90,6 @@ export { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';
 export { exportHistory } from './export-history.mjs';
 export { importHistory } from './import-history.mjs';
+
+// Archive / restore snapshots
+export { archive, restore } from './archive.mjs';

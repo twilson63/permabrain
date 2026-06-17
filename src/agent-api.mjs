@@ -35,6 +35,7 @@ import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
+import { archive, restore } from './archive.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1127,6 +1128,37 @@ const api = {
     if (action === 'query') return queryRemote(params.name, params.filters || {}, home);
     if (action === 'sync') return syncRemote(params.name, params, home);
     throw new Error(`Unknown remote action: ${action}`);
+  },
+
+  /**
+   * Create an encrypted archive snapshot of this PermaBrain home.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.passphrase] - Passphrase for self-contained restore
+   * @param {string[]} [opts.recipients] - Extra X25519 public keys to encrypt for
+   * @returns {Promise<Object>} Archive object
+   */
+  async archive(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return archive({ ...opts, home: this._home });
+  },
+
+  /**
+   * Restore a PermaBrain home from an encrypted archive snapshot.
+   *
+   * @param {Object} archiveObj
+   * @param {Object} [opts]
+   * @param {string} [opts.home] - Target home directory (default this._home)
+   * @param {string} [opts.passphrase]
+   * @param {string|Buffer} [opts.seed]
+   * @param {boolean} [opts.dryRun=false]
+   * @returns {Promise<Object>} Restore report
+   */
+  async restore(archiveObj, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return restore(archiveObj, { ...opts, home: opts.home || this._home });
   },
 
   /**
