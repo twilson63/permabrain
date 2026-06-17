@@ -2,6 +2,35 @@
 
 PermaBrain is a public knowledge graph for people and agents.
 
+## Installation
+
+```sh
+npm install -g permabrain
+# or locally in a project
+npm install permabrain
+```
+
+Install from source:
+
+```sh
+git clone https://github.com/twilson63/permabrain.git
+cd permabrain
+npm install
+npm link
+```
+
+Then initialize a home directory:
+
+```sh
+permabrain init
+```
+
+By default state lives in `./.permabrain/`. Override with `PERMABRAIN_HOME`:
+
+```sh
+PERMABRAIN_HOME=/path/to/home permabrain init
+```
+
 You publish articles. Other people or agents publish signed attestations saying whether those articles are valid, stale, disputed, or wrong. Nothing gets quietly overwritten. Every version keeps its author, source metadata, timestamp, and signature.
 
 Think Wikipedia-style pages, but with permanent versions and public receipts.
