@@ -1,0 +1,518 @@
+/**
+ * PermaBrain Local HTTP API Server
+ *
+ * Exposes the agent API from src/agent-api.mjs as a REST/JSON HTTP server.
+ * Usage:
+ *   import { createServer, startServer } from './src/serve.mjs';
+ *   const server = await startServer({ port: 8765, home: '/tmp/.permabrain' });
+ *
+ * Routes:
+ *   GET  /health                      → { ok, transport, agentId, home }
+ *   POST /api/v1/init                 → { home, agentId, keyType, config }
+ *   GET  /api/v1/articles             → query articles (filters as query params)
+ *   POST /api/v1/articles             → publish article (JSON body)
+ *   GET  /api/v1/articles/:key        → get latest article
+ *   POST /api/v1/articles/:key/attest → attest
+ *   GET  /api/v1/articles/:key/consensus → consensus
+ *   GET  /api/v1/articles/:key/history   → version history
+ *   POST /api/v1/sync                  → sync
+ *   GET  /api/v1/search?q=...          → search
+ *   GET  /api/v1/status                → node status
+ *   GET  /api/v1/activity              → activity feed
+ *   GET  /api/v1/list                  → paginated article directory
+ *   POST /api/v1/batch-attest          → batch attestations
+ *   POST /api/v1/auto-import           → auto-import from URLs
+ *   POST /api/v1/verify                → verify id or key
+ *   GET  /api/v1/config                → get config
+ *   POST /api/v1/config                → set/validate/reset config
+ *
+ * Errors return JSON with { error, status } and appropriate HTTP status codes.
+ */
+
+import http from 'node:http';
+import { URL } from 'node:url';
+import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
+import { ensureIdentity, loadIdentity, publicIdentity } from './keys.mjs';
+import { api } from './agent-api.mjs';
+
+const DEFAULT_PORT = 8765;
+
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(body, null, 2));
+}
+
+function sendError(res, status, message) {
+  sendJson(res, status, { error: message, status });
+}
+
+function parseBool(value) {
+  if (value === undefined || value === null) return undefined;
+  if (value === true || value === false) return value;
+  if (typeof value === 'string') {
+    const lowered = value.toLowerCase();
+    if (lowered === 'true' || lowered === '1') return true;
+    if (lowered === 'false' || lowered === '0') return false;
+  }
+  return undefined;
+}
+
+async function readBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const text = Buffer.concat(chunks).toString('utf8');
+  if (!text) return {};
+  try { return JSON.parse(text); } catch (err) { throw new Error(`Invalid JSON body: ${err.message}`); }
+}
+
+function setApiHome(home) {
+  api._home = home;
+  try { api._config = loadConfig(home); } catch { api._config = defaultConfig(); }
+  try { api._identity = loadIdentity(home); } catch { api._identity = null; }
+}
+
+async function ensureApiInit(home) {
+  if (!api._home) {
+    try {
+      api._home = home || getHome();
+      api._config = loadConfig(api._home);
+      api._identity = loadIdentity(api._home);
+    } catch {
+      initState({ env: { ...process.env, PERMABRAIN_HOME: home } });
+      await ensureIdentity(home);
+      setApiHome(home);
+    }
+  }
+  await api.ensureInit();
+  return api._home;
+}
+
+function queryArticlesOptions(query) {
+  return {
+    topic: query.topic,
+    kind: query.kind,
+    key: query.key,
+    sourceName: query['source-name'],
+    sourceUrl: query['source-url'],
+    useHyperbeam: parseBool(query['use-hyperbeam']) || parseBool(query.useHyperbeam)
+  };
+}
+
+function searchOptions(query) {
+  return {
+    kind: query.kind,
+    topic: query.topic,
+    author: query.author,
+    key: query.key,
+    after: query.after,
+    before: query.before,
+    limit: query.limit ? Number(query.limit) : undefined,
+    offset: query.offset ? Number(query.offset) : undefined,
+    useHyperbeam: parseBool(query['use-hyperbeam']) || parseBool(query.useHyperbeam)
+  };
+}
+
+function listOptions(query) {
+  return {
+    kind: query.kind,
+    topic: query.topic,
+    author: query.author,
+    after: query.after,
+    before: query.before,
+    sort: query.sort || 'date',
+    limit: query.limit ? Number(query.limit) : undefined,
+    offset: query.offset ? Number(query.offset) : undefined,
+    useHyperbeam: parseBool(query['use-hyperbeam']) || parseBool(query.useHyperbeam)
+  };
+}
+
+function activityOptions(query) {
+  const parseList = (v) => (v ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : undefined);
+  return {
+    topic: query.topic,
+    kind: query.kind,
+    key: query.key,
+    agent: parseList(query.agent),
+    author: parseList(query.author),
+    attestedBy: parseList(query['attested-by']),
+    eventKind: query['event-kind'] || query.eventKind,
+    after: query.after,
+    before: query.before,
+    order: query.order || 'desc',
+    limit: query.limit ? Number(query.limit) : undefined,
+    offset: query.offset ? Number(query.offset) : undefined,
+    useHyperbeam: parseBool(query['use-hyperbeam']) || parseBool(query.useHyperbeam)
+  };
+}
+
+async function handleRequest(req, res, home) {
+  const url = new URL(req.url, `http://localhost`);
+  const method = req.method;
+  const pathname = url.pathname;
+
+  const route = pathname.replace(/\/$/, '') || '/';
+
+  try {
+    if (method === 'GET' && route === '/health') {
+      const transport = api._config?.transport || process.env.PERMABRAIN_TRANSPORT || 'local';
+      return sendJson(res, 200, {
+        ok: true,
+        transport,
+        agentId: api._identity?.agentId || null,
+        home: api._home || home
+      });
+    }
+
+    if (method === 'POST' && route === '/api/v1/init') {
+      const body = await readBody(req);
+      const initHome = body.home || home;
+      const result = await api.init({
+        ...body,
+        transport: body.transport || process.env.PERMABRAIN_TRANSPORT
+      });
+      setApiHome(initHome);
+      return sendJson(res, 200, result);
+    }
+
+    const currentHome = await ensureApiInit(home);
+
+    if (route === '/api/v1/articles') {
+      if (method === 'GET') {
+        const result = await api.query(queryArticlesOptions(Object.fromEntries(url.searchParams)));
+        return sendJson(res, 200, { articles: result, count: result.length });
+      }
+      if (method === 'POST') {
+        const body = await readBody(req);
+        if (!body.content) return sendError(res, 400, 'content is required');
+        if (!body.kind) return sendError(res, 400, 'kind is required');
+        if (!body.topic) return sendError(res, 400, 'topic is required');
+        if (!body.sourceUrl) return sendError(res, 400, 'sourceUrl is required');
+        const result = await api.publish(body);
+        return sendJson(res, 201, result);
+      }
+    }
+
+    const keyMatch = route.match(/^\/api\/v1\/articles\/(.+)$/);
+    if (keyMatch) {
+      const key = decodeURIComponent(keyMatch[1]);
+      const subMatch = key.match(/^(.+)\/(attest|consensus|history|fork|merge)$/);
+      const articleKey = subMatch ? subMatch[1] : key;
+      const subAction = subMatch ? subMatch[2] : null;
+
+      if (method === 'GET' && !subAction) {
+        const opts = { useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) };
+        const result = await api.get(articleKey, opts);
+        return sendJson(res, 200, result);
+      }
+
+      if (method === 'POST' && subAction === 'attest') {
+        const body = await readBody(req);
+        if (!body.opinion) return sendError(res, 400, 'opinion is required');
+        if (body.confidence === undefined) return sendError(res, 400, 'confidence is required');
+        if (!body.reason) return sendError(res, 400, 'reason is required');
+        const result = await api.attest(articleKey, body);
+        return sendJson(res, 201, result);
+      }
+
+      if (method === 'GET' && subAction === 'consensus') {
+        const opts = { useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) };
+        const result = await api.consensus(articleKey, opts);
+        return sendJson(res, 200, result);
+      }
+
+      if (method === 'GET' && subAction === 'history') {
+        const opts = { useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) };
+        const result = await api.history(articleKey, opts);
+        return sendJson(res, 200, result);
+      }
+
+      if (method === 'POST' && subAction === 'fork') {
+        const body = await readBody(req);
+        const result = await api.fork(articleKey, body, body);
+        return sendJson(res, 201, result);
+      }
+    }
+
+    const forksMatch = route.match(/^\/api\/v1\/articles\/(.+)\/forks$/);
+    if (forksMatch && method === 'GET') {
+      const sourceKey = decodeURIComponent(forksMatch[1]);
+      const result = await api.listForks(sourceKey, { useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) });
+      return sendJson(res, 200, { forks: result, count: result.length });
+    }
+
+    if (method === 'POST' && route === '/api/v1/merge') {
+      const body = await readBody(req);
+      if (!body.targetKey) return sendError(res, 400, 'targetKey is required');
+      if (!body.sourceKey) return sendError(res, 400, 'sourceKey is required');
+      const result = await api.merge(body.targetKey, body.sourceKey, body);
+      return sendJson(res, 201, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/sync') {
+      const body = await readBody(req);
+      const result = await api.sync(body || {});
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/search') {
+      const q = url.searchParams.get('q');
+      if (!q) return sendError(res, 400, 'q is required');
+      const result = await api.search(q, searchOptions(Object.fromEntries(url.searchParams)));
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/status') {
+      const result = await api.status({ useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) });
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/activity') {
+      const result = await api.activity(activityOptions(Object.fromEntries(url.searchParams)));
+      return sendJson(res, 200, result);
+    }
+
+    const topicMatch = route.match(/^\/api\/v1\/topics\/(.+)$/);
+    if (topicMatch && method === 'GET') {
+      const topic = decodeURIComponent(topicMatch[1]);
+      const opts = {
+        kind: url.searchParams.get('kind'),
+        language: url.searchParams.get('language'),
+        agent: url.searchParams.get('author'),
+        sort: url.searchParams.get('sort') || 'date',
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined,
+        offset: url.searchParams.has('offset') ? Number(url.searchParams.get('offset')) : undefined,
+        includeAttestations: url.searchParams.get('no-attestations') === null,
+        useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam'))
+      };
+      const result = await api.topicFeed(topic, opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/list') {
+      const result = await api.listArticles(listOptions(Object.fromEntries(url.searchParams)));
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/export-articles') {
+      const opts = { ...listOptions(Object.fromEntries(url.searchParams)), format: url.searchParams.get('format') || 'json' };
+      const result = await api.exportArticles(opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/metrics') {
+      const opts = {
+        kind: url.searchParams.get('kind'),
+        topic: url.searchParams.get('topic'),
+        author: url.searchParams.get('author'),
+        after: url.searchParams.get('after'),
+        before: url.searchParams.get('before'),
+        top: url.searchParams.has('top') ? Number(url.searchParams.get('top')) : undefined
+      };
+      const result = await api.metrics(opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/batch-attest') {
+      const body = await readBody(req);
+      if (!body.attestations?.length) return sendError(res, 400, 'attestations array is required');
+      const result = await api.batchAttest(body);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/auto-import') {
+      const body = await readBody(req);
+      if (!body.articles?.length) return sendError(res, 400, 'articles array is required');
+      const result = await api.autoImport(body);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/verify') {
+      const body = await readBody(req);
+      if (!body.idOrKey) return sendError(res, 400, 'idOrKey is required');
+      const result = await api.verify(body.idOrKey, body);
+      return sendJson(res, 200, result);
+    }
+
+    if (route === '/api/v1/remotes') {
+      if (method === 'GET') {
+        const result = await api.remote('list');
+        return sendJson(res, 200, result);
+      }
+      if (method === 'POST') {
+        const body = await readBody(req);
+        if (!body.action) return sendError(res, 400, 'action is required');
+        const result = await api.remote(body.action, body.params || {});
+        return sendJson(res, 200, result);
+      }
+    }
+
+    if (route === '/api/v1/backups') {
+      if (method === 'GET') {
+        const result = api.listBackups();
+        return sendJson(res, 200, { backups: result, count: result.length });
+      }
+      if (method === 'POST') {
+        const body = await readBody(req);
+        const action = body.action || 'create';
+        if (action === 'create') {
+          if (!body.passphrase) return sendError(res, 400, 'passphrase is required');
+          const result = await api.backup({ passphrase: body.passphrase, recipients: body.recipients, name: body.name });
+          return sendJson(res, 201, result);
+        }
+        if (action === 'prune') {
+          const result = api.pruneBackups(body);
+          return sendJson(res, 200, result);
+        }
+        if (action === 'restore') {
+          if (!body.backup) return sendError(res, 400, 'backup is required');
+          const result = await api.restoreBackup({ backup: body.backup, passphrase: body.passphrase, dryRun: body.dryRun });
+          return sendJson(res, 200, result);
+        }
+        return sendError(res, 400, `Unknown backup action: ${action}`);
+      }
+    }
+
+    if (method === 'POST' && route === '/api/v1/archive') {
+      const body = await readBody(req);
+      const result = await api.archive(body || {});
+      return sendJson(res, 201, result);
+    }
+    if (method === 'POST' && route === '/api/v1/restore') {
+      const body = await readBody(req);
+      if (!body.archive) return sendError(res, 400, 'archive is required');
+      const result = await api.restore(body.archive, body.options || {});
+      return sendJson(res, 200, result);
+    }
+
+    if (route === '/api/v1/bundles') {
+      if (method === 'GET') {
+        const key = url.searchParams.get('key');
+        const id = url.searchParams.get('id');
+        const opts = {
+          key,
+          id,
+          includeAttestations: url.searchParams.get('no-attestations') === null,
+          includeVersions: url.searchParams.get('no-versions') === null,
+          useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam'))
+        };
+        const result = await api.exportBundle(opts);
+        return sendJson(res, 200, result);
+      }
+      if (method === 'POST') {
+        const body = await readBody(req);
+        if (!body.bundle) return sendError(res, 400, 'bundle is required');
+        const result = await api.importBundle(body.bundle, body.options || {});
+        return sendJson(res, 200, result);
+      }
+    }
+
+    if (method === 'GET' && route === '/api/v1/export-all') {
+      const opts = { includeAttestations: url.searchParams.get('no-attestations') === null };
+      const result = await api.exportAll(opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/history-export') {
+      const key = url.searchParams.get('key');
+      if (!key) return sendError(res, 400, 'key is required');
+      const result = await api.exportHistory(key, { useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) });
+      return sendJson(res, 200, result);
+    }
+    if (method === 'POST' && route === '/api/v1/history-import') {
+      const body = await readBody(req);
+      if (!body.bundle) return sendError(res, 400, 'bundle is required');
+      const result = await api.importHistory(body.bundle, body.options || {});
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/import-wikipedia') {
+      const body = await readBody(req);
+      if (!body.title) return sendError(res, 400, 'title is required');
+      const result = await api.importWikipedia(body);
+      return sendJson(res, 201, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/diff') {
+      const base = url.searchParams.get('base');
+      const head = url.searchParams.get('head');
+      if (!base) return sendError(res, 400, 'base is required');
+      const opts = {
+        useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')),
+        local: parseBool(url.searchParams.get('local')) || !head,
+        format: url.searchParams.get('format') || 'unified',
+        context: url.searchParams.has('context') ? Number(url.searchParams.get('context')) : undefined
+      };
+      const result = await api.diff(base, head, opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (route === '/api/v1/config') {
+      if (method === 'GET') {
+        const action = url.searchParams.get('action') || 'get';
+        const result = await api.config({ action, path: url.searchParams.get('path') });
+        return sendJson(res, 200, result);
+      }
+      if (method === 'POST') {
+        const body = await readBody(req);
+        const result = await api.config(body || { action: 'get' });
+        return sendJson(res, 200, result);
+      }
+    }
+
+    if (method === 'GET' && route === '/api/v1/probe') {
+      const opts = { useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) };
+      if (url.searchParams.has('url')) opts.url = url.searchParams.get('url');
+      const result = await api.probe(opts);
+      return sendJson(res, 200, result);
+    }
+    if (method === 'GET' && route === '/api/v1/transport-status') {
+      const result = await api.getTransportStatus();
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/local-index') {
+      const result = await api.localIndex();
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/identity') {
+      const id = publicIdentity(api._identity);
+      return sendJson(res, 200, id);
+    }
+
+    if (method === 'POST' && route === '/api/v1/goal') {
+      const body = await readBody(req);
+      if (!body.text && !body.filePath) return sendError(res, 400, 'text or filePath is required');
+      let parsed;
+      if (body.filePath) parsed = await api.goalFromFile(body.filePath, body.options || {});
+      else parsed = await api.parseGoal(body.text, body.options || {});
+      return sendJson(res, 200, parsed);
+    }
+
+    return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
+  } catch (err) {
+    const status = err.status || (err.message?.includes('required') ? 400 : 500);
+    sendError(res, status, err.message || String(err));
+  }
+}
+
+export function createServer(options = {}) {
+  const home = options.home || process.env.PERMABRAIN_HOME || getHome();
+  const server = http.createServer((req, res) => handleRequest(req, res, home));
+  return { server, home };
+}
+
+export async function startServer(options = {}) {
+  const { server, home } = createServer(options);
+  const port = options.port || process.env.PERMABRAIN_PORT || DEFAULT_PORT;
+  await new Promise((resolve, reject) => {
+    server.listen(port, (err) => (err ? reject(err) : resolve()));
+  });
+  const identity = await ensureIdentity(home).catch(() => null);
+  if (identity && !api._home) setApiHome(home);
+  return { server, home, port, agentId: identity?.agentId || api._identity?.agentId || null };
+}
+
+export function stopServer(server) {
+  return new Promise((resolve) => server.close(resolve));
+}

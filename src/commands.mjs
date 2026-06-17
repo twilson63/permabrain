@@ -31,6 +31,7 @@ import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
+import { startServer, stopServer } from './serve.mjs';
 
 import fs from 'node:fs';
 
@@ -88,6 +89,7 @@ export async function runCommand(command, args) {
   if (command === 'archive') return archiveCommand(args);
   if (command === 'restore') return restoreCommand(args);
   if (command === 'backup') return backupCommand(args);
+  if (command === 'serve') return serveCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1554,4 +1556,23 @@ async function mergeCommand(args) {
     }
   }
   return result;
+}
+
+async function serveCommand(args) {
+  const port = args.port ? Number(args.port) : (args.p ? Number(args.p) : undefined);
+  const home = getHome();
+  const result = await startServer({ home, port });
+  console.log(`PermaBrain HTTP API serving at http://localhost:${result.port}`);
+  console.log(`Home: ${result.home}`);
+  console.log(`Agent: ${result.agentId || 'unknown'}`);
+
+  const shutdown = async (signal) => {
+    console.log(`\n${signal} received, stopping server...`);
+    await stopServer(result.server);
+    process.exit(0);
+  };
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+
+  return new Promise(() => {}); // keep running until signal
 }

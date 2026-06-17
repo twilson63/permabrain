@@ -1218,6 +1218,21 @@ const api = {
   },
 
   /**
+   * Start the local HTTP API server.
+   *
+   * @param {Object} [opts]
+   * @param {number} [opts.port=8765] - HTTP port (also PERMABRAIN_PORT)
+   * @param {string} [opts.home] - PermaBrain home directory
+   * @returns {Promise<{server, home, port, agentId}>}
+   */
+  async serve(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { startServer } = await import('./serve.mjs');
+    return startServer({ ...opts, home: this._home });
+  },
+
+  /**
    * Get the current agent identity.
    * @returns {{agentId, keyType}}
    */

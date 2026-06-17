@@ -50,7 +50,8 @@ const COMMANDS = [
   'remote',
   'archive',
   'backup',
-  'restore'
+  'restore',
+  'serve'
 ];
 
 function printHelp(command = null) {
@@ -107,6 +108,7 @@ Commands:
   archive                      Create an encrypted snapshot of the local PermaBrain home
   backup                       Manage timestamped backups (create/list/restore/prune)
   restore                      Restore a PermaBrain home from an encrypted snapshot
+  serve [ --port N ]           Start the local HTTP API server (default port 8765)
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -599,7 +601,12 @@ Options:
   --keep N               Number of newest backups to keep (default 10)
   --max-age-days D        Also delete backups older than D days
   --dry-run               Preview without creating/deleting files
-  --json                  Output structured JSON`
+  --json                  Output structured JSON`,
+    'serve': `Usage: permabrain serve [--port N]
+
+Start the local HTTP API server exposing the PermaBrain agent API over REST.
+Default port is 8765 (override with --port or PERMABRAIN_PORT env var).
+Press Ctrl+C to stop.`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

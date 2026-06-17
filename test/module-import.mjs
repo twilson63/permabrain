@@ -67,6 +67,7 @@ assert.equal(typeof api.isEncrypted, 'function', 'api.isEncrypted is a function'
 assert.equal(typeof api.listRecipients, 'function', 'api.listRecipients is a function');
 assert.equal(typeof api.generateEncryptionKeypair, 'function', 'api.generateEncryptionKeypair is a function');
 assert.equal(typeof api.deriveEncryptionKey, 'function', 'api.deriveEncryptionKey is a function');
+assert.equal(typeof api.serve, 'function', 'api.serve is a function');
 assert.equal(typeof api.batchAttest, 'function', 'api.batchAttest is a function');
 assert.equal(typeof api.autoImport, 'function', 'api.autoImport is a function');
 assert.equal(typeof api.attestForAgent, 'function', 'api.attestForAgent is a function');
@@ -168,6 +169,12 @@ assert.equal(typeof createBackup, 'function', 'createBackup');
 assert.equal(typeof listBackups, 'function', 'listBackups');
 assert.equal(typeof restoreBackup, 'function', 'restoreBackup');
 assert.equal(typeof pruneBackups, 'function', 'pruneBackups');
+
+// Server exports
+import { createServer, startServer, stopServer } from '../src/index.mjs';
+assert.equal(typeof createServer, 'function', 'createServer');
+assert.equal(typeof startServer, 'function', 'startServer');
+assert.equal(typeof stopServer, 'function', 'stopServer');
 console.log('   ✓ All lower-level exports present');
 
 // --- 5. package.json exports field ---
@@ -267,11 +274,11 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 54 API methods present');
+console.log('   ✓ All 55 API methods present');
 
 console.log('\n✅ All importable module tests passed');
