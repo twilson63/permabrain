@@ -54,7 +54,8 @@ const COMMANDS = [
   'restore',
   'serve',
   'doctor',
-  'log'
+  'log',
+  'template'
 ];
 
 function printHelp(command = null) {
@@ -115,6 +116,7 @@ Commands:
   serve [ --port N ]           Start the local HTTP API server (default port 8765)
   doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
   log [filters]                Query the local audit log
+  template <file>              Publish an article from a markdown template
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -665,7 +667,28 @@ Query/tail/follow options:
   --follow             Stream new log entries until interrupted
   --interval N         Follow polling interval in seconds (default 1)
   --markdown           Render results as markdown
-  --json               Output structured JSON`
+  --json               Output structured JSON`,
+    'template': `Usage: permabrain template <file> [--source <source>] [--topic <topic>] [--kind <kind>] [--title <title>] [--key <key>] [--app <app>] [--source-url <url>] [--variables <json>] [--encrypt] [--recipient <key>]... [--use-hyperbeam] [--use-hyperbeam-reference] [--json]
+
+Publish an article from a markdown template with optional YAML frontmatter.
+Templates may use {{variable}} placeholders, which are substituted from the
+frontmatter and from --variables JSON. The resulting article is published via
+the standard article pipeline, including transport and encryption support.
+
+Options:
+  --source <source>    Inline template source (alternative to <file>)
+  --topic <topic>      Article topic (default from frontmatter or 'general')
+  --kind <kind>        Article kind (default from frontmatter or 'article')
+  --title <title>      Article title (default from frontmatter)
+  --key <key>          Override canonical key
+  --app <app>          App tag (default 'PermaBrain')
+  --source-url <url>   Source URL tag (default 'template://local')
+  --variables <json>   JSON object of {{var}} substitutions
+  --encrypt            Encrypt the article for the author plus --recipient keys
+  --recipient <key>    X25519 public key to encrypt for (repeatable)
+  --use-hyperbeam      Upload via HyperBEAM bundler
+  --use-hyperbeam-reference  Create/update HyperBEAM reference
+  --json               Output structured JSON instead of summary`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

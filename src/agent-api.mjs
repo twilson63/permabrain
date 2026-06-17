@@ -38,6 +38,7 @@ import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups } from './backup.mjs';
+import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } from './log.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -156,6 +157,56 @@ const api = {
     } catch {
       return this.init(options);
     }
+  },
+
+  /**
+   * Render a template string with variable substitution and optional frontmatter.
+   * @param {string} source - Template source (markdown with optional YAML frontmatter)
+   * @param {Object} [variables] - Key/value substitutions for {{var}} placeholders
+   * @returns {{frontmatter: Object, body: string, rendered: string, variables: Object}}
+   */
+  renderTemplate(source, variables = {}) {
+    return renderTemplate(source, variables);
+  },
+
+  /**
+   * Publish an article from a template file or inline source.
+   *
+   * @param {Object} params
+   * @param {string} [params.file] - Path to template file
+   * @param {string} [params.source] - Inline template source (alternative to file)
+   * @param {Object} [params.variables] - Substitution variables
+   * @param {string} [params.topic] - Topic override
+   * @param {string} [params.kind] - Kind override
+   * @param {string} [params.title] - Title override
+   * @param {string} [params.key] - Canonical key override
+   * @param {string[]} [params.recipients] - X25519 public keys to encrypt for
+   * @param {boolean} [params.encrypt=false] - Encrypt the resulting article
+   * @param {Object} [params.publishOptions] - Extra options passed to publishArticle
+   * @returns {Promise<Object>}
+   */
+  async template(params = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!params.file && !params.source) throw new Error('file or source is required');
+    const opts = {
+      home: this._home,
+      config: this._config,
+      identity: this._identity,
+      variables: params.variables || {},
+      topic: params.topic,
+      kind: params.kind,
+      title: params.title,
+      key: params.key,
+      app: params.app,
+      sourceUrl: params.sourceUrl,
+      encrypt: params.encrypt,
+      recipients: params.recipients,
+      publishOptions: params.publishOptions || {},
+    };
+    if (params.source) opts.source = params.source;
+    const result = await createArticleFromTemplate(params.file || params.source, opts);
+    return result;
   },
 
   /**

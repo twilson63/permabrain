@@ -531,6 +531,26 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 200, parsed);
     }
 
+    if (method === 'POST' && route === '/api/v1/template') {
+      const body = await readBody(req);
+      if (!body.file && !body.source) return sendError(res, 400, 'file or source is required');
+      const result = await api.template({
+        file: body.file,
+        source: body.source,
+        variables: body.variables || {},
+        topic: body.topic,
+        kind: body.kind,
+        title: body.title,
+        key: body.key,
+        app: body.app,
+        sourceUrl: body.sourceUrl,
+        encrypt: parseBool(body.encrypt) || parseBool(body.encrypted),
+        recipients: body.recipients || body.encryptedFor,
+        publishOptions: body.publishOptions || {}
+      });
+      return sendJson(res, 201, result);
+    }
+
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
   } catch (err) {
     const status = err.status || (err.message?.includes('required') ? 400 : 500);

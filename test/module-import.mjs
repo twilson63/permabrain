@@ -49,6 +49,7 @@ import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, qu
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from '../src/index.mjs';
 import { archive, restore } from '../src/index.mjs';
 import { logDir } from '../src/index.mjs';
+import { renderTemplate, createArticleFromTemplate, template } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -170,6 +171,9 @@ assert.equal(typeof createBackup, 'function', 'createBackup');
 assert.equal(typeof listBackups, 'function', 'listBackups');
 assert.equal(typeof restoreBackup, 'function', 'restoreBackup');
 assert.equal(typeof logDir, 'function', 'logDir');
+assert.equal(typeof renderTemplate, 'function', 'renderTemplate');
+assert.equal(typeof createArticleFromTemplate, 'function', 'createArticleFromTemplate');
+assert.equal(typeof template, 'function', 'template');
 
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
@@ -269,7 +273,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
+  'renderTemplate', 'template', 'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
   'sync', 'localIndex', 'importWikipedia', 'attestForAgent', 'provisionAgent',
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
@@ -280,7 +284,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 63 API methods present');
+console.log('   ✓ All 65 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -291,5 +295,11 @@ assert.equal(typeof api.tailLog, 'function', 'api.tailLog is a function');
 assert.equal(typeof api.exportLog, 'function', 'api.exportLog is a function');
 assert.equal(typeof api.importLog, 'function', 'api.importLog is a function');
 console.log('   ✓ Log API methods present');
+
+// --- 13. Template API methods ---
+console.log('13. Template API methods');
+assert.equal(typeof api.renderTemplate, 'function', 'api.renderTemplate is a function');
+assert.equal(typeof api.template, 'function', 'api.template is a function');
+console.log('   ✓ Template API methods present');
 
 console.log('\n✅ All importable module tests passed');

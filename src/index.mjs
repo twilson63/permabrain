@@ -104,5 +104,8 @@ export { createServer, startServer, stopServer } from './serve.mjs';
 // State doctor / repair
 export { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 
+// Template-driven article creation
+export { renderTemplate, createArticleFromTemplate, template } from './template.mjs';
+
 // Local audit log
 export { logAction, queryLog, logToMarkdown, logDir, tailLog, followLog, exportLog, importLog } from './log.mjs';

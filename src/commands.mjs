@@ -33,6 +33,7 @@ import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
 import { startServer, stopServer } from './serve.mjs';
+import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 import { queryLog, logToMarkdown, logAction, tailLog, followLog, exportLog, importLog } from './log.mjs';
 
@@ -96,6 +97,7 @@ export async function runCommand(command, args) {
   if (command === 'serve') return serveCommand(args);
   if (command === 'doctor') return doctorCommand(args);
   if (command === 'log') return logCommand(args);
+  if (command === 'template') return templateCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1590,6 +1592,44 @@ async function doctorCommand(args) {
   else console.log(doctorReportToMarkdown(report));
   if (!report.ok && process.env.PERMABRAIN_REQUIRE_DOCTOR_OK === '1') throw new Error('PermaBrain doctor found issues');
   return report;
+}
+
+async function templateCommand(args) {
+  const filePath = args._[0];
+  const source = args.source;
+  if (!filePath && !source) throw new Error('template requires <template-file> or --source <source>');
+  let variables = args.variables || {};
+  if (typeof variables === 'string') {
+    try { variables = JSON.parse(variables); } catch (e) { throw new Error(`--variables must be valid JSON: ${e.message}`); }
+  }
+  let recipients = args.recipients || [];
+  if (typeof recipients === 'string') {
+    recipients = recipients.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  const opts = {
+    home: getHome(),
+    variables,
+    topic: args.topic,
+    kind: args.kind,
+    title: args.title,
+    key: args.key,
+    app: args.app,
+    sourceUrl: args.sourceUrl || 'template://local',
+    encrypt: args.encrypt === true || args.encrypt === 'true',
+    recipients,
+    publishOptions: {
+      useHyperbeam: args['use-hyperbeam'] ?? false,
+      useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined),
+    },
+  };
+  if (source) opts.source = source;
+  const result = await createArticleFromTemplate(filePath || source, opts);
+  if (args.json) printJson(result);
+  else {
+    console.log(`Created article from template: ${result.key}`);
+    if (result.encrypted) console.log('  encrypted: true');
+  }
+  return result;
 }
 
 async function logCommand(args = {}) {
