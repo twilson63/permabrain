@@ -52,7 +52,7 @@ import { logDir } from '../src/index.mjs';
 import { renderTemplate, createArticleFromTemplate, template } from '../src/index.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from '../src/index.mjs';
 import { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest } from '../src/index.mjs';
-import { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage, sharePageId } from '../src/index.mjs';
+import { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage, sharePageId, subscribeEventsRemote, subscribeEventsOverSse, subscribeEventsOverWebSocket, formatEvent, runEventsSubscriber } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -317,7 +317,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'events', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
+  'events', 'subscribeEventsRemote', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
   'validateMetadata', 'validateDataItem',
   'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
   'sync', 'localIndex', 'importWikipedia', 'attestForAgent', 'provisionAgent',
@@ -331,7 +331,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 82 API methods present');
+console.log('   ✓ All 83 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -395,6 +395,13 @@ assert.equal(typeof validateArticleMetadata, 'function', 'validateArticleMetadat
 assert.equal(typeof validateAttestationMetadata, 'function', 'validateAttestationMetadata');
 assert.equal(typeof validateDataItemTags, 'function', 'validateDataItemTags');
 assert.equal(typeof formatValidationErrors, 'function', 'formatValidationErrors');
+
+// Remote event subscriber exports
+assert.equal(typeof subscribeEventsRemote, 'function', 'subscribeEventsRemote');
+assert.equal(typeof subscribeEventsOverSse, 'function', 'subscribeEventsOverSse');
+assert.equal(typeof subscribeEventsOverWebSocket, 'function', 'subscribeEventsOverWebSocket');
+assert.equal(typeof formatEvent, 'function', 'formatEvent');
+assert.equal(typeof runEventsSubscriber, 'function', 'runEventsSubscriber');
 
 console.log('   OK Events + schema exports present');
 

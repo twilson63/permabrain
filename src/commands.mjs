@@ -40,6 +40,7 @@ import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 import { queryLog, logToMarkdown, logAction, tailLog, followLog, exportLog, importLog } from './log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
 import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
+import { subscribeEventsRemote, runEventsSubscriber } from './events-client.mjs';
 import {
   createThresholdEnvelope,
   addCoSigner,
@@ -117,6 +118,7 @@ export async function runCommand(command, args) {
   if (command === 'client') return clientCommand(args);
   if (command === 'completion') return completionCommand(args);
   if (command === 'validate') return validateCommand(args);
+  if (command === 'events' || command === 'subscribe') return eventsCommand(args);
   if (command === 'threshold-attest' || command === 'threshold') return thresholdAttestCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
@@ -2219,6 +2221,37 @@ Examples:
   }
 
   throw new Error(`Unknown threshold-attest subcommand: ${subcommand}`);
+}
+
+async function eventsCommand(args) {
+  if (args.help || args._[0] === '--help' || args._[0] === 'help') {
+    console.log(`Usage: permabrain events [options]
+
+Subscribe to real-time events from a running permabrain serve instance.
+
+Options:
+  --url <url>            Server base URL (default http://localhost:8765)
+  --ws                   Use WebSocket instead of SSE
+  --events <names>       Comma-separated event filter (e.g. publish,attest)
+  --json                 Print each event as JSON
+  --compact              Print compact one-line events (default)
+  --duration <ms>        Stop after N milliseconds
+  --count <n>            Stop after receiving N events
+
+Examples:
+  permabrain events
+  permabrain events --url http://localhost:9000 --events publish,attest
+  permabrain events --ws --json --duration 30000
+`);
+    return { ok: true, help: true };
+  }
+  const url = args.url || args.u;
+  const transport = args.ws ? 'ws' : 'sse';
+  const events = args.events || args.e;
+  const format = args.json ? 'json' : 'compact';
+  const maxMs = args.duration ? Number(args.duration) : undefined;
+  const maxEvents = args.count ? Number(args.count) : undefined;
+  return runEventsSubscriber({ baseUrl: url, transport, events, format, maxMs, maxEvents });
 }
 
 async function serveCommand(args) {

@@ -67,7 +67,8 @@ export const COMMANDS = [
   'dashboard',
   'client',
   'completion',
-  'threshold-attest'
+  'threshold-attest',
+  'events'
 ];
 
 export const GLOBAL_OPTIONS = [
@@ -137,6 +138,7 @@ export const COMMAND_OPTIONS = {
   dashboard: ['--kind', '--topic', '--author', '--key', '--agent', '--after', '--before', '--sort', '--order', '--article-limit', '--activity-limit', '--log-limit', '--output', '--title', '--publish', '--page-id', '--recipient-key-id', '--recipient', '--subdomain', '--key-id', '--private-jwk', '--markdown'],
   threshold: ['--opinion', '--confidence', '--reason', '--source-url', '--target-id'],
   'threshold-attest': ['--opinion', '--confidence', '--reason', '--source-url', '--target-id', '--threshold', '--co-signers', '--output', '--signature', '--signature-type', '--public-key', '--agent-id'],
+  events: ['--url', '--ws', '--events', '--json', '--compact', '--duration', '--count'],
   client: ['--url'],
   completion: []
 };

@@ -1360,6 +1360,21 @@ const api = {
   },
 
   /**
+   * Subscribe to real-time events from a remote `permabrain serve` instance.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.baseUrl='http://localhost:8765']
+   * @param {'sse'|'ws'} [opts.transport='sse']
+   * @param {string|string[]} [opts.events]
+   * @param {number} [opts.heartbeatMs=30000]
+   * @param {AbortSignal} [opts.signal]
+   * @returns {{[Symbol.asyncIterator]: function, cancel: function}}
+   */
+  subscribeEventsRemote(opts = {}) {
+    return import('./events-client.mjs').then(({ subscribeEventsRemote }) => subscribeEventsRemote(opts));
+  },
+
+  /**
    * Validate and optionally repair the local PermaBrain state.
    *
    * @param {Object} [opts]

@@ -151,6 +151,7 @@ Commands:
   completion <shell>           Generate shell completion script (bash|zsh|fish)
   validate <type> [path]         Validate article/attestation metadata against JSON Schema
   threshold-attest             Create/collect/finalize/share threshold multi-sig attestations
+  events [options]             Subscribe to real-time events from permabrain serve
 
 Common examples:
   permabrain init
@@ -162,6 +163,7 @@ Common examples:
   permabrain dashboard --output dashboard.html --publish
   permabrain log --tail 10
   permabrain serve --port 8765
+  permabrain events --events publish,attest --duration 30000
   permabrain validate article ./tags.json
 
 Run 'permabrain <command> --help' for detailed command help.
@@ -855,6 +857,25 @@ Examples:
   permabrain threshold-attest finalize env.json
   permabrain threshold-attest export-envelope 0e567ba2-... --output env.json
   permabrain threshold-attest import-envelope env.json
+`,
+    'events': `Usage: permabrain events [options]
+
+Subscribe to real-time events from a running permabrain serve instance.
+Events include publish, attest, fork, merge, import, export, backup, and init.
+
+Options:
+  --url <url>            Server base URL (default http://localhost:8765)
+  --ws                   Use WebSocket instead of Server-Sent Events
+  --events <names>       Comma-separated event filter (e.g. publish,attest)
+  --json                 Print each event as JSON
+  --compact              Print compact one-line events (default)
+  --duration <ms>        Stop after N milliseconds
+  --count <n>            Stop after receiving N events
+
+Examples:
+  permabrain events
+  permabrain events --url http://localhost:9000 --events publish,attest
+  permabrain events --ws --json --duration 30000
 `,
     'validate': `Usage: permabrain validate <article|attestation> [path] [--json]
 
