@@ -113,6 +113,14 @@ export async function exportHistory(key, opts = {}) {
   bundle.deterministic = true;
   bundle.entryOrder = 'articles-by-version-then-attestations-by-id';
 
+  // Record a local audit event for the export-history action.
+  try {
+    const { logAction } = await import('./log.mjs');
+    logAction({ home, action: 'export', status: 'ok', key, message: `Exported history for ${key}`, details: { versions: sortedArticles.length, attestations: sortedAttestationRaws.length, rootId: rootSummary.id } });
+  } catch {
+    // Audit logging is best-effort.
+  }
+
   return bundle;
 }
 

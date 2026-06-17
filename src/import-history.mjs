@@ -82,6 +82,14 @@ export async function importHistory(bundle, opts = {}) {
   const skippedAttestations = results.filter((r) => r.type === 'attestation' && r.ok && !r.imported).length;
   const failed = results.filter((r) => !r.ok).length;
 
+  // Record a local audit event for the import-history action.
+  try {
+    const { logAction } = await import('./log.mjs');
+    logAction({ home, action: 'import', status: failed === 0 ? 'ok' : 'error', message: `Imported history bundle: ${importedArticles} articles, ${importedAttestations} attestations`, details: { importedArticles, importedAttestations, skippedArticles, skippedAttestations, failed } });
+  } catch {
+    // Audit logging is best-effort.
+  }
+
   return {
     ok: failed === 0,
     meta: bundle.meta || null,

@@ -97,6 +97,14 @@ export async function mergeArticles(targetKey, sourceKey, opts = {}) {
     carriedAttestations = await carryForwardAttestations(sourceKey, source.summary.id, targetKey, publishResult.summary.id, { useHyperbeam: opts.useHyperbeam, home });
   }
 
+  // Record a local audit event for the merge action.
+  try {
+    const { logAction } = await import('./log.mjs');
+    logAction({ home, action: 'merge', status: 'ok', key: targetKey, id: publishResult.item.id, message: `Merged ${sourceKey} → ${targetKey}`, details: { sourceKey, sourceId: source.summary.id, hasConflicts, carriedAttestations: carriedAttestations.length } });
+  } catch {
+    // Audit logging is best-effort.
+  }
+
   return {
     target: target.summary,
     source: source.summary,

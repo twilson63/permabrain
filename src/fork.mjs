@@ -106,6 +106,14 @@ export async function forkArticle(sourceKey, edits = {}, opts = {}) {
     extraTags
   });
 
+  // Record a local audit event for the fork action.
+  try {
+    const { logAction } = await import('./log.mjs');
+    logAction({ home, action: 'fork', status: 'ok', key: forkKey, id: publishResult.item.id, message: `Forked ${sourceKey} → ${forkKey}`, details: { sourceKey, sourceId: sourceSummary.id } });
+  } catch {
+    // Audit logging is best-effort.
+  }
+
   return {
     source: {
       key: sourceKey,

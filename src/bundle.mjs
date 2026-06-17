@@ -88,12 +88,19 @@ export async function exportBundle({ key, id, includeAttestations = true, includ
   return buildBundle({ articles, attestations, meta: { sourceKey: articleKey, rootId: parsed.id } });
 }
 
+async function logBundleImport(home, results) {
+  try {
+    const { logAction } = await import('./log.mjs');
+    const importedArticles = results.filter((r) => r.type === 'article' && r.imported).length;
+    const importedAttestations = results.filter((r) => r.type === 'attestation' && r.imported).length;
+    const failed = results.filter((r) => !r.ok).length;
+    logAction({ home, action: 'import', status: failed === 0 ? 'ok' : 'error', message: `Imported bundle: ${importedArticles} articles, ${importedAttestations} attestations`, details: { importedArticles, importedAttestations, failed } });
+  } catch {
+    // Audit logging is best-effort.
+  }
+}
+
 export async function exportAllArticles({ includeAttestations = true, transport, home } = {}) {
-  const h = home || getHome();
-  const t = getTransport(loadConfig(h), h, { useHyperbeam: transport === true || transport === 'hyperbeam' });
-  const articles = [];
-  const attestations = [];
-  const keys = new Set();
 
   const localArticles = await t.localIndex?.() || [];
   const articleKeys = [...new Set(localArticles.map(a => a.key).filter(Boolean))];
@@ -184,6 +191,8 @@ export async function importBundle(bundle, { transport, home, verify = true, ski
       results.push({ type: entry.type, ok: false, error: 'Unknown bundle entry type' });
     }
   }
+
+  logBundleImport(h, results);
 
   return results;
 }
