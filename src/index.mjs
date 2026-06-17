@@ -93,3 +93,6 @@ export { importHistory } from './import-history.mjs';
 
 // Archive / restore snapshots
 export { archive, restore } from './archive.mjs';
+
+// Backup manager (timestamped multi-backup directory)
+export { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';

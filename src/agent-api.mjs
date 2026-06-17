@@ -36,6 +36,7 @@ import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
+import { createBackup, listBackups, restoreBackup, pruneBackups } from './backup.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1159,6 +1160,61 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return restore(archiveObj, { ...opts, home: opts.home || this._home });
+  },
+
+  /**
+   * Create a timestamped encrypted backup of this PermaBrain home.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.passphrase]
+   * @param {string[]} [opts.recipients]
+   * @param {string} [opts.name]
+   * @returns {Promise<Object>}
+   */
+  async backup(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return createBackup(this._home, opts);
+  },
+
+  /**
+   * List stored backups for this PermaBrain home.
+   * @returns {Array<Object>}
+   */
+  listBackups() {
+    requireInit(this._home);
+    return listBackups(this._home);
+  },
+
+  /**
+   * Restore this PermaBrain home from a stored backup.
+   *
+   * @param {Object} opts
+   * @param {string} opts.backup - Filename or 1-based index
+   * @param {string} [opts.passphrase]
+   * @param {string|Buffer} [opts.seed]
+   * @param {boolean} [opts.dryRun=false]
+   * @returns {Promise<Object>}
+   */
+  async restoreBackup(opts) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!opts?.backup) throw new Error('backup is required (filename or 1-based index)');
+    return restoreBackup(this._home, opts);
+  },
+
+  /**
+   * Prune old backups, keeping the newest N and/or deleting older than maxAgeDays.
+   *
+   * @param {Object} [opts]
+   * @param {number} [opts.keep=10]
+   * @param {number} [opts.maxAgeDays]
+   * @param {boolean} [opts.dryRun=false]
+   * @returns {{kept: Array<Object>, removed: Array<Object>}}
+   */
+  pruneBackups(opts = {}) {
+    requireInit(this._home);
+    return pruneBackups(this._home, opts);
   },
 
   /**

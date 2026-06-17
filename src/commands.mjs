@@ -30,7 +30,7 @@ import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
-import { archive, restore } from './archive.mjs';
+import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
 
 import fs from 'node:fs';
 
@@ -87,6 +87,7 @@ export async function runCommand(command, args) {
   if (command === 'remote') return remoteCommand(args);
   if (command === 'archive') return archiveCommand(args);
   if (command === 'restore') return restoreCommand(args);
+  if (command === 'backup') return backupCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1410,7 +1411,6 @@ async function archiveCommand(args) {
   const home = getHome();
   const passphrase = args.passphrase;
   const recipients = args.recipient ? (Array.isArray(args.recipient) ? args.recipient : [args.recipient]) : [];
-  const dryRun = args['dry-run'] === true || args['dry-run'] === 'true';
 
   const ar = await archive({ home, passphrase, recipients });
 
@@ -1450,6 +1450,70 @@ async function restoreCommand(args) {
     }
   }
   return result;
+}
+
+async function backupCommand(args) {
+  const action = args._[0] || 'create';
+  const home = getHome();
+
+  if (action === 'create') {
+    const passphrase = args.passphrase;
+    if (!passphrase) throw new Error('backup create requires --passphrase <text>');
+    const result = await createBackup(home, {
+      passphrase,
+      recipients: args.recipient ? (Array.isArray(args.recipient) ? args.recipient : [args.recipient]) : [],
+      name: args.name
+    });
+    if (args.json) printJson(result);
+    else {
+      console.log(`Backup created: ${result.name}`);
+      console.log(`  Files: ${result.meta.entries}`);
+      console.log(`  Recipients: ${result.meta.recipientCount}`);
+      console.log(`  Passphrase: ${result.meta.hasPassphrase ? 'yes' : 'no'}`);
+      console.log(`  Path: ${result.path}`);
+    }
+    return result;
+  }
+
+  if (action === 'list') {
+    const backups = listBackups(home);
+    if (args.json) printJson({ home, backups });
+    else console.log(backupsToMarkdown(backups, { home }));
+    return { home, backups };
+  }
+
+  if (action === 'restore') {
+    const backup = args._[1] || args.backup;
+    if (!backup) throw new Error('backup restore requires <backup-name|index>');
+    const result = await restoreBackup(home, {
+      backup,
+      passphrase: args.passphrase,
+      dryRun: args['dry-run'] === true || args['dry-run'] === 'true'
+    });
+    if (args.json) printJson(result);
+    else {
+      console.log(`Restore from ${result.backup} ${result.dryRun ? '(dry-run)' : 'complete'}: ${result.entriesRestored} files`);
+      for (const p of result.paths) console.log(`  ${p}`);
+    }
+    return result;
+  }
+
+  if (action === 'prune') {
+    const keep = args.keep ? Number(args.keep) : undefined;
+    const maxAgeDays = args['max-age-days'] ? Number(args['max-age-days']) : undefined;
+    const dryRun = args['dry-run'] === true || args['dry-run'] === 'true';
+    const result = pruneBackups(home, { keep, maxAgeDays, dryRun });
+    if (args.json) printJson(result);
+    else {
+      const mode = dryRun ? 'would keep' : 'kept';
+      const rmode = dryRun ? 'would remove' : 'removed';
+      console.log(`Prune backups: ${result.kept.length} ${mode}, ${result.removed.length} ${rmode}`);
+      for (const b of result.removed) console.log(`  ${rmode} ${b.name} (${b.createdAt})`);
+    }
+    return result;
+  }
+
+  throw new Error(`Unknown backup action: ${action}`);
 }
 
 async function mergeCommand(args) {

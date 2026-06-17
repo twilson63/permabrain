@@ -49,6 +49,7 @@ const COMMANDS = [
   'config',
   'remote',
   'archive',
+  'backup',
   'restore'
 ];
 
@@ -104,6 +105,7 @@ Commands:
   config                       Get, set, validate, or inspect PermaBrain config
   remote                       Manage named remote endpoints
   archive                      Create an encrypted snapshot of the local PermaBrain home
+  backup                       Manage timestamped backups (create/list/restore/prune)
   restore                      Restore a PermaBrain home from an encrypted snapshot
 
 Environment:
@@ -575,7 +577,29 @@ Restore a PermaBrain home from an encrypted archive snapshot.
 The passphrase must match the one used when creating the archive. If --seed is
 provided, it is used as the X25519 seed directly. The current identity's derived
 encryption key is tried as a fallback. Use --dry-run to validate decryption without
-writing files.`
+writing files.`,
+    'backup': `Usage: permabrain backup [create|list|restore|prune] [args] [--passphrase <text>] [--backup <name|index>] [--keep N] [--max-age-days D] [--name <filename>] [--dry-run] [--json]
+
+Manage timestamped full-home backup snapshots.
+
+Subcommands:
+  backup create [--passphrase <text>] [--name <filename>]
+    Create a new encrypted backup and store it in PERMABRAIN_HOME/backups.
+  backup list
+    List stored backups (newest first).
+  backup restore <name|index> [--passphrase <text>] [--dry-run]
+    Restore the current home from a stored backup by filename or 1-based index.
+  backup prune [--keep N] [--max-age-days D] [--dry-run]
+    Delete old backups, keeping the newest N and/or removing backups older than D days.
+
+Options:
+  --passphrase <text>    Passphrase for create or restore
+  --name <filename>      Override backup filename for create (must end in .json)
+  --backup <name|index>  Backup selector for restore
+  --keep N               Number of newest backups to keep (default 10)
+  --max-age-days D        Also delete backups older than D days
+  --dry-run               Preview without creating/deleting files
+  --json                  Output structured JSON`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }
