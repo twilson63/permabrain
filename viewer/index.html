@@ -144,6 +144,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .home-card-key{font-family:monospace;font-size:0.72rem;color:var(--accent);margin-top:0.4rem}
 .home-more{color:var(--muted);font-size:0.85rem;text-align:center;margin-top:1rem}
 
+/* Local dashboard */
+.dashboard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0.75rem;margin-bottom:1.5rem}
+.dashboard-grid .stat-card{text-align:left}
+.dashboard-grid .stat-card .stat-value{font-size:1.6rem}
+.dashboard-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+.dashboard-section h2{font-size:1.1rem;margin-bottom:0.75rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem}
+.dashboard-section h3{font-size:0.9rem;margin:0.75rem 0 0.4rem;color:var(--muted)}
+.activity-row,.audit-row{display:flex;gap:0.75rem;padding:0.45rem 0;border-bottom:1px solid var(--border);font-size:0.85rem;align-items:baseline}
+.activity-row:last-child,.audit-row:last-child{border-bottom:none}
+.activity-row .ts,.audit-row .ts{font-family:monospace;font-size:0.75rem;color:var(--muted);min-width:8.5rem}
+.activity-row .badge,.audit-row .badge{font-size:0.65rem;text-transform:uppercase;padding:0.1rem 0.35rem;border-radius:4px;background:var(--card);border:1px solid var(--border);margin-right:0.25rem}
+.dashboard-empty{color:var(--muted);font-style:italic;padding:0.5rem 0}
+.dashboard-toolbar{display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.dashboard-toolbar .last-updated{font-size:0.75rem;color:var(--muted)}
+
 /* Loading / error */
 .loading{display:flex;align-items:center;justify-content:center;padding:2rem;color:var(--muted);font-size:0.85rem}
 .loading .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-right:0.5rem}
@@ -195,6 +210,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <h1>&#x1F9E0; <span>PermaBrain</span></h1>
   <div class="subtitle">Public signed knowledge graph</div>
   <div class="header-actions">
+    <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
+    <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
   </div>
   <input type="text" class="search" id="search" placeholder="Search articles..." oninput="renderList()">
@@ -246,6 +263,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard'
+  var dashboardData = null;
+  var dashboardLoading = false;
+  var dashboardError = null;
+  var dashboardInterval = null;
 
   // --- Theme ---
   function applyTheme(t) {
@@ -464,8 +486,9 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderFilters();
     renderList();
     renderStatus();
-    if (selectedKey) renderArticle(selectedKey);
-    else renderHome();
+    if (selectedKey) { viewMode = 'article'; renderArticle(selectedKey); }
+    else if (viewMode === 'dashboard') { renderDashboard(); }
+    else { renderHome(); }
   }
 
   async function tryDecryptArticle(article, seed) {
@@ -659,6 +682,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   function renderHome() {
+    if (viewMode !== 'home') return;
     var main = document.getElementById('main');
     if (error) {
       main.innerHTML = '<div class="empty-state"><h2>Could not load articles</h2><p>' + esc(error) + '</p><button class="btn-icon" onclick="window.refresh()">Retry</button></div>';
@@ -888,8 +912,154 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   // --- Public API ---
   window.selectArticle = function(key) {
     activeTab = 'content';
+    viewMode = 'article';
+    stopDashboardRefresh();
     renderArticle(key);
   };
+
+  window.showHome = function() {
+    viewMode = 'home';
+    stopDashboardRefresh();
+    selectedKey = null;
+    renderList();
+    renderHome();
+  };
+
+  window.showDashboard = async function() {
+    viewMode = 'dashboard';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    await fetchDashboard();
+    startDashboardRefresh();
+  };
+
+  function startDashboardRefresh() {
+    stopDashboardRefresh();
+    dashboardInterval = setInterval(fetchDashboard, 30000);
+  }
+
+  function stopDashboardRefresh() {
+    if (dashboardInterval) { clearInterval(dashboardInterval); dashboardInterval = null; }
+  }
+
+  async function fetchDashboard() {
+    if (!isLocalServer()) return;
+    dashboardLoading = true;
+    dashboardError = null;
+    if (viewMode === 'dashboard') renderDashboard();
+    try {
+      var r = await fetch('/api/v1/dashboard');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      dashboardData = await r.json();
+      dashboardLoading = false;
+    } catch(e) {
+      dashboardError = e.message;
+      dashboardLoading = false;
+    }
+    if (viewMode === 'dashboard') renderDashboard();
+  }
+
+  function isLocalServer() {
+    // The dashboard endpoint is only available when the viewer is served by permabrain serve.
+    // File:// origins or public gateways won't expose /api/v1/dashboard.
+    var host = window.location.hostname;
+    return window.location.protocol !== 'file:' && (host === 'localhost' || host === '127.0.0.1');
+  }
+
+  function fmtTs(ts) {
+    if (!ts) return '—';
+    try { return new Date(ts).toLocaleString(); } catch { return ts; }
+  }
+
+  function renderDashboard() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Local dashboard unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see live local stats, activity, and audit log.</p></div>';
+      return;
+    }
+    if (dashboardLoading && !dashboardData) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading local dashboard...</div>';
+      return;
+    }
+    if (dashboardError && !dashboardData) {
+      main.innerHTML = '<div class="empty-state"><h2>Dashboard error</h2><p>' + esc(dashboardError) + '</p><button class="btn-icon" onclick="window.showDashboard()">Retry</button></div>';
+      return;
+    }
+    if (!dashboardData) {
+      main.innerHTML = '<div class="empty-state"><h2>No dashboard data</h2><p>The local PermaBrain node returned an empty dashboard.</p></div>';
+      return;
+    }
+
+    var d = dashboardData;
+    var t = d.stats && d.stats.totals ? d.stats.totals : {};
+    var c = d.stats && d.stats.consensus ? d.stats.consensus : {};
+    var a = d.stats && d.stats.activity ? d.stats.activity : {};
+
+    var statsHtml = '<div class="dashboard-grid">' +
+      '<div class="stat-card"><div class="stat-value">' + (t.articles || 0) + '</div><div class="stat-label">Articles</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.attestations || 0) + '</div><div class="stat-label">Attestations</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.agentCount || 0) + '</div><div class="stat-label">Agents</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.topicCount || 0) + '</div><div class="stat-label">Topics</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (c.averageConsensus != null ? c.averageConsensus.toFixed(3) : '—') + '</div><div class="stat-label">Avg Consensus</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (a.active7d || 0) + '</div><div class="stat-label">Active 7d</div></div>' +
+      '</div>';
+
+    var articlesHtml = '';
+    if (d.list && d.list.articles && d.list.articles.length) {
+      articlesHtml = '<div class="dashboard-section"><h2>Local articles (' + d.list.total + ')</h2>' +
+        d.list.articles.slice(0, 20).map(function(a) {
+          var lock = a.encrypted ? '🔒 ' : '';
+          return '<div class="activity-row"><span class="ts">' + fmtTs(a.updatedAt) + '</span><span><strong>' + lock + esc(a.title || '(untitled)') + '</strong> <code>' + esc(a.key) + '</code> · ' + esc(a.kind || '—') + ' · ' + esc(a.topic || '—') + ' · attests ' + (a.attestationCount || 0) + '</span></div>';
+        }).join('') +
+        (d.list.articles.length < d.list.total ? '<p class="dashboard-empty">Showing ' + d.list.articles.length + ' of ' + d.list.total + '</p>' : '') +
+        '</div>';
+    } else {
+      articlesHtml = '<div class="dashboard-section"><h2>Local articles</h2><p class="dashboard-empty">No local articles yet.</p></div>';
+    }
+
+    var activityHtml = '';
+    if (d.activity && d.activity.events && d.activity.events.length) {
+      activityHtml = '<div class="dashboard-section"><h2>Activity feed (' + d.activity.total + ')</h2>' +
+        d.activity.events.slice(0, 20).map(function(e) {
+          var text = e.kind === 'publish' ? (e.key + ' v' + e.version + ' by ' + e.agentId) :
+            e.kind === 'attest' ? (e.targetKey + ': ' + e.opinion + ' by ' + e.agentId) :
+            e.kind === 'fork' ? (e.sourceKey + ' → ' + e.key) :
+            e.kind === 'merge' ? (e.sourceKey + ' → ' + e.key) : (e.key || e.targetKey || '—');
+          return '<div class="activity-row"><span class="ts">' + fmtTs(e.timestamp || e.createdAt) + '</span><span class="badge">' + e.kind + '</span><span>' + esc(text) + '</span></div>';
+        }).join('') +
+        '</div>';
+    } else {
+      activityHtml = '<div class="dashboard-section"><h2>Activity feed</h2><p class="dashboard-empty">No activity events yet.</p></div>';
+    }
+
+    var auditHtml = '';
+    if (d.log && d.log.entries && d.log.entries.length) {
+      auditHtml = '<div class="dashboard-section"><h2>Audit log (' + d.log.total + ')</h2>' +
+        d.log.entries.slice(0, 20).map(function(e) {
+          var icon = e.status === 'ok' ? '✅' : e.status === 'error' ? '❌' : '⏳';
+          return '<div class="audit-row"><span class="ts">' + fmtTs(e.createdAt) + '</span><span>' + icon + ' ' + e.action + (e.key ? ' <code>' + esc(e.key) + '</code>' : '') + (e.message ? ' — ' + esc(e.message) : '') + '</span></div>';
+        }).join('') +
+        '</div>';
+    } else {
+      auditHtml = '<div class="dashboard-section"><h2>Audit log</h2><p class="dashboard-empty">No audit events yet.</p></div>';
+    }
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.fetchDashboard()">&#x21BB; Refresh</button>' +
+      '<span class="last-updated">Generated ' + fmtTs(d.generatedAt) + ' · agent ' + esc(d.agentId || 'unknown') + ' · transport ' + esc(d.transport || 'local') + '</span>' +
+      '</div>';
+
+    main.innerHTML = '<div class="home">' +
+      '<h1>&#128202; <span>Local Dashboard</span></h1>' +
+      '<p class="home-subtitle">Live stats, activity, and audit log from this PermaBrain node</p>' +
+      toolbar +
+      statsHtml +
+      articlesHtml +
+      activityHtml +
+      auditHtml +
+      '</div>';
+  }
 
   window.setTab = function(tab) {
     activeTab = tab;
@@ -936,6 +1106,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   // --- Boot ---
   renderFilters();
   renderList();
+  // Pre-render dashboard if already in dashboard mode (e.g., page reload)
+  if (viewMode === 'dashboard') window.showDashboard();
   openDB().then(function() {
     syncAll();
   }).catch(function(err) {
