@@ -590,6 +590,36 @@ async function handleRequest(req, res, home) {
       return res.end(html);
     }
 
+    if (method === 'POST' && route === '/api/v1/dashboard/publish') {
+      const body = await readBody(req);
+      const dashboardOpts = {
+        kind: body.kind,
+        topic: body.topic,
+        author: body.author,
+        after: body.after,
+        before: body.before,
+        sort: body.sort,
+        order: body.order,
+        articleLimit: body.articleLimit,
+        activityLimit: body.activityLimit,
+        logLimit: body.logLimit,
+        useHyperbeam: parseBool(body.useHyperbeam),
+        title: body.title
+      };
+      const publishOpts = {
+        keyId: body.keyId,
+        privateJwk: body.privateJwk,
+        pageId: body.pageId,
+        title: body.title,
+        recipientKeyId: body.recipientKeyId,
+        recipient: body.recipient,
+        subdomain: body.subdomain
+      };
+      const data = await api.dashboard(dashboardOpts);
+      const result = await publishDashboard(data, publishOpts);
+      return sendJson(res, 201, result);
+    }
+
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
   } catch (err) {
     const status = err.status || (err.message?.includes('required') ? 400 : 500);

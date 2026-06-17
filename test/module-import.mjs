@@ -50,7 +50,8 @@ import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdo
 import { archive, restore } from '../src/index.mjs';
 import { logDir } from '../src/index.mjs';
 import { renderTemplate, createArticleFromTemplate, template } from '../src/index.mjs';
-import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from '../src/index.mjs';
+import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from '../src/index.mjs';
+import { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -179,13 +180,19 @@ assert.equal(typeof buildDashboard, 'function', 'buildDashboard');
 assert.equal(typeof dashboardToHtml, 'function', 'dashboardToHtml');
 assert.equal(typeof dashboardToMarkdown, 'function', 'dashboardToMarkdown');
 assert.equal(typeof writeDashboard, 'function', 'writeDashboard');
+assert.equal(typeof publishDashboard, 'function', 'publishDashboard');
+assert.equal(typeof publishPage, 'function', 'publishPage');
+assert.equal(typeof dashboardPageId, 'function', 'dashboardPageId');
+assert.equal(typeof computeFingerprint, 'function', 'computeFingerprint');
+assert.equal(typeof contentDigest, 'function', 'contentDigest');
+assert.equal(typeof signRequest, 'function', 'signRequest');
 
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
 assert.equal(typeof createServer, 'function', 'createServer');
 assert.equal(typeof startServer, 'function', 'startServer');
 assert.equal(typeof stopServer, 'function', 'stopServer');
-console.log('   ✓ All lower-level exports present');
+console.log('   ✓ All lower-level exports present (including dashboard + ZenBin)');
 
 // --- 5. package.json exports field ---
 console.log('5. package.json exports field');
@@ -278,7 +285,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
+  'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard', 'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
   'sync', 'localIndex', 'importWikipedia', 'attestForAgent', 'provisionAgent',
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
@@ -289,7 +296,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 65 API methods present');
+console.log('   ✓ All 70 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -313,6 +320,7 @@ assert.equal(typeof api.dashboard, 'function', 'api.dashboard is a function');
 assert.equal(typeof api.dashboardHTML, 'function', 'api.dashboardHTML is a function');
 assert.equal(typeof api.dashboardMarkdown, 'function', 'api.dashboardMarkdown is a function');
 assert.equal(typeof api.writeDashboard, 'function', 'api.writeDashboard is a function');
+assert.equal(typeof api.publishDashboard, 'function', 'api.publishDashboard is a function');
 console.log('   ✓ Dashboard API methods present');
 
 console.log('\n✅ All importable module tests passed');

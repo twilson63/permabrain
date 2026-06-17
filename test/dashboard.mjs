@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from '../src/dashboard.mjs';
+import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from '../src/dashboard.mjs';
 import { api } from '../src/agent-api.mjs';
 import { runCommand } from '../src/commands.mjs';
 import { createServer, startServer, stopServer } from '../src/serve.mjs';
@@ -191,6 +191,69 @@ console.log('10. HTTP GET /api/v1/dashboard.html returns HTML');
   } finally {
     await stopServer(server);
   }
+}
+
+console.log('11. publishDashboard signs and publishes to a mock ZenBin endpoint');
+{
+  const home = tmpHome();
+  resetApi(home);
+  await initHome(home);
+  const data = await buildDashboard({ home });
+
+  const publicJwk = {
+    crv: 'Ed25519',
+    kty: 'OKP',
+    x: 'VNwCdReytqk_dtPgMOOTQn_wUaejDMTYjtC0ymPEhSg'
+  };
+  const privateJwk = {
+    ...publicJwk,
+    d: 'uG4rsZfaMrp6OTQaWY9SyimcBLaUfi3R-FBcovTNuIQ'
+  };
+
+  let captured = null;
+  const originalFetch = global.fetch;
+  global.fetch = async (url, init) => {
+    captured = { url, init };
+    return {
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => JSON.stringify({ id: 'test-page-123' })
+    };
+  };
+
+  let threw = null;
+  let result;
+  try {
+    result = await publishDashboard(data, {
+      keyId: 'dev1-key-test',
+      privateJwk,
+      pageId: 'test-page-123',
+      title: 'Test Dashboard',
+      recipient: publicJwk
+    });
+  } catch (err) {
+    threw = err;
+  } finally {
+    global.fetch = originalFetch;
+  }
+  if (threw) throw threw;
+
+  assert.ok(captured, 'fetch was called');
+  assert.ok(captured.url.includes('/v1/pages/test-page-123'));
+  assert.equal(captured.init.method, 'POST');
+  const headers = captured.init.headers;
+  assert.ok(headers['x-zenbin-key-id'], 'key id header present');
+  assert.ok(headers['x-zenbin-signature'], 'signature header present');
+  assert.ok(headers['content-digest'], 'digest header present');
+  assert.equal(headers['cap-recipient-key-id'], 'q1D9p4puc0UkWVUD-PEMze2GRH11MLu-Sf1kP7-anMc');
+  const body = JSON.parse(captured.init.body);
+  assert.ok(body.html, 'html body present');
+  assert.equal(body.recipientKeyId, 'q1D9p4puc0UkWVUD-PEMze2GRH11MLu-Sf1kP7-anMc');
+  assert.equal(result.url, 'https://zenbin.org/p/test-page-123');
+  assert.equal(result.pageId, 'test-page-123');
+  assert.ok(result.bytes > 1000);
+  console.log('   ✓ publishDashboard sent signed ZenBin request');
 }
 
 console.log('\n✅ All dashboard tests passed');

@@ -110,5 +110,8 @@ export { renderTemplate, createArticleFromTemplate, template } from './template.
 // Local audit log
 export { logAction, queryLog, logToMarkdown, logDir, tailLog, followLog, exportLog, importLog } from './log.mjs';
 
-// Web dashboard snapshot
-export { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from './dashboard.mjs';
+// Web dashboard snapshot + ZenBin publishing
+export { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
+
+// ZenBin client helpers
+export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest, ZENBIN_BASE_URL, ZENBIN_PUBLISH_PATH } from './zenbin.mjs';

@@ -21,6 +21,7 @@ import { computeStats } from './stats.mjs';
 import { listArticles } from './list.mjs';
 import { activityFeed } from './activity.mjs';
 import { tailLog } from './log.mjs';
+import { publishPage, dashboardPageId, computeFingerprint } from './zenbin.mjs';
 
 const DEFAULT_LIMIT = 50;
 const DEFAULT_ACTIVITY_LIMIT = 50;
@@ -444,6 +445,36 @@ export function dashboardToMarkdown(data, opts = {}) {
   }
   lines.push('');
   return lines.join('\n') + '\n';
+}
+
+export async function publishDashboard(data, opts = {}) {
+  const keyId = opts.keyId;
+  const privateJwk = opts.privateJwk;
+  if (!keyId) throw new Error('keyId is required to publish a dashboard');
+  if (!privateJwk) throw new Error('privateJwk is required to publish a dashboard');
+
+  const html = dashboardToHtml(data, { title: opts.title });
+  const pageId = opts.pageId || dashboardPageId(data.agentId, data.generatedAt);
+  const recipientKeyId = opts.recipientKeyId || (opts.recipient ? computeFingerprint(opts.recipient) : undefined);
+
+  const result = await publishPage({
+    keyId,
+    privateJwk,
+    pageId,
+    html,
+    title: opts.title || `PermaBrain Dashboard — ${data.agentId}`,
+    recipientKeyId,
+    subdomain: opts.subdomain
+  });
+
+  return {
+    ...result,
+    pageId,
+    agentId: data.agentId,
+    generatedAt: data.generatedAt,
+    bytes: Buffer.byteLength(html, 'utf8'),
+    recipientKeyId
+  };
 }
 
 function escapeHtml(str) {

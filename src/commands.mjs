@@ -29,7 +29,7 @@ import { listArticles, listToMarkdown } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { computeStats, statsToMarkdown } from './stats.mjs';
-import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from './dashboard.mjs';
+import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
@@ -1372,6 +1372,29 @@ async function dashboardCommand(args) {
     title: args.title
   };
   const data = await buildDashboard(opts);
+
+  if (args.publish || args['publish-dashboard']) {
+    const publishOpts = {
+      keyId: args['key-id'],
+      privateJwk: args['private-jwk'],
+      pageId: args['page-id'],
+      title: args.title,
+      recipientKeyId: args['recipient-key-id'],
+      recipient: args.recipient,
+      subdomain: args.subdomain
+    };
+    const result = await publishDashboard(data, publishOpts);
+    if (args.json) {
+      printJson(result);
+    } else {
+      console.log(`Dashboard published to ${result.url}`);
+      console.log(`Page id: ${result.pageId}`);
+      console.log(`Bytes: ${result.bytes}`);
+      if (result.recipientKeyId) console.log(`Recipient: ${result.recipientKeyId}`);
+    }
+    return result;
+  }
+
   const output = args.output || args.file;
   if (output) {
     const written = await writeDashboard(data, { output, title: opts.title });
@@ -1392,7 +1415,7 @@ async function dashboardCommand(args) {
   }
   // Default: print markdown summary and HTML path hint.
   console.log(dashboardToMarkdown(data, { title: opts.title }));
-  console.log(`\nUse --output dashboard.html to write a self-contained HTML snapshot.`);
+  console.log(`\nUse --output dashboard.html to write a self-contained HTML snapshot, or --publish to upload to ZenBin.`);
   return data;
 }
 

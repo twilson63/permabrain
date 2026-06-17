@@ -40,7 +40,7 @@ import { archive, restore } from './archive.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups } from './backup.mjs';
 import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } from './log.mjs';
-import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from './dashboard.mjs';
+import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
@@ -1456,6 +1456,31 @@ const api = {
   },
 
   /**
+   * Publish a dashboard snapshot to ZenBin as a self-contained HTML page.
+   *
+   * Reads the ZenBin keyId and private JWK from opts, falling back to the
+   * workspace TOOLS.md when not provided. Supports directed content via
+   * recipientKeyId or recipient public JWK/fingerprint.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.keyId]
+   * @param {Object} [opts.privateJwk]
+   * @param {string} [opts.pageId]
+   * @param {string} [opts.title]
+   * @param {string} [opts.recipientKeyId]
+   * @param {Object|string} [opts.recipient] - Recipient public JWK or fingerprint
+   * @param {string} [opts.subdomain]
+   * @returns {Promise<{ok, pageId, url, bytes, agentId, generatedAt, recipientKeyId}>}
+   */
+  async publishDashboard(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { keyId, privateJwk } = await resolveZenBinCredentials(opts);
+    const data = await buildDashboard({ ...opts, home: this._home });
+    return publishDashboard(data, { ...opts, keyId, privateJwk });
+  },
+
+  /**
    * Export the local audit log as a migration bundle.
    *
    * @param {Object} [opts]
@@ -1502,3 +1527,56 @@ function deriveAuthorSeed(identity) {
 }
 
 export { api };
+
+async function resolveZenBinCredentials(opts = {}) {
+  if (opts.keyId && opts.privateJwk) return { keyId: opts.keyId, privateJwk: opts.privateJwk };
+
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const toolsCandidates = [
+    opts.toolsPath,
+    process.env.ZENBIN_TOOLS_PATH,
+    '/home/node/.openclaw/workspace/TOOLS.md',
+    path.join(process.cwd(), 'TOOLS.md')
+  ].filter(Boolean);
+
+  let parsed = null;
+  for (const toolsPath of toolsCandidates) {
+    if (!fs.existsSync(toolsPath)) continue;
+    const text = fs.readFileSync(toolsPath, 'utf8');
+    parsed = parseZenBinToolsMd(text);
+    if (parsed) break;
+  }
+
+  if (!parsed?.keyId || !parsed?.privateJwk) {
+    throw new Error('ZenBin credentials not found. Provide keyId and privateJwk, or ensure TOOLS.md contains a ZenBin section with keyId and private JWK.');
+  }
+
+  return {
+    keyId: opts.keyId || parsed.keyId,
+    privateJwk: opts.privateJwk || parsed.privateJwk
+  };
+}
+
+function parseZenBinToolsMd(text) {
+  const sectionMatch = text.match(/###\s*ZenBin[\s\S]*?(?=###\s|$)/);
+  if (!sectionMatch) return null;
+  const section = sectionMatch[0];
+  const keyIdMatch = section.match(/\*\*keyId:\*\*\s*`?([^`\n]+)`?/);
+  const publicFingerprintMatch = section.match(/\*\*publicKeyFingerprint:\*\*\s*`?([^`\n]+)`?/);
+
+  const publicJwkMatch = section.match(/###\s*Public JWK[\s\S]*?```json\n([\s\S]*?)\n```/);
+  const privateJwkMatch = section.match(/###\s*Private JWK[\s\S]*?```json\n([\s\S]*?)\n```/);
+
+  let publicJwk = null;
+  let privateJwk = null;
+  try { if (publicJwkMatch) publicJwk = JSON.parse(publicJwkMatch[1]); } catch {}
+  try { if (privateJwkMatch) privateJwk = JSON.parse(privateJwkMatch[1]); } catch {}
+
+  return {
+    keyId: keyIdMatch?.[1]?.trim(),
+    publicKeyFingerprint: publicFingerprintMatch?.[1]?.trim(),
+    publicJwk,
+    privateJwk
+  };
+}
