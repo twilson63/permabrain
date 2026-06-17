@@ -29,6 +29,7 @@ import { listArticles, listToMarkdown } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { computeStats, statsToMarkdown } from './stats.mjs';
+import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from './dashboard.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
@@ -98,6 +99,7 @@ export async function runCommand(command, args) {
   if (command === 'doctor') return doctorCommand(args);
   if (command === 'log') return logCommand(args);
   if (command === 'template') return templateCommand(args);
+  if (command === 'dashboard') return dashboardCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1347,6 +1349,51 @@ async function statsCommand(args) {
     console.log(statsToMarkdown(result));
   }
   return result;
+}
+
+async function dashboardCommand(args) {
+  const home = getHome();
+  const opts = {
+    home,
+    config: args.config,
+    kind: args.kind,
+    topic: args.topic,
+    author: args.author,
+    key: args.key,
+    agent: args.agent,
+    after: args.after,
+    before: args.before,
+    sort: args.sort || 'date',
+    order: args.order || 'desc',
+    articleLimit: args['article-limit'] ? Number(args['article-limit']) : undefined,
+    activityLimit: args['activity-limit'] ? Number(args['activity-limit']) : undefined,
+    logLimit: args['log-limit'] ? Number(args['log-limit']) : undefined,
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    title: args.title
+  };
+  const data = await buildDashboard(opts);
+  const output = args.output || args.file;
+  if (output) {
+    const written = await writeDashboard(data, { output, title: opts.title });
+    if (args.json) {
+      printJson({ path: written.path, bytes: written.bytes, agentId: data.agentId, generatedAt: data.generatedAt });
+    } else {
+      console.log(`Dashboard written to ${written.path} (${written.bytes} bytes)`);
+    }
+    return written;
+  }
+  if (args.markdown || args.format === 'markdown') {
+    console.log(dashboardToMarkdown(data, { title: opts.title }));
+    return { markdown: dashboardToMarkdown(data, { title: opts.title }) };
+  }
+  if (args.json) {
+    printJson(data);
+    return data;
+  }
+  // Default: print markdown summary and HTML path hint.
+  console.log(dashboardToMarkdown(data, { title: opts.title }));
+  console.log(`\nUse --output dashboard.html to write a self-contained HTML snapshot.`);
+  return data;
 }
 
 async function activityCommand(args) {

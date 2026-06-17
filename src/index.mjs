@@ -109,3 +109,6 @@ export { renderTemplate, createArticleFromTemplate, template } from './template.
 
 // Local audit log
 export { logAction, queryLog, logToMarkdown, logDir, tailLog, followLog, exportLog, importLog } from './log.mjs';
+
+// Web dashboard snapshot
+export { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from './dashboard.mjs';

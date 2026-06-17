@@ -55,7 +55,8 @@ const COMMANDS = [
   'serve',
   'doctor',
   'log',
-  'template'
+  'template',
+  'dashboard'
 ];
 
 function printHelp(command = null) {
@@ -117,6 +118,7 @@ Commands:
   doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
   log [filters]                Query the local audit log
   template <file>              Publish an article from a markdown template
+  dashboard                    Build a self-contained web dashboard snapshot
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -688,7 +690,40 @@ Options:
   --recipient <key>    X25519 public key to encrypt for (repeatable)
   --use-hyperbeam      Upload via HyperBEAM bundler
   --use-hyperbeam-reference  Create/update HyperBEAM reference
-  --json               Output structured JSON instead of summary`
+  --json               Output structured JSON instead of summary`,
+    'dashboard': `Usage: permabrain dashboard [--kind <kind>] [--topic <topic>] [--author <agent-id>] [--key <key>] [--agent <agent-id>] [--after <date>] [--before <date>] [--sort date|title|consensus|attestations] [--order asc|desc] [--article-limit N] [--activity-limit N] [--log-limit N] [--output <path>] [--title <title>] [--markdown] [--json] [--use-hyperbeam]
+
+Build a self-contained snapshot of local PermaBrain state.
+
+By default prints a markdown summary. Use --output dashboard.html to write a
+single HTML file with embedded CSS/JS that can be opened in a browser or
+published to ZenBin. Use --json for the raw dashboard data.
+
+The dashboard includes:
+  - stats overview (articles, attestations, agents, topics, active windows)
+  - searchable/filterable article directory
+  - activity feed timeline (publish, attest, fork, merge)
+  - audit log tail
+  - identity and transport metadata
+
+Options:
+  --kind <kind>          Filter articles/activity by kind
+  --topic <topic>        Filter by topic
+  --author <id>         Filter by author agent id
+  --key <key>           Filter activity by canonical key
+  --agent <id>          Filter activity by participating agent
+  --after <date>        Only include items updated on or after this ISO date
+  --before <date>        Only include items updated on or before this ISO date
+  --sort <criterion>    Article sort: date (default), title, consensus, attestations
+  --order asc|desc      Sort order (default desc)
+  --article-limit N       Max articles in the directory (default 50)
+  --activity-limit N      Max activity events (default 50)
+  --log-limit N           Max audit-log entries (default 25)
+  --output <path>       Write HTML snapshot to a file
+  --title <title>       Override dashboard title
+  --markdown              Output markdown instead of the default summary
+  --json                  Output structured JSON dashboard data
+  --use-hyperbeam         Query via HyperBEAM transport`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

@@ -551,6 +551,45 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 201, result);
     }
 
+    if (method === 'GET' && route === '/api/v1/dashboard') {
+      const opts = {
+        kind: url.searchParams.get('kind'),
+        topic: url.searchParams.get('topic'),
+        author: url.searchParams.get('author'),
+        after: url.searchParams.get('after'),
+        before: url.searchParams.get('before'),
+        sort: url.searchParams.get('sort') || 'date',
+        order: url.searchParams.get('order') || 'desc',
+        articleLimit: url.searchParams.has('article-limit') ? Number(url.searchParams.get('article-limit')) : undefined,
+        activityLimit: url.searchParams.has('activity-limit') ? Number(url.searchParams.get('activity-limit')) : undefined,
+        logLimit: url.searchParams.has('log-limit') ? Number(url.searchParams.get('log-limit')) : undefined,
+        useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam'))
+      };
+      const result = await api.dashboard(opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/dashboard.html') {
+      const opts = {
+        kind: url.searchParams.get('kind'),
+        topic: url.searchParams.get('topic'),
+        author: url.searchParams.get('author'),
+        after: url.searchParams.get('after'),
+        before: url.searchParams.get('before'),
+        sort: url.searchParams.get('sort') || 'date',
+        order: url.searchParams.get('order') || 'desc',
+        articleLimit: url.searchParams.has('article-limit') ? Number(url.searchParams.get('article-limit')) : undefined,
+        activityLimit: url.searchParams.has('activity-limit') ? Number(url.searchParams.get('activity-limit')) : undefined,
+        logLimit: url.searchParams.has('log-limit') ? Number(url.searchParams.get('log-limit')) : undefined,
+        useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')),
+        title: url.searchParams.get('title')
+      };
+      const data = await api.dashboard(opts);
+      const html = api.dashboardHTML(data, { title: opts.title });
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    }
+
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
   } catch (err) {
     const status = err.status || (err.message?.includes('required') ? 400 : 500);

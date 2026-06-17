@@ -40,6 +40,7 @@ import { archive, restore } from './archive.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups } from './backup.mjs';
 import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } from './log.mjs';
+import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from './dashboard.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
@@ -1386,7 +1387,76 @@ const api = {
   },
 
   /**
-   * Export the full local audit log as a migration bundle.
+   * Build a self-contained dashboard snapshot of local PermaBrain state.
+   *
+   * Aggregates stats, article directory, activity feed, and audit-log tail
+   * into a single data object. Use `api.dashboardHTML()` or `api.dashboardMarkdown()`
+   * to render it, or `api.publishDashboard()` to publish it to ZenBin.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.kind]
+   * @param {string} [opts.topic]
+   * @param {string} [opts.author]
+   * @param {string} [opts.key]
+   * @param {string|string[]} [opts.agent]
+   * @param {string} [opts.after]
+   * @param {string} [opts.before]
+   * @param {string} [opts.sort='date']
+   * @param {string} [opts.order='desc']
+   * @param {number} [opts.articleLimit=50]
+   * @param {number} [opts.activityLimit=50]
+   * @param {number} [opts.logLimit=25]
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<Object>} Dashboard data
+   */
+  async dashboard(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return buildDashboard({ ...opts, home: this._home });
+  },
+
+  /**
+   * Render dashboard data to a self-contained HTML string.
+   *
+   * @param {Object} data - Output of api.dashboard()
+   * @param {Object} [opts]
+   * @param {string} [opts.title]
+   * @returns {string} HTML
+   */
+  dashboardHTML(data, opts = {}) {
+    return dashboardToHtml(data, opts);
+  },
+
+  /**
+   * Render dashboard data as markdown.
+   *
+   * @param {Object} data - Output of api.dashboard()
+   * @param {Object} [opts]
+   * @param {string} [opts.title]
+   * @returns {string} Markdown
+   */
+  dashboardMarkdown(data, opts = {}) {
+    return dashboardToMarkdown(data, opts);
+  },
+
+  /**
+   * Build, render, and write a dashboard HTML snapshot to disk.
+   *
+   * @param {Object} [opts]
+   * @param {string} opts.output - Output file path
+   * @param {string} [opts.title]
+   * @returns {Promise<{path, bytes}>}
+   */
+  async writeDashboard(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!opts.output) throw new Error('output is required');
+    const data = await buildDashboard({ ...opts, home: this._home });
+    return writeDashboard(data, { output: opts.output, title: opts.title });
+  },
+
+  /**
+   * Export the local audit log as a migration bundle.
    *
    * @param {Object} [opts]
    * @param {string} [opts.format='json'] - 'json' or 'jsonl'

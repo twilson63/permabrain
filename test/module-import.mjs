@@ -50,6 +50,7 @@ import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdo
 import { archive, restore } from '../src/index.mjs';
 import { logDir } from '../src/index.mjs';
 import { renderTemplate, createArticleFromTemplate, template } from '../src/index.mjs';
+import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -174,6 +175,10 @@ assert.equal(typeof logDir, 'function', 'logDir');
 assert.equal(typeof renderTemplate, 'function', 'renderTemplate');
 assert.equal(typeof createArticleFromTemplate, 'function', 'createArticleFromTemplate');
 assert.equal(typeof template, 'function', 'template');
+assert.equal(typeof buildDashboard, 'function', 'buildDashboard');
+assert.equal(typeof dashboardToHtml, 'function', 'dashboardToHtml');
+assert.equal(typeof dashboardToMarkdown, 'function', 'dashboardToMarkdown');
+assert.equal(typeof writeDashboard, 'function', 'writeDashboard');
 
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
@@ -273,7 +278,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'renderTemplate', 'template', 'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
+  'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
   'sync', 'localIndex', 'importWikipedia', 'attestForAgent', 'provisionAgent',
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
@@ -301,5 +306,13 @@ console.log('13. Template API methods');
 assert.equal(typeof api.renderTemplate, 'function', 'api.renderTemplate is a function');
 assert.equal(typeof api.template, 'function', 'api.template is a function');
 console.log('   ✓ Template API methods present');
+
+// --- 14. Dashboard API methods ---
+console.log('14. Dashboard API methods');
+assert.equal(typeof api.dashboard, 'function', 'api.dashboard is a function');
+assert.equal(typeof api.dashboardHTML, 'function', 'api.dashboardHTML is a function');
+assert.equal(typeof api.dashboardMarkdown, 'function', 'api.dashboardMarkdown is a function');
+assert.equal(typeof api.writeDashboard, 'function', 'api.writeDashboard is a function');
+console.log('   ✓ Dashboard API methods present');
 
 console.log('\n✅ All importable module tests passed');
