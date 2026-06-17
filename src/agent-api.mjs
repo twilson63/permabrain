@@ -33,6 +33,7 @@ import { activityFeed } from './activity.mjs';
 import { listArticles } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
+import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { loadIndex } from './cache.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1061,6 +1062,26 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return exportArticles({ ...opts, home: this._home });
+  },
+
+  /**
+   * Manage PermaBrain configuration.
+   *
+   * @param {Object} params
+   * @param {string} [params.action='get'] - get|set|validate|env|reset
+   * @param {string} [params.path]
+   * @param {string} [params.value]
+   * @returns {Promise<Object>}
+   */
+  async config(params = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const action = params.action || 'get';
+    const result = runConfigCommand({ action, path: params.path, value: params.value, home: this._home });
+    if (params.markdown) {
+      return { ...result, markdown: configToMarkdown(result.config || this._config, result.sources || {}) };
+    }
+    return result;
   },
 
   /**

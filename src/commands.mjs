@@ -28,6 +28,7 @@ import { activityFeed, activityToMarkdown } from './activity.mjs';
 import { listArticles, listToMarkdown } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
+import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 
 import fs from 'node:fs';
 
@@ -79,6 +80,7 @@ export async function runCommand(command, args) {
   if (command === 'activity') return activityCommand(args);
   if (command === 'list') return listCommand(args);
   if (command === 'export-articles') return exportArticlesCommand(args);
+  if (command === 'config') return configCommand(args);
   if (command === 'metrics') return metricsCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
@@ -1251,6 +1253,44 @@ async function exportArticlesCommand(args) {
     printJson(result);
   } else {
     console.log(output);
+  }
+  return result;
+}
+
+async function configCommand(args) {
+  const action = args._[0] || 'get';
+  const opts = { action, home: getHome() };
+  if (action === 'get' || action === 'set') {
+    opts.path = args._[1] || args.path || undefined;
+  }
+  if (action === 'set') {
+    opts.value = args._[2] !== undefined ? args._[2] : args.value;
+  }
+  const result = runConfigCommand(opts);
+  if (args.json) {
+    printJson(result);
+  } else {
+    if (action === 'env') {
+      const active = Object.entries(result.env).filter(([, v]) => v.active);
+      const inactive = Object.entries(result.env).filter(([, v]) => !v.active);
+      console.log(`Active environment variables (${active.length}):`);
+      for (const [name, v] of active) console.log(`  ${name}=${v.value} → ${v.mapsTo}`);
+      console.log(`Inactive (${inactive.length}): ${inactive.map(([n]) => n).join(', ')}`);
+    } else if (action === 'get' && !opts.path) {
+      console.log(configToMarkdown(result.config, result.sources));
+    } else if (action === 'set') {
+      console.log(`Set ${result.path} = ${JSON.stringify(result.value)}`);
+      if (result.validation.warnings?.length) console.log(`Warnings: ${result.validation.warnings.join('; ')}`);
+    } else if (action === 'validate') {
+      console.log(`Validation: ${result.ok ? 'ok' : 'failed'}`);
+      for (const err of result.errors) console.log(`  ✗ ${err}`);
+      for (const w of result.warnings) console.log(`  ! ${w}`);
+    } else if (action === 'reset') {
+      console.log('Config reset to defaults');
+      console.log(configToMarkdown(result.config, {}));
+    } else {
+      console.log(`${opts.path}: ${JSON.stringify(result.value)}`);
+    }
   }
   return result;
 }

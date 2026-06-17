@@ -44,6 +44,7 @@ import { activityFeed, activityToMarkdown } from '../src/index.mjs';
 import { listArticles, listToMarkdown } from '../src/index.mjs';
 import { exportArticles, exportArticlesToMarkdown } from '../src/index.mjs';
 import { computeMetrics, metricsToMarkdown } from '../src/index.mjs';
+import { runConfigCommand, loadEffectiveConfig, validateConfig, configToMarkdown, getConfigValue, setConfigValue, ENV_MAP } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -145,6 +146,10 @@ assert.equal(typeof listArticles, 'function', 'listArticles');
 assert.equal(typeof listToMarkdown, 'function', 'listToMarkdown');
 assert.equal(typeof exportArticles, 'function', 'exportArticles');
 assert.equal(typeof exportArticlesToMarkdown, 'function', 'exportArticlesToMarkdown');
+assert.equal(typeof runConfigCommand, 'function', 'runConfigCommand');
+assert.equal(typeof loadEffectiveConfig, 'function', 'loadEffectiveConfig');
+assert.equal(typeof validateConfig, 'function', 'validateConfig');
+assert.equal(typeof configToMarkdown, 'function', 'configToMarkdown');
 console.log('   ✓ All lower-level exports present');
 
 // --- 5. package.json exports field ---
@@ -244,11 +249,11 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'config'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 46 API methods present');
+console.log('   ✓ All 47 API methods present');
 
 console.log('\n✅ All importable module tests passed');

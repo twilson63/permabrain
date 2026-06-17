@@ -45,7 +45,8 @@ const COMMANDS = [
   'activity',
   'list',
   'export-articles',
-  'metrics'
+  'metrics',
+  'config'
 ];
 
 function printHelp(command = null) {
@@ -97,6 +98,7 @@ Commands:
   status                       Show working-state overview (articles, divergences, forks, merges)
   export-articles              Export a filtered article directory to JSON or markdown
   metrics                      Show aggregate article/attestation metrics
+  config                       Get, set, validate, or inspect PermaBrain config
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -513,7 +515,24 @@ Options:
   --after <date>       Only articles updated on or after this ISO date
   --before <date>      Only articles updated on or before this ISO date
   --top N              Number of top-attested articles (default 10)
-  --json               Output structured JSON instead of markdown`
+  --json               Output structured JSON instead of markdown`,
+    'config': `Usage: permabrain config [get|set|validate|env|reset] [path] [value] [--json]
+
+Manage PermaBrain configuration.
+
+Subcommands:
+  config get [path]            Show all config or a specific dotted path
+  config set <path> <value>    Set a dotted config path
+  config validate              Validate current configuration
+  config env                   Show environment variables and their current values
+  config reset                 Reset config.json to defaults
+
+Examples:
+  permabrain config get transport
+  permabrain config set transport hyperbeam
+  permabrain config set gateway.dataUrl http://localhost:10000
+  permabrain config validate
+  permabrain config env`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

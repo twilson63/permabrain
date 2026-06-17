@@ -77,6 +77,9 @@ export { topicFeed, feedToMarkdown } from './topic-feed.mjs';
 // Activity feed
 export { activityFeed, activityToMarkdown } from './activity.mjs';
 
+// Config manager
+export { runConfigCommand, loadEffectiveConfig, validateConfig, configToMarkdown, getConfigValue, setConfigValue, ENV_MAP } from './config-manager.mjs';
+
 // Article-level metrics
 export { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 
