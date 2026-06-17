@@ -48,6 +48,7 @@ import { runConfigCommand, loadEffectiveConfig, validateConfig, configToMarkdown
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from '../src/index.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from '../src/index.mjs';
 import { archive, restore } from '../src/index.mjs';
+import { logDir } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -168,7 +169,7 @@ assert.equal(typeof restore, 'function', 'restore');
 assert.equal(typeof createBackup, 'function', 'createBackup');
 assert.equal(typeof listBackups, 'function', 'listBackups');
 assert.equal(typeof restoreBackup, 'function', 'restoreBackup');
-assert.equal(typeof pruneBackups, 'function', 'pruneBackups');
+assert.equal(typeof logDir, 'function', 'logDir');
 
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';

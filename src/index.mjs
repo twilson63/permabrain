@@ -105,4 +105,4 @@ export { createServer, startServer, stopServer } from './serve.mjs';
 export { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 
 // Local audit log
-export { logAction, queryLog, logToMarkdown } from './log.mjs';
+export { logAction, queryLog, logToMarkdown, logDir } from './log.mjs';

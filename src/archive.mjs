@@ -12,6 +12,7 @@
  *   - cache/watch-state.json (if present)
  *   - cache/index.json
  *   - cache/objects/*.json (raw signed DataItems)
+ *   - logs/audit-log.jsonl (if present)
  *
  * Snapshots deliberately EXCLUDE the plaintext page cache:
  *   - cache/pages/*.md
@@ -75,6 +76,7 @@ function gatherArchiveFiles(home) {
     { rel: 'remotes.json', full: path.join(home, 'remotes.json') },
     { rel: 'cache/watch-state.json', full: path.join(home, 'cache', 'watch-state.json') },
     { rel: 'cache/index.json', full: paths.indexPath },
+    { rel: 'logs/audit-log.jsonl', full: path.join(paths.logsDir, 'audit-log.jsonl') },
   ];
   for (const { rel, full } of optional) {
     if (fs.existsSync(full)) files.push({ rel, full });

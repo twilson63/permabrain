@@ -89,14 +89,6 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   updateArticleInCache(home, item);
   writePageCache(home, finalKey, finalContent);
 
-  // Record a local audit event for the publish action.
-  try {
-    const { logAction } = await import('./log.mjs');
-    logAction({ home, action: 'publish', status: 'ok', key: finalKey, id: item.id, message: `Published ${isEncrypted ? 'encrypted ' : ''}${kind}/${topic} article`, details: { version, encrypted: isEncrypted, reference: reference?.id } });
-  } catch {
-    // Audit logging is best-effort.
-  }
-
   // For encrypted articles, cache the plaintext locally only if this agent is a recipient or author
   if (encryptionEnvelope) {
     const authorKeypair = await deriveAuthorEncryptionKeypair(identity);
@@ -117,6 +109,14 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   const enableHyperbeamReference = useHyperbeamReference ?? config.hyperbeam?.references ?? false;
   if (enableHyperbeamReference && transport instanceof HyperbeamTransport) {
     reference = await updateOrCreateArticleReference(transport, home, finalKey, item.id, identity);
+  }
+
+  // Record a local audit event for the publish action.
+  try {
+    const { logAction } = await import('./log.mjs');
+    logAction({ home, action: 'publish', status: 'ok', key: finalKey, id: item.id, message: `Published ${isEncrypted ? 'encrypted ' : ''}${kind}/${topic} article`, details: { version, encrypted: isEncrypted, reference: reference?.referenceId } });
+  } catch {
+    // Audit logging is best-effort.
   }
 
   return { item, summary: summarizeArticle(item), reference, encrypted: isEncrypted, encryptionEnvelope };

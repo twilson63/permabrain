@@ -41,19 +41,19 @@ export async function attestArticle({ key, opinion, confidence, reason, sourceUr
   await transport.uploadDataItem(item);
   updateAttestationInCache(home, item);
 
+  // HyperBEAM reference integration: maintain a mutable pointer from key → latest attestation
+  let reference = null;
+  const enableHyperbeamReference = useHyperbeamReference ?? config.hyperbeam?.references ?? false;
+  if (enableHyperbeamReference && transport instanceof HyperbeamTransport) {
+    reference = await updateOrCreateAttestationReference(transport, home, key, item.id, identity);
+  }
+
   // Record a local audit event for the attestation action.
   try {
     const { logAction } = await import('./log.mjs');
     logAction({ home, action: 'attest', status: 'ok', key, id: item.id, message: `Attested ${opinion} to ${key}`, details: { confidence, reference: reference?.referenceId } });
   } catch {
     // Audit logging is best-effort.
-  }
-
-  // HyperBEAM reference integration: maintain a mutable pointer from key → latest attestation
-  let reference = null;
-  const enableHyperbeamReference = useHyperbeamReference ?? config.hyperbeam?.references ?? false;
-  if (enableHyperbeamReference && transport instanceof HyperbeamTransport) {
-    reference = await updateOrCreateAttestationReference(transport, home, key, item.id, identity);
   }
 
   return { item, summary: summarizeAttestation(item), reference };

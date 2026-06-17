@@ -18,14 +18,19 @@ const LOG_FILE = 'audit-log.jsonl';
 const MAX_LOG_LINES = 10000;
 const DEFAULT_LIMIT = 50;
 
+export function logDir(home) {
+  const { logsDir } = statePaths(home);
+  return logsDir;
+}
+
 export function logPath(home) {
-  const { home: homeDir } = statePaths(home);
-  return path.join(homeDir, LOG_FILE);
+  const { logsDir } = statePaths(home);
+  return path.join(logsDir, LOG_FILE);
 }
 
 function ensureLogDir(home) {
-  const { home: homeDir } = statePaths(home);
-  fs.mkdirSync(homeDir, { recursive: true });
+  const { logsDir } = statePaths(home);
+  fs.mkdirSync(logsDir, { recursive: true });
 }
 
 function readLines(home) {
