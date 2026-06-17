@@ -34,7 +34,7 @@ import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, re
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
 import { startServer, stopServer } from './serve.mjs';
 import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
-import { queryLog, logToMarkdown, logAction } from './log.mjs';
+import { queryLog, logToMarkdown, logAction, tailLog, followLog, exportLog, importLog } from './log.mjs';
 
 import fs from 'node:fs';
 
@@ -1592,8 +1592,97 @@ async function doctorCommand(args) {
   return report;
 }
 
-async function logCommand(args) {
+async function logCommand(args = {}) {
   const home = getHome();
+  const subcommand = (args._ || [])[0];
+
+  if (subcommand === 'export') {
+    const format = args.format === 'jsonl' || args.jsonl ? 'jsonl' : 'json';
+    const bundle = exportLog({ home, format });
+    if (args.output) {
+      const payload = bundle.format === 'jsonl' ? bundle.raw : JSON.stringify(bundle, null, 2) + '\n';
+      fs.writeFileSync(args.output, payload);
+    }
+    if (args.json || bundle.format === 'jsonl') {
+      if (bundle.format === 'jsonl') {
+        if (!args.output) process.stdout.write(bundle.raw);
+      } else {
+        printJson(bundle);
+      }
+    } else {
+      console.log(`Audit log export: ${bundle.entries.length} entries`);
+    }
+    return bundle;
+  }
+
+  if (subcommand === 'import') {
+    const file = args._[1] || args.file;
+    if (!file) throw new Error('log import requires <file>');
+    const raw = fs.readFileSync(file, 'utf8');
+    let bundle;
+    try {
+      bundle = JSON.parse(raw);
+    } catch {
+      // Treat as JSONL.
+      const entries = raw.split('\n').filter(Boolean).map((line) => JSON.parse(line));
+      bundle = {
+        type: 'audit-log',
+        version: '1.0',
+        meta: { entryCount: entries.length },
+        entries
+      };
+    }
+    const result = importLog(bundle, { home, skipDuplicates: args['skip-duplicates'] !== false });
+    if (args.json) printJson(result);
+    else {
+      console.log(`Audit log import: ${result.imported} imported, ${result.skipped} skipped, ${result.failed} failed`);
+    }
+    return result;
+  }
+
+  if (args.follow) {
+    const filters = {
+      action: args.action,
+      status: args.status,
+      key: args.key,
+      agentId: args.agent || args['agent-id'],
+      after: args.after,
+      before: args.before,
+      search: args.search
+    };
+    const follower = followLog({ home, interval: args.interval ? Number(args.interval) : undefined, tail: args.tail ? Number(args.tail) : 10, ...filters });
+    process.once('SIGINT', () => follower.cancel());
+    process.once('SIGTERM', () => follower.cancel());
+    for await (const entry of follower) {
+      if (args.json) {
+        console.log(JSON.stringify(entry));
+      } else {
+        const ts = entry.createdAt ? new Date(entry.createdAt).toISOString() : 'unknown';
+        const keyPart = entry.key ? ` ${entry.key}` : '';
+        console.log(`${ts} [${entry.status || 'ok'}] ${entry.action}${keyPart}: ${entry.message || ''}`);
+      }
+    }
+    return { status: 'following-stopped' };
+  }
+
+  if (args.tail) {
+    const limit = args.tail === true ? 10 : Number(args.tail);
+    const result = tailLog({
+      home,
+      action: args.action,
+      status: args.status,
+      key: args.key,
+      agentId: args.agent || args['agent-id'],
+      after: args.after,
+      before: args.before,
+      search: args.search,
+      limit
+    });
+    if (args.json) printJson(result);
+    else console.log(logToMarkdown(result));
+    return result;
+  }
+
   const result = queryLog({
     home,
     action: args.action,

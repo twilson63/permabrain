@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { logAction, queryLog, logToMarkdown, logPath } from '../src/log.mjs';
+import { logAction, queryLog, logToMarkdown, logPath, tailLog, followLog, exportLog, importLog } from '../src/log.mjs';
 import { api } from '../src/agent-api.mjs';
 import { runCommand } from '../src/commands.mjs';
 import { startServer, stopServer } from '../src/serve.mjs';
@@ -221,6 +221,100 @@ console.log('11. HTTP POST /api/v1/log');
   assert.equal(list.body.total, 1);
   await stopServer(server);
   console.log('   ✓ HTTP POST /api/v1/log works');
+}
+
+// --- 12. tailLog returns the most recent entries ---
+console.log('12. tailLog returns the most recent entries');
+{
+  const home = tmpHome();
+  await initApi(home);
+  logAction({ home, action: 'publish', key: 'subject/tail-1' });
+  logAction({ home, action: 'attest', key: 'subject/tail-1' });
+  logAction({ home, action: 'fork', key: 'subject/tail-1' });
+  const tail = tailLog({ home, limit: 2 });
+  assert.equal(tail.total, 3);
+  assert.equal(tail.entries.length, 2);
+  assert.equal(tail.entries[0].action, 'fork');
+  assert.equal(tail.entries[1].action, 'attest');
+  console.log('   ✓ tailLog works');
+}
+
+// --- 13. followLog yields newly appended entries ---
+console.log('13. followLog yields newly appended entries');
+{
+  const home = tmpHome();
+  await initApi(home);
+  const follower = followLog({ home, interval: 50, tail: 0 });
+  setTimeout(() => {
+    logAction({ home, action: 'publish', key: 'subject/follow', message: 'follow me' });
+  }, 80);
+  setTimeout(() => follower.cancel(), 250);
+  const seen = [];
+  for await (const entry of follower) {
+    seen.push(entry);
+  }
+  assert.ok(seen.length >= 1, 'followLog saw at least one new entry');
+  assert.equal(seen[0].action, 'publish');
+  assert.equal(seen[0].key, 'subject/follow');
+  console.log('   ✓ followLog works');
+}
+
+// --- 14. exportLog / importLog cross-node migration ---
+console.log('14. exportLog / importLog cross-node migration');
+{
+  const sourceHome = tmpHome();
+  await initApi(sourceHome);
+  logAction({ home: sourceHome, action: 'publish', key: 'subject/migrate', message: 'source entry' });
+  const bundle = exportLog({ home: sourceHome });
+  assert.equal(bundle.type, 'audit-log');
+  assert.equal(bundle.entries.length, 1);
+  assert.equal(bundle.meta.entryCount, 1);
+
+  const destHome = tmpHome();
+  await initApi(destHome);
+  const result = importLog(bundle, { home: destHome });
+  assert.equal(result.imported, 1);
+  assert.equal(result.skipped, 0);
+  assert.equal(result.failed, 0);
+
+  // Idempotent: importing the same bundle again should skip.
+  const repeat = importLog(bundle, { home: destHome });
+  assert.equal(repeat.imported, 0);
+  assert.equal(repeat.skipped, 1);
+  assert.equal(repeat.failed, 0);
+
+  const destQuery = queryLog({ home: destHome });
+  assert.equal(destQuery.total, 1);
+  assert.equal(destQuery.entries[0].key, 'subject/migrate');
+  console.log('   ✓ exportLog / importLog work');
+}
+
+// --- 15. HTTP log export / import routes ---
+console.log('15. HTTP log export / import routes');
+{
+  const home = tmpHome();
+  process.env.PERMABRAIN_HOME = home;
+  process.env.PERMABRAIN_TRANSPORT = 'local';
+  api._home = undefined;
+  api._identity = undefined;
+  api._config = undefined;
+  const { server, port } = await startServer({ home, port: 0 });
+  logAction({ home, action: 'publish', key: 'subject/log-export', message: 'export route' });
+
+  const exported = await request(port, 'GET', '/api/v1/log/export');
+  assert.equal(exported.status, 200);
+  assert.equal(exported.body.type, 'audit-log');
+  assert.equal(exported.body.entries.length, 1);
+
+  const destHome = tmpHome();
+  const destServer = await startServer({ home: destHome, port: 0 });
+  const imported = await request(destServer.port, 'POST', '/api/v1/log/import', { bundle: exported.body });
+  assert.equal(imported.status, 200);
+  assert.equal(imported.body.imported, 1);
+
+  await stopServer(server);
+  await stopServer(destServer.server);
+  console.log('   ✓ HTTP log export/import routes work');
 }
 
 console.log('\n✅ All audit log tests passed');

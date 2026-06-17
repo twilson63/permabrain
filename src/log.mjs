@@ -17,6 +17,8 @@ import { loadIdentity } from './keys.mjs';
 const LOG_FILE = 'audit-log.jsonl';
 const MAX_LOG_LINES = 10000;
 const DEFAULT_LIMIT = 50;
+const DEFAULT_TAIL = 10;
+const DEFAULT_FOLLOW_INTERVAL_MS = 1000;
 
 export function logDir(home) {
   const { logsDir } = statePaths(home);
@@ -33,10 +35,14 @@ function ensureLogDir(home) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-function readLines(home) {
+function readRawText(home) {
   const file = logPath(home);
-  if (!fs.existsSync(file)) return [];
-  const text = fs.readFileSync(file, 'utf8');
+  if (!fs.existsSync(file)) return '';
+  return fs.readFileSync(file, 'utf8');
+}
+
+function readLines(home) {
+  const text = readRawText(home);
   if (!text.trim()) return [];
   const lines = [];
   let index = 0;
@@ -57,6 +63,18 @@ function appendLine(home, entry) {
   ensureLogDir(home);
   const file = logPath(home);
   fs.appendFileSync(file, JSON.stringify(entry) + '\n', 'utf8');
+}
+
+function entryFingerprint(entry) {
+  if (!entry || typeof entry !== 'object') return '';
+  return [
+    entry.createdAt || '',
+    entry.action || '',
+    entry.status || '',
+    entry.key || '',
+    entry.agentId || '',
+    entry.message || ''
+  ].join('|');
 }
 
 function currentAgentId(home) {
@@ -256,4 +274,190 @@ export function logToMarkdown(result) {
   }
 
   return lines.join('\n').trim() + '\n';
+}
+
+/**
+ * Return the most recent audit-log entries.
+ *
+ * Accepts the same filters as `queryLog` but defaults to the newest `limit`
+ * entries (default 10). Useful for `permabrain log --tail`.
+ *
+ * @param {object} opts
+ * @returns {object} { entries, total, limit, offset }
+ */
+export function tailLog(opts = {}) {
+  const limit = Number.isFinite(opts.limit) ? Math.max(1, opts.limit) : DEFAULT_TAIL;
+  return queryLog({ ...opts, limit, offset: 0, order: 'desc' });
+}
+
+/**
+ * Watch the audit log for newly appended entries.
+ *
+ * Polls the log file at `interval` ms (default 1000) and yields any new lines
+ * that parse as JSON. If the file shrinks (rotation/truncation), the watcher
+ * resets and treats existing content as new. Optional `tail` yields the N
+ * most recent entries before waiting for new ones.
+ *
+ * @param {object} opts
+ * @param {string} opts.home
+ * @param {number} [opts.interval=1000] - Polling interval in milliseconds.
+ * @param {number} [opts.tail=0] - Yield this many recent entries first.
+ * @returns {{[Symbol.asyncIterator]: function, cancel: function}}
+ */
+export function followLog(opts = {}) {
+  const home = opts.home || getHome();
+  const interval = Number.isFinite(opts.interval) ? Math.max(100, opts.interval) : DEFAULT_FOLLOW_INTERVAL_MS;
+  const tail = Number.isFinite(opts.tail) ? Math.max(0, opts.tail) : 0;
+  const file = logPath(home);
+  let running = true;
+  let lastSize = 0;
+
+  function readNewEntries() {
+    if (!fs.existsSync(file)) return [];
+    const stats = fs.statSync(file);
+    if (stats.size === lastSize) return [];
+    if (stats.size < lastSize) {
+      // Log rotated or truncated; reset and re-read from beginning.
+      lastSize = 0;
+    }
+    const fd = fs.openSync(file, 'r');
+    const buffer = Buffer.alloc(stats.size - lastSize);
+    try {
+      fs.readSync(fd, buffer, 0, buffer.length, lastSize);
+    } finally {
+      fs.closeSync(fd);
+    }
+    lastSize = stats.size;
+    const text = buffer.toString('utf8');
+    const entries = [];
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        entries.push(JSON.parse(line));
+      } catch {
+        // Skip corrupt trailing lines; they may be completed next poll.
+      }
+    }
+    return entries;
+  }
+
+  async function* generator() {
+    if (tail > 0) {
+      const recent = tailLog({ ...opts, limit: tail });
+      for (const entry of recent.entries) yield entry;
+    }
+    while (running) {
+      const entries = readNewEntries();
+      for (const entry of entries) yield entry;
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+  }
+
+  return {
+    [Symbol.asyncIterator]: generator,
+    cancel() {
+      running = false;
+    }
+  };
+}
+
+/**
+ * Export the full local audit log as a migration bundle.
+ *
+ * @param {object} opts
+ * @param {string} opts.home
+ * @param {string} [opts.format='json'] - 'json' or 'jsonl'. JSONL includes a `raw` string.
+ * @returns {object} Bundle object with type 'audit-log', meta, and entries.
+ */
+export function exportLog(opts = {}) {
+  const home = opts.home || getHome();
+  const entries = readLines(home);
+  const bundle = {
+    type: 'audit-log',
+    version: '1.0',
+    meta: {
+      createdAt: new Date().toISOString(),
+      sourceAgentId: currentAgentId(home),
+      sourceHome: home,
+      entryCount: entries.length
+    },
+    entries
+  };
+
+  if (opts.format === 'jsonl') {
+    const raw = entries.map((e) => JSON.stringify(e)).join('\n') + (entries.length ? '\n' : '');
+    return { ...bundle, format: 'jsonl', raw };
+  }
+
+  return bundle;
+}
+
+/**
+ * Import an audit-log bundle into the local log.
+ *
+ * By default skips entries that already appear to be present, matching on a
+ * fingerprint of createdAt/action/status/key/agentId/message. This keeps
+ * cross-node migration idempotent.
+ *
+ * @param {object} bundle - Audit-log bundle (type 'audit-log') or a JSONL string/array.
+ * @param {object} [opts]
+ * @param {string} [opts.home]
+ * @param {boolean} [opts.skipDuplicates=true]
+ * @returns {object} { imported, skipped, failed, results, meta }
+ */
+export function importLog(bundle, opts = {}) {
+  const home = opts.home || getHome();
+  const skipDuplicates = opts.skipDuplicates !== false;
+  const existing = skipDuplicates
+    ? new Set(readLines(home).map((e) => entryFingerprint(e)))
+    : new Set();
+
+  let entries = [];
+  if (bundle && typeof bundle === 'object') {
+    if (Array.isArray(bundle.entries)) entries = bundle.entries;
+    else if (Array.isArray(bundle)) entries = bundle;
+    else if (typeof bundle.raw === 'string') {
+      entries = bundle.raw.split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    }
+  } else if (typeof bundle === 'string') {
+    entries = bundle.split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  }
+
+  ensureLogDir(home);
+  const file = logPath(home);
+  let imported = 0;
+  let skipped = 0;
+  let failed = 0;
+  const results = [];
+
+  for (const entry of entries) {
+    try {
+      if (!entry || typeof entry !== 'object') throw new Error('invalid entry');
+      const fp = entryFingerprint(entry);
+      if (skipDuplicates && existing.has(fp)) {
+        skipped++;
+        results.push({ ok: true, imported: false, action: entry.action, createdAt: entry.createdAt });
+        continue;
+      }
+      fs.appendFileSync(file, JSON.stringify(entry) + '\n', 'utf8');
+      existing.add(fp);
+      imported++;
+      results.push({ ok: true, imported: true, action: entry.action, createdAt: entry.createdAt });
+    } catch (err) {
+      failed++;
+      results.push({ ok: false, imported: false, action: entry?.action, createdAt: entry?.createdAt, error: err.message });
+    }
+  }
+
+  rotateLog(home);
+  return {
+    imported,
+    skipped,
+    failed,
+    results,
+    meta: {
+      sourceAgentId: bundle?.meta?.sourceAgentId || null,
+      entryCount: entries.length
+    }
+  };
 }

@@ -500,6 +500,23 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 201, result);
     }
 
+    if (method === 'GET' && route === '/api/v1/log/export') {
+      const format = url.searchParams.get('format') || 'json';
+      const result = await api.exportLog({ format, home });
+      if (format === 'jsonl') {
+        res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+        return res.end(result.raw);
+      }
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/log/import') {
+      const body = await readBody(req);
+      const bundle = body.bundle || body;
+      const result = await api.importLog(bundle, { ...(body.options || {}), home });
+      return sendJson(res, 200, result);
+    }
+
     if (method === 'GET' && route === '/api/v1/identity') {
       const id = publicIdentity(api._identity);
       return sendJson(res, 200, id);
@@ -529,13 +546,14 @@ export function createServer(options = {}) {
 
 export async function startServer(options = {}) {
   const { server, home } = createServer(options);
-  const port = options.port || process.env.PERMABRAIN_PORT || DEFAULT_PORT;
+  const requestedPort = options.port ?? (process.env.PERMABRAIN_PORT || DEFAULT_PORT);
   await new Promise((resolve, reject) => {
-    server.listen(port, (err) => (err ? reject(err) : resolve()));
+    server.listen(requestedPort, (err) => (err ? reject(err) : resolve()));
   });
+  const actualPort = server.address()?.port || requestedPort;
   const identity = await ensureIdentity(home).catch(() => null);
   if (identity && !api._home) setApiHome(home);
-  return { server, home, port, agentId: identity?.agentId || api._identity?.agentId || null };
+  return { server, home, port: actualPort, agentId: identity?.agentId || api._identity?.agentId || null };
 }
 
 export function stopServer(server) {

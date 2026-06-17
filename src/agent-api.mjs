@@ -38,7 +38,7 @@ import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups } from './backup.mjs';
-import { logAction, queryLog, logToMarkdown } from './log.mjs';
+import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } from './log.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
@@ -1320,6 +1320,43 @@ const api = {
    */
   logToMarkdown(result) {
     return logToMarkdown(result);
+  },
+
+  /**
+   * Return the most recent audit-log entries.
+   *
+   * @param {Object} [opts]
+   * @param {number} [opts.limit=10]
+   * @returns {Object}
+   */
+  tailLog(opts = {}) {
+    requireInit(this._home);
+    return tailLog({ home: this._home, ...opts });
+  },
+
+  /**
+   * Export the full local audit log as a migration bundle.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.format='json'] - 'json' or 'jsonl'
+   * @returns {Object}
+   */
+  exportLog(opts = {}) {
+    requireInit(this._home);
+    return exportLog({ home: this._home, ...opts });
+  },
+
+  /**
+   * Import an audit-log bundle into the local log.
+   *
+   * @param {Object} bundle
+   * @param {Object} [opts]
+   * @param {boolean} [opts.skipDuplicates=true]
+   * @returns {Object}
+   */
+  importLog(bundle, opts = {}) {
+    requireInit(this._home);
+    return importLog(bundle, { home: this._home, ...opts });
   },
 
   /**
