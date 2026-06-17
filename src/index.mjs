@@ -116,5 +116,8 @@ export { logAction, queryLog, logToMarkdown, logDir, tailLog, followLog, exportL
 // Web dashboard snapshot + ZenBin publishing
 export { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 
+// Shell completion generators
+export { generateCompletion, listSupportedShells } from './completion.mjs';
+
 // ZenBin client helpers
 export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest, ZENBIN_BASE_URL, ZENBIN_PUBLISH_PATH } from './zenbin.mjs';

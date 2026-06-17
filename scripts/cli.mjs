@@ -64,7 +64,8 @@ const COMMANDS = [
   'log',
   'template',
   'dashboard',
-  'client'
+  'client',
+  'completion'
 ];
 
 function printVersion() {
@@ -132,6 +133,7 @@ Commands:
   template <file>              Publish an article from a markdown template
   dashboard                    Build a self-contained web dashboard snapshot
   client [action] [args]         HTTP client SDK for a permabrain serve instance
+  completion <shell>           Generate shell completion script (bash|zsh|fish)
 
 Common examples:
   permabrain init
@@ -779,7 +781,17 @@ Actions:
 Options:
   --url <base-url>    Server base URL (default http://localhost:8765)
   --use-hyperbeam     Pass useHyperbeam=true to the server
-  --json              Output structured JSON`
+  --json              Output structured JSON`,
+    'completion': `Usage: permabrain completion <shell>
+
+Generate a shell completion script for bash, zsh, or fish.
+
+Examples:
+  permabrain completion bash > /etc/bash_completion.d/permabrain
+  permabrain completion zsh > "${'${fpath[1]}'}/_permabrain"
+  permabrain completion fish > ~/.config/fish/completions/permabrain.fish
+
+Install to your shell and reload, or source the generated script in your rc file.`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

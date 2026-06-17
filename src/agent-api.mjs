@@ -40,6 +40,7 @@ import { archive, restore } from './archive.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups } from './backup.mjs';
 import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } from './log.mjs';
+import { generateCompletion, listSupportedShells } from './completion.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1503,6 +1504,20 @@ const api = {
   importLog(bundle, opts = {}) {
     requireInit(this._home);
     return importLog(bundle, { home: this._home, ...opts });
+  },
+
+  /**
+   * Generate a shell completion script.
+   *
+   * @param {Object} opts
+   * @param {'bash'|'zsh'|'fish'} [opts.shell='bash']
+   * @returns {{shell: string, script: string, shells: string[]}}
+   */
+  async completion(opts = {}) {
+    const { generateCompletion, listSupportedShells } = await import('./completion.mjs');
+    const shell = opts.shell || opts._?.[0] || 'bash';
+    const script = generateCompletion(shell);
+    return { shell, script, shells: listSupportedShells() };
   },
 
   /**

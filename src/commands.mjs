@@ -37,6 +37,7 @@ import { startServer, stopServer } from './serve.mjs';
 import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 import { queryLog, logToMarkdown, logAction, tailLog, followLog, exportLog, importLog } from './log.mjs';
+import { generateCompletion, listSupportedShells } from './completion.mjs';
 
 import fs from 'node:fs';
 
@@ -101,6 +102,7 @@ export async function runCommand(command, args) {
   if (command === 'template') return templateCommand(args);
   if (command === 'dashboard') return dashboardCommand(args);
   if (command === 'client') return clientCommand(args);
+  if (command === 'completion') return completionCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1877,6 +1879,27 @@ async function clientCommand(args) {
   }
 
   throw new Error(`Unknown client action: ${action}. Try: health, status, get, query, publish`);
+}
+
+async function completionCommand(args) {
+  const shell = args._[0];
+  if (!shell || shell === '--help' || shell === 'help') {
+    const shells = listSupportedShells().join(', ');
+    console.log(`Usage: permabrain completion <shell>
+
+Supported shells: ${shells}
+
+Examples:
+  permabrain completion bash > /etc/bash_completion.d/permabrain
+  permabrain completion zsh > "${'${fpath[1]}'}/_permabrain"
+  permabrain completion fish > ~/.config/fish/completions/permabrain.fish
+
+Install to your shell and reload, or source the generated script in your rc file.`);
+    return { shells: listSupportedShells() };
+  }
+  const script = generateCompletion(shell);
+  console.log(script);
+  return { shell, script };
 }
 
 async function serveCommand(args) {

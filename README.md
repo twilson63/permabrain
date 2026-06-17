@@ -231,7 +231,15 @@ permabrain client query --topic computing
 permabrain client publish article.md --kind subject --topic ai --source-url https://example.com/ai
 ```
 
-Programmatically:
+### Shell Completion
+
+```sh
+permabrain completion bash > /etc/bash_completion.d/permabrain
+permabrain completion zsh > "${fpath[1]}/_permabrain"
+permabrain completion fish > ~/.config/fish/completions/permabrain.fish
+```
+
+Then reload your shell or source the generated script.
 
 ```javascript
 import { createClient } from 'permabrain';

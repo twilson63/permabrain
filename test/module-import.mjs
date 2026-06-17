@@ -189,6 +189,7 @@ assert.equal(typeof signRequest, 'function', 'signRequest');
 
 // SDK exports
 import { createClient } from '../src/index.mjs';
+import { generateCompletion, listSupportedShells } from '../src/index.mjs';
 
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
@@ -295,12 +296,12 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog'
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 71 API methods present');
+console.log('   ✓ All 72 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -326,5 +327,12 @@ assert.equal(typeof api.dashboardMarkdown, 'function', 'api.dashboardMarkdown is
 assert.equal(typeof api.writeDashboard, 'function', 'api.writeDashboard is a function');
 assert.equal(typeof api.publishDashboard, 'function', 'api.publishDashboard is a function');
 console.log('   ✓ Dashboard API methods present');
+
+// --- 15. Completion exports ---
+console.log('15. Completion exports');
+assert.equal(typeof generateCompletion, 'function', 'generateCompletion');
+assert.equal(typeof listSupportedShells, 'function', 'listSupportedShells');
+assert.equal(typeof api.completion, 'function', 'api.completion is a function');
+console.log('   ✓ Completion exports present');
 
 console.log('\n✅ All importable module tests passed');
