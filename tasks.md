@@ -4,13 +4,14 @@
 - [ ] (none)
 
 ## Next
-- [ ] Add remote event subscriber CLI (`permabrain events`) and `api.subscribeEventsRemote()` for live SSE/WebSocket streams from `permabrain serve`.
+- [ ] Add `permabrain validate` CLI command (article/attestation metadata + DataItem tag validation) using `api.validateMetadata()` / `api.validateDataItem()`.
 
 ## Backlog
 - [ ] JSON Schema validation for article metadata (already implemented in src/schema.mjs; verify and close).
 - [ ] Web viewer backlog items already implemented: dark mode, topic filters, sort controls, version history, stats dashboard, refresh button, ANS-104 raw fallback, IndexedDB v2, Viewblock + source links, mobile sidebar toggle, PWA manifest + service worker. Verify and close.
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-17 23:34 UTC): verified `permabrain events` / `api.subscribeEventsRemote()` remote event subscriber is fully implemented. `src/events-client.mjs`, `src/events.mjs`, `src/serve.mjs` SSE/WebSocket routes, CLI wiring in `scripts/cli.mjs` / `src/commands.mjs`, `api.subscribeEventsRemote()` in `src/agent-api.mjs`, barrel exports in `src/index.mjs`, shell completion updates, and `test/events-client.mjs` + `test/events.mjs` + `test/serve-events.mjs` are present. Full `npm test` suite passes. Marked Next task complete.
 - [x] Cron build loop checkpoint (2026-06-17 23:04 UTC): implemented `permabrain events` / `api.subscribeEventsRemote()` remote event subscriber. Added `src/events-client.mjs` with `subscribeEventsOverSse`, `subscribeEventsOverWebSocket`, `subscribeEventsRemote`, `formatEvent`, and `runEventsSubscriber`. Wired `permabrain events` CLI in `scripts/cli.mjs` and `src/commands.mjs` with `--url`, `--ws`, `--events`, `--json`, `--compact`, `--duration`, and `--count` options. Exposed `api.subscribeEventsRemote()` in `src/agent-api.mjs` and re-exported event-client helpers from `src/index.mjs`. Updated shell completion (`src/completion.mjs`) for the new command. Added `test/events-client.mjs` (7 tests) validating SSE/WebSocket subscriptions, formatting, `runEventsSubscriber`, and API wrapper. Wired new test into `npm test` and `test:events-client` script. Updated `test/module-import.mjs` to expect 83 API methods and assert new exports. Full `npm test` suite passes.
 - [x] Cron build loop checkpoint (2026-06-17 23:04 UTC): verified JSON Schema validation already implemented in `src/schema.mjs` with comprehensive `test/schema.mjs` coverage; marked backlog item as complete.
 - [x] Cron build loop checkpoint (2026-06-17 23:04 UTC): verified web viewer backlog items already implemented and tested (`test/viewer-crypto.mjs`, `test/viewer-dashboard.mjs`, `test/viewer-history-stats.mjs`, `test/viewer-raw-links.mjs`, `test/viewer-pwa.mjs`); marked backlog item as complete.
