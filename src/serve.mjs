@@ -15,6 +15,7 @@
  *   POST /api/v1/articles/:key/attest → attest
  *   GET  /api/v1/articles/:key/consensus → consensus
  *   GET  /api/v1/articles/:key/history   → version history
+ *   GET  /api/v1/raw/:id                → raw ANS-104 DataItem bytes
  *   POST /api/v1/sync                  → sync
  *   GET  /api/v1/search?q=...          → search
  *   GET  /api/v1/status                → node status
@@ -588,6 +589,21 @@ async function handleRequest(req, res, home) {
     if (method === 'GET' && route === '/api/v1/identity') {
       const id = publicIdentity(api._identity);
       return sendJson(res, 200, id);
+    }
+
+    const rawMatch = route.match(/^\/api\/v1\/raw\/(.+)$/);
+    if (rawMatch && method === 'GET') {
+      const id = decodeURIComponent(rawMatch[1]);
+      const { getTransport } = await import('./transport.mjs');
+      const { rawDataItemBytes } = await import('./dataitem.mjs');
+      const transport = getTransport(api._config, currentHome);
+      const item = await transport.fetchDataItem(id);
+      const bytes = rawDataItemBytes(item);
+      res.writeHead(200, {
+        'content-type': 'application/octet-stream',
+        'content-length': bytes.length
+      });
+      return res.end(bytes);
     }
 
     if (method === 'POST' && route === '/api/v1/goal') {

@@ -839,7 +839,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
         (att.createdAt ? '<span class="date">' + new Date(att.createdAt).toLocaleDateString() + '</span>' : '') +
         '<div class="reason">' + esc(att.reason) + '</div>' +
         '<div class="agent">by ' + esc(shortAgent) + '</div>' +
-        (att.sourceUrl ? '<a href="' + esc(att.sourceUrl) + '" target="_blank" style="font-size:0.72rem;color:var(--accent)">source</a>' : '') +
+        '<div class="links" style="margin-top:0.5rem">' +
+        '<a href="https://arweave.net/' + att.id + '" target="_blank">&#x1F517; Arweave</a>' +
+        '<a href="https://viewblock.io/arweave/tx/' + att.id + '" target="_blank">&#x1F4CA; Viewblock</a>' +
+        (att.sourceUrl ? '<a href="' + esc(att.sourceUrl) + '" target="_blank">&#x1F4C4; Source</a>' : '') +
+        '</div>' +
         '</div>';
     }).join('');
 
