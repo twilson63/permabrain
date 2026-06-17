@@ -120,6 +120,19 @@ Commands:
   template <file>              Publish an article from a markdown template
   dashboard                    Build a self-contained web dashboard snapshot
 
+Common examples:
+  permabrain init
+  permabrain import-wikipedia "Ada Lovelace" --kind person --topic computing
+  permabrain query --topic computing
+  permabrain get person/ada-lovelace
+  permabrain attest person/ada-lovelace --valid --confidence 0.95 --reason "Source-backed"
+  permabrain consensus person/ada-lovelace
+  permabrain dashboard --output dashboard.html --publish
+  permabrain log --tail 10
+  permabrain serve --port 8765
+
+Run 'permabrain <command> --help' for detailed command help.
+
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
   PERMABRAIN_TRANSPORT         Transport: local|hyperbeam|arweave
