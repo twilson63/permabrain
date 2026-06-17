@@ -172,6 +172,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .version-num{font-weight:600;color:var(--accent);min-width:2rem}
 .version-date{color:var(--muted);font-size:0.8rem}
 .version-link{color:var(--accent);font-family:monospace;font-size:0.75rem;text-decoration:none}
+.version-hash{font-family:monospace;font-size:0.72rem;color:var(--muted)}
+.version-author{font-size:0.72rem;color:var(--muted)}
+.version-source{font-size:0.72rem;color:var(--accent)}
+
+/* Local stats overlay in article view */
+.local-stats{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+.local-stats h3{font-size:0.9rem;margin-bottom:0.5rem;color:var(--muted)}
+.local-stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.5rem}
+.local-stat{text-align:center}
+.local-stat .value{font-size:1.2rem;font-weight:700;color:var(--accent)}
+.local-stat .label{font-size:0.7rem;color:var(--muted);text-transform:uppercase}
+
+/* Attestation timeline */
+.timeline{position:relative;padding-left:1rem}
+.timeline::before{content:'';position:absolute;left:0.25rem;top:0;bottom:0;width:2px;background:var(--border)}
+.timeline-item{position:relative;padding:0.5rem 0 0.5rem 0.75rem}
+.timeline-item::before{content:'';position:absolute;left:-0.55rem;top:0.75rem;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.timeline-item.version::before{background:var(--accent)}
+.timeline-item.attestation::before{background:var(--green)}
+.timeline-item .tl-ts{font-family:monospace;font-size:0.7rem;color:var(--muted)}
+.timeline-item .tl-title{font-weight:600;font-size:0.85rem}
+.timeline-item .tl-meta{font-size:0.75rem;color:var(--muted)}
 /* Decryption panel */
 .decrypt-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
 .decrypt-panel h3{font-size:1rem;margin-bottom:0.5rem}
@@ -211,6 +233,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <div class="subtitle">Public signed knowledge graph</div>
   <div class="header-actions">
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
+    <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
   </div>
@@ -268,6 +291,13 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var dashboardLoading = false;
   var dashboardError = null;
   var dashboardInterval = null;
+  var historyData = {};       // key -> history payload from local API
+  var historyLoading = false;
+  var historyError = null;
+  var statsData = null;
+  var statsLoading = false;
+  var statsError = null;
+  var localStatsData = null;  // live /api/v1/stats per key for selected article
 
   // --- Theme ---
   function applyTheme(t) {
@@ -816,7 +846,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     // Version history
     var versions = allVersions[a.key] || [];
     var versionHtml = '';
-    if (versions.length > 1) {
+    if (isLocalServer()) {
+      fetchLocalHistory(a.key);
+      versionHtml = historyLoading ? '<div class="loading"><div class="spinner"></div> Loading local version history...</div>' : renderHistoryTab(a.key);
+    } else if (versions.length > 1) {
       versionHtml = '<h2>Version History</h2><ul class="version-list">' +
         versions.map(function(v) {
           var isCurrent = v.id === a.id;
@@ -877,7 +910,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       '<div class="tab' + (activeTab === 'content' ? ' active' : '') + '" onclick="window.setTab(\'content\')">Content</div>' +
       '<div class="tab' + (activeTab === 'attestations' ? ' active' : '') + '" onclick="window.setTab(\'attestations\')">Attestations (' + consensus.totalAttestations + ')</div>' +
       '<div class="tab' + (activeTab === 'consensus' ? ' active' : '') + '" onclick="window.setTab(\'consensus\')">Consensus</div>' +
-      (versions.length > 1 ? '<div class="tab' + (activeTab === 'versions' ? ' active' : '') + '" onclick="window.setTab(\'versions\')">Versions (' + versions.length + ')</div>' : '') +
+      '<div class="tab' + (activeTab === 'versions' ? ' active' : '') + '" onclick="window.setTab(\'versions\')">History</div>' +
       '</div>' +
       '<div class="tab-content' + (activeTab === 'content' ? ' active' : '') + '" id="tab-content">' + contentHtml + '</div>' +
       '<div class="tab-content' + (activeTab === 'attestations' ? ' active' : '') + '" id="tab-attestations">' + encryptedBanner + (attCards || '<p style="color:var(--muted)">No attestations yet.</p>') +
@@ -888,7 +921,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       '<div class="label">Consensus Score</div>' +
       breakdown +
       '</div></div>' +
-      (versions.length > 1 ? '<div class="tab-content' + (activeTab === 'versions' ? ' active' : '') + '" id="tab-versions">' + versionHtml + '</div>' : '');
+      '<div class="tab-content' + (activeTab === 'versions' ? ' active' : '') + '" id="tab-versions">' + renderHistoryTab(a.key) + '</div>';
 
     document.getElementById('main').innerHTML = html;
 
@@ -938,6 +971,15 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     startDashboardRefresh();
   };
 
+  window.showStats = async function() {
+    viewMode = 'stats';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    await fetchLocalStats();
+    renderStatsDashboard();
+  };
+
   function startDashboardRefresh() {
     stopDashboardRefresh();
     dashboardInterval = setInterval(fetchDashboard, 30000);
@@ -951,6 +993,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (!isLocalServer()) return;
     dashboardLoading = true;
     dashboardError = null;
+    await fetchLocalStats();
     if (viewMode === 'dashboard') renderDashboard();
     try {
       var r = await fetch('/api/v1/dashboard');
@@ -974,6 +1017,186 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   function fmtTs(ts) {
     if (!ts) return '—';
     try { return new Date(ts).toLocaleString(); } catch { return ts; }
+  }
+
+  async function fetchLocalHistory(key) {
+    if (!isLocalServer()) return;
+    if (historyLoading) return;
+    historyLoading = true;
+    historyError = null;
+    try {
+      var r = await fetch('/api/v1/articles/' + encodeURIComponent(key) + '/history');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      historyData[key] = await r.json();
+    } catch(e) {
+      historyError = e.message;
+    } finally {
+      historyLoading = false;
+    }
+    if (selectedKey === key) renderArticle(key);
+  }
+
+  async function fetchLocalStats() {
+    if (!isLocalServer()) return;
+    if (statsLoading) return;
+    statsLoading = true;
+    statsError = null;
+    try {
+      var r = await fetch('/api/v1/stats');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      statsData = await r.json();
+    } catch(e) {
+      statsError = e.message;
+    } finally {
+      statsLoading = false;
+    }
+    if (viewMode === 'dashboard') renderDashboard();
+  }
+
+  function renderHistoryTab(key) {
+    var localHistory = isLocalServer() && historyData[key];
+    if (localHistory && localHistory.timeline && localHistory.timeline.length) {
+      var timeline = localHistory.timeline.slice().reverse();
+      var rows = timeline.map(function(e) {
+        if (e.type === 'version') {
+          var v = e.version || {};
+          return '<div class="timeline-item version">' +
+            '<div class="tl-ts">' + fmtTs(v.updatedAt) + '</div>' +
+            '<div class="tl-title">Version ' + (v.version || '—') + '</div>' +
+            '<div class="tl-meta">' +
+            '<a class="version-link" href="https://arweave.net/' + v.id + '" target="_blank">' + (v.id || '').substring(0, 12) + '…</a>' +
+            (v.contentHash ? ' · hash ' + v.contentHash.substring(0, 16) + '…' : '') +
+            '</div>' +
+            '</div>';
+        }
+        var att = e.attestation || {};
+        var opClass = 'opinion-' + (att.opinion || '').replace(' ', '-');
+        return '<div class="timeline-item attestation">' +
+          '<div class="tl-ts">' + fmtTs(att.createdAt) + '</div>' +
+          '<div class="tl-title"><span class="opinion ' + opClass + '">' + esc((att.opinion || '').toUpperCase()) + '</span> · confidence ' + (att.confidence || 0) + '</div>' +
+          '<div class="tl-meta">' + esc(att.reason || '') + '</div>' +
+          '<div class="tl-meta">by ' + esc(att.agentId || '') + ' · target v' + (att.targetVersion || '?') + '</div>' +
+          '</div>';
+      }).join('');
+      return '<div class="dashboard-section"><h2>Version chain (' + (localHistory.versionCount || 0) + ')</h2>' +
+        '<div class="timeline">' + rows + '</div></div>' +
+        '<div class="dashboard-section"><h2>Attestations (' + (localHistory.attestationCount || 0) + ')</h2>' +
+        '<div class="timeline">' + timeline.filter(function(e){ return e.type === 'attestation'; }).slice().reverse().map(function(e) {
+          var att = e.attestation || {};
+          var opClass = 'opinion-' + (att.opinion || '').replace(' ', '-');
+          return '<div class="timeline-item attestation">' +
+            '<div class="tl-ts">' + fmtTs(att.createdAt) + '</div>' +
+            '<div class="tl-title"><span class="opinion ' + opClass + '">' + esc((att.opinion || '').toUpperCase()) + '</span> · confidence ' + (att.confidence || 0) + '</div>' +
+            '<div class="tl-meta">' + esc(att.reason || '') + '</div>' +
+            '<div class="tl-meta">by ' + esc(att.agentId || '') + ' · target v' + (att.targetVersion || '?') + '</div>' +
+            '</div>';
+        }).join('') + '</div></div>';
+    }
+
+    var versions = allVersions[key] || [];
+    if (!versions.length) return '<p style="color:var(--muted)">No version history available.</p>';
+    return '<h2>Version History</h2><ul class="version-list">' +
+      versions.map(function(v) {
+        var isCurrent = v.id === a.id;
+        return '<li class="version-item">' +
+          '<span class="version-num">v' + v.version + '</span>' +
+          (isCurrent ? '<strong>current</strong>' : '<a class="version-link" href="https://arweave.net/' + v.id + '" target="_blank">' + v.id.substring(0, 12) + '...</a>') +
+          '<span class="version-date">' + (v.updatedAt ? new Date(v.updatedAt).toLocaleDateString() : '') + '</span>' +
+          '</li>';
+      }).join('') +
+      '</ul>';
+  }
+
+  function renderStatsDashboard() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Local stats unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see live stats.</p></div>';
+      return;
+    }
+    if (statsLoading && !statsData) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading local stats...</div>';
+      return;
+    }
+    if (statsError && !statsData) {
+      main.innerHTML = '<div class="empty-state"><h2>Stats error</h2><p>' + esc(statsError) + '</p><button class="btn-icon" onclick="window.showStats()">Retry</button></div>';
+      return;
+    }
+    if (!statsData || !statsData.totals) {
+      main.innerHTML = '<div class="empty-state"><h2>No stats data</h2><p>The local PermaBrain node returned empty stats.</p></div>';
+      return;
+    }
+    var s = statsData;
+    var t = s.totals || {};
+    var c = s.consensus || {};
+    var ag = s.agents || {};
+    var act = s.activity || {};
+    var byKind = s.articles && s.articles.byKind ? s.articles.byKind : {};
+    var byTopic = s.articles && s.articles.byTopic ? s.articles.byTopic : {};
+    var byOpinion = s.attestations && s.attestations.byOpinion ? s.attestations.byOpinion : {};
+
+    var statsHtml = '<div class="dashboard-grid">' +
+      '<div class="stat-card"><div class="stat-value">' + (t.articles || 0) + '</div><div class="stat-label">Articles</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.attestations || 0) + '</div><div class="stat-label">Attestations</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.agentCount || 0) + '</div><div class="stat-label">Agents</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.topicCount || 0) + '</div><div class="stat-label">Topics</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.kindCount || 0) + '</div><div class="stat-label">Kinds</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (c.averageConsensus != null ? c.averageConsensus.toFixed(3) : '—') + '</div><div class="stat-label">Avg Consensus</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (c.attestedArticles || 0) + '</div><div class="stat-label">Attested</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (act.active7d || 0) + '</div><div class="stat-label">Active 7d</div></div>' +
+      '</div>';
+
+    function renderDistribution(title, map) {
+      var keys = Object.keys(map || {});
+      if (!keys.length) return '';
+      var rows = keys.map(function(k) {
+        return '<div class="activity-row"><span class="ts">' + esc(k) + '</span><span>' + (map[k] || 0) + '</span></div>';
+      }).join('');
+      return '<div class="dashboard-section"><h2>' + esc(title) + '</h2>' + rows + '</div>';
+    }
+
+    var topAgentsHtml = '';
+    if (ag.topAgents && ag.topAgents.length) {
+      topAgentsHtml = '<div class="dashboard-section"><h2>Top agents</h2>' +
+        ag.topAgents.map(function(agent) {
+          return '<div class="activity-row"><span class="ts">' + esc(agent.agentId) + '</span><span>' + (agent.articles || 0) + ' articles · ' + (agent.attestations || 0) + ' attestations</span></div>';
+        }).join('') +
+        '</div>';
+    }
+
+    var timelineHtml = '';
+    if (act.timeline && act.timeline.length) {
+      timelineHtml = '<div class="dashboard-section"><h2>Activity timeline</h2>' +
+        act.timeline.map(function(d) {
+          return '<div class="activity-row"><span class="ts">' + esc(d.day) + '</span><span>' + d.count + ' events · ' + d.articles + ' articles · ' + d.attestations + ' attestations · cumulative ' + d.cumulative + '</span></div>';
+        }).join('') +
+        '</div>';
+    }
+
+    var latestHtml = '';
+    if (act.latestArticle || act.latestAttestation) {
+      latestHtml = '<div class="dashboard-section"><h2>Latest activity</h2>';
+      if (act.latestArticle) latestHtml += '<div class="activity-row"><span class="ts">Article</span><span><strong>' + esc(act.latestArticle.title || '') + '</strong> <code>' + esc(act.latestArticle.key || '') + '</code> · ' + fmtTs(act.latestArticle.updatedAt) + '</span></div>';
+      if (act.latestAttestation) latestHtml += '<div class="activity-row"><span class="ts">Attestation</span><span>' + esc(act.latestAttestation.opinion || '') + ' · <code>' + esc(act.latestAttestation.targetKey || '') + '</code> · ' + fmtTs(act.latestAttestation.createdAt) + '</span></div>';
+      latestHtml += '</div>';
+    }
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.fetchLocalStats();window.showStats()">&#x21BB; Refresh</button>' +
+      '<span class="last-updated">Generated ' + fmtTs(s.generatedAt) + '</span>' +
+      '</div>';
+
+    main.innerHTML = '<div class="home">' +
+      '<h1>&#128202; <span>Stats Dashboard</span></h1>' +
+      '<p class="home-subtitle">Aggregate metrics from this PermaBrain node</p>' +
+      toolbar +
+      statsHtml +
+      renderDistribution('By kind', byKind) +
+      renderDistribution('By topic', byTopic) +
+      renderDistribution('By opinion', byOpinion) +
+      topAgentsHtml +
+      timelineHtml +
+      latestHtml +
+      '</div>';
   }
 
   function renderDashboard() {
