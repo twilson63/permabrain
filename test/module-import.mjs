@@ -52,6 +52,7 @@ import { logDir } from '../src/index.mjs';
 import { renderTemplate, createArticleFromTemplate, template } from '../src/index.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from '../src/index.mjs';
 import { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest } from '../src/index.mjs';
+import { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage, sharePageId } from '../src/index.mjs';
 
 // --- 1. Barrel exports exist ---
 console.log('1. Barrel exports exist');
@@ -325,12 +326,12 @@ const expectedMethods = [
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
   'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
-  'createThresholdAttestation', 'addThresholdSigner', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope'
+  'createThresholdAttestation', 'addThresholdSigner', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope', 'shareEncrypted'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 81 API methods present');
+console.log('   ✓ All 82 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -356,6 +357,15 @@ assert.equal(typeof api.dashboardMarkdown, 'function', 'api.dashboardMarkdown is
 assert.equal(typeof api.writeDashboard, 'function', 'api.writeDashboard is a function');
 assert.equal(typeof api.publishDashboard, 'function', 'api.publishDashboard is a function');
 console.log('   ✓ Dashboard API methods present');
+
+// --- 14b. Encrypted share exports ---
+console.log('14b. Encrypted share exports');
+assert.equal(typeof shareEncryptedArticle, 'function', 'shareEncryptedArticle');
+assert.equal(typeof publishEncryptedShare, 'function', 'publishEncryptedShare');
+assert.equal(typeof buildEncryptedSharePage, 'function', 'buildEncryptedSharePage');
+assert.equal(typeof sharePageId, 'function', 'sharePageId');
+assert.equal(typeof api.shareEncrypted, 'function', 'api.shareEncrypted is a function');
+console.log('   ✓ Encrypted share exports present');
 
 // --- 15. Completion exports ---
 console.log('15. Completion exports');

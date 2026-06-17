@@ -30,6 +30,7 @@ import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { computeStats, statsToMarkdown } from './stats.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
+import { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage } from './share-encrypted.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
@@ -81,6 +82,7 @@ export async function runCommand(command, args) {
   if (command === 'reference') return referenceCommand(args);
   if (command === 'get-encrypted') return getEncryptedCommand(args);
   if (command === 'publish-encrypted') return publishEncryptedCommand(args);
+  if (command === 'share-encrypted') return shareEncryptedCommand(args);
   if (command === 'verify') return verifyCommand(args);
   if (command === 'export-bundle') return exportBundleCommand(args);
   if (command === 'export-history') return exportHistoryCommand(args);
@@ -277,6 +279,80 @@ async function publishEncryptedCommand(args) {
     console.log(`Recipients: ${result.encryptionEnvelope?.recipients?.length || encryptedFor.length}`);
   }
   return result;
+}
+
+async function shareEncryptedCommand(args) {
+  const file = args._[0];
+  if (!file) throw new Error('share-encrypted requires <file>');
+  if (!args.for) throw new Error('--for is required (comma-separated X25519 public keys)');
+  const encryptedFor = String(args.for).split(',').map(k => k.trim()).filter(Boolean);
+  if (encryptedFor.length === 0) throw new Error('--for must include at least one recipient public key');
+
+  const result = await shareEncryptedArticle({
+    file,
+    kind: args.kind,
+    topic: args.topic,
+    key: args.key,
+    title: args.title,
+    sourceUrl: args['source-url'],
+    sourceName: args['source-name'],
+    sourceLicense: args['source-license'] || '',
+    language: args.language || 'en',
+    encryptedFor,
+    recipientKeyId: args['recipient-key-id'],
+    recipient: args.recipient,
+    pageId: args['page-id'],
+    subdomain: args.subdomain,
+    baseUrl: args['base-url'],
+    alsoPublish: args['also-publish'] === true || args['also-publish'] === 'true',
+    useHyperbeam: args['use-hyperbeam'] ?? false
+  });
+
+  // Optionally publish the share page to ZenBin.
+  let publishResult = null;
+  if (!args.output) {
+    const { resolveZenBinCredentials } = await import('./agent-api.mjs');
+    const { keyId, privateJwk } = await resolveZenBinCredentials({
+      keyId: args['key-id'],
+      privateJwk: args['private-jwk'] ? JSON.parse(args['private-jwk']) : undefined
+    });
+    publishResult = await publishEncryptedShare(result.share, {
+      keyId,
+      privateJwk,
+      pageId: args['page-id'],
+      subdomain: args.subdomain,
+      baseUrl: args['base-url']
+    });
+  }
+
+  // Optionally write the share HTML to disk.
+  if (args.output) {
+    fs.writeFileSync(args.output, result.share.html, 'utf8');
+  }
+
+  if (args.json) {
+    const out = {
+      key: result.share.key,
+      title: result.share.title,
+      agentId: result.share.agentId,
+      publishedAt: result.share.publishedAt,
+      recipientFingerprints: result.share.recipientFingerprints,
+      recipientKeyId: result.share.recipientKeyId,
+      bytes: result.share.html ? Buffer.byteLength(result.share.html, 'utf8') : 0,
+      output: args.output || null,
+      zenbin: publishResult ? { pageId: publishResult.pageId, url: publishResult.url } : null,
+      article: result.article ? { id: result.article.id, key: result.article.key, version: result.article.version } : null
+    };
+    printJson(out);
+  } else {
+    console.log(`Encrypted share prepared for ${result.share.key}`);
+    console.log(`Recipients: ${result.share.recipientFingerprints.length}`);
+    if (result.share.recipientKeyId) console.log(`CAP recipient: ${result.share.recipientKeyId}`);
+    if (args.output) console.log(`Wrote: ${args.output}`);
+    if (publishResult) console.log(`ZenBin: ${publishResult.url}`);
+    if (result.article) console.log(`Also published article: ${result.article.id}`);
+  }
+  return { ...result, publishResult };
 }
 
 async function queryCommand(args) {

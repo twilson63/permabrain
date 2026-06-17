@@ -1534,6 +1534,51 @@ const api = {
   },
 
   /**
+   * Share an encrypted article via a ZenBin CAP page.
+   *
+   * Encrypts the content for the requested recipients (always including the
+   * author), builds a self-contained HTML share page, and publishes it to ZenBin
+   * with an optional CAP recipient. Set opts.alsoPublish to also publish the
+   * article as a PermaBrain DataItem to the configured transport.
+   *
+   * @param {Object} opts
+   * @param {string} [opts.file]
+   * @param {string} [opts.content]
+   * @param {string} opts.kind
+   * @param {string} opts.topic
+   * @param {string} [opts.key]
+   * @param {string} [opts.title]
+   * @param {string} opts.sourceUrl
+   * @param {string} [opts.sourceName]
+   * @param {string} [opts.sourceLicense]
+   * @param {string} [opts.language='en']
+   * @param {string[]} opts.encryptedFor
+   * @param {string} [opts.recipientKeyId]
+   * @param {Object|string} [opts.recipient]
+   * @param {string} [opts.pageId]
+   * @param {string} [opts.subdomain]
+   * @param {boolean} [opts.alsoPublish]
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<{share: object, zenbin: object, article?: object}>}
+   */
+  async shareEncrypted(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { shareEncryptedArticle, publishEncryptedShare } = await import('./share-encrypted.mjs');
+    const result = await shareEncryptedArticle({ ...opts, home: this._home });
+    let zenbin = null;
+    if (!opts.output) {
+      const { keyId, privateJwk } = await resolveZenBinCredentials(opts);
+      zenbin = await publishEncryptedShare(result.share, { ...opts, keyId, privateJwk });
+    }
+    if (opts.output) {
+      const fs = await import('node:fs');
+      fs.writeFileSync(opts.output, result.share.html, 'utf8');
+    }
+    return { share: result.share, zenbin, article: result.article };
+  },
+
+  /**
    * Export the local audit log as a migration bundle.
    *
    * @param {Object} [opts]
@@ -1671,7 +1716,7 @@ function deriveAuthorSeed(identity) {
   throw new Error('Cannot derive decryption seed from identity. Provide decryptSeed or use an ed25519 identity.');
 }
 
-export { api };
+export { api, resolveZenBinCredentials };
 
 async function resolveZenBinCredentials(opts = {}) {
   if (opts.keyId && opts.privateJwk) return { keyId: opts.keyId, privateJwk: opts.privateJwk };

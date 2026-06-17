@@ -14,6 +14,7 @@ const COMMANDS = [
   'probe-devices',
   'publish',
   'publish-encrypted',
+  'share-encrypted',
   'get-encrypted',
   'import-wikipedia',
   'query',
@@ -103,6 +104,7 @@ Commands:
   probe-devices                Probe all HyperBEAM device endpoints
   publish <file>               Publish a public knowledge article
   publish-encrypted <file>     Publish an encrypted knowledge article
+  share-encrypted <file>       Share an encrypted article via ZenBin CAP page
   get-encrypted <key>          Fetch and decrypt an encrypted article
   import-wikipedia <title>     Import and publish a Wikipedia summary
   query                        Query public articles
@@ -190,7 +192,22 @@ Publishes a signed article DataItem. Use --visibility encrypted (or --publish en
     'publish-encrypted': `Usage: permabrain publish-encrypted <file> --kind <kind> --topic <topic> --for <public-key-1>[,<public-key-2>...] [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--language en] [--json]
 
 Publishes an encrypted article readable only by recipients whose X25519 public keys are listed in --for. The author's derived encryption key is included automatically. Use --use-hyperbeam to route the upload through HyperBEAM.`,
-    'get-encrypted': `Usage: permabrain get-encrypted <canonical-key> [--seed <base64url-seed>] [--seed-file <path>] [--use-hyperbeam] [--json]
+    'share-encrypted': `Usage: permabrain share-encrypted <file> --kind <kind> --topic <topic> --for <public-key-1>[,<public-key-2>...] [--recipient-key-id <fingerprint>|--recipient <jwk>] [--key <key>] [--title <title>] [--source-url <url>] [--source-name <name>] [--source-license <license>] [--language en] [--also-publish] [--page-id <id>] [--subdomain <name>] [--key-id <id>] [--private-jwk <json>] [--output <path>] [--json]
+
+Encrypt an article for specific X25519 recipients and publish a self-contained
+share page to ZenBin with a CAP recipient. The page embeds the encrypted
+envelope and an in-browser decryption helper. Only the intended CAP recipient
+can view the page on ZenBin; the encrypted content can be decrypted locally
+with the recipient's X25519 seed.
+
+ZenBin credentials are read from the workspace TOOLS.md by default, or override
+with --key-id and --private-jwk (JSON string). Use --recipient-key-id or
+--recipient to set the CAP recipient fingerprint. Use --also-publish to also
+publish the article as a PermaBrain DataItem to the configured transport.
+
+Use --output to write the HTML page locally without publishing to ZenBin.
+`,
+  'get-encrypted': `Usage: permabrain get-encrypted <canonical-key> [--seed <base64url-seed>] [--seed-file <path>] [--use-hyperbeam] [--json]
 
 Fetches an encrypted article and decrypts it. If --seed/--seed-file is omitted, the author's X25519 seed is derived from the current ed25519 identity. Outputs the plaintext content by default, or a JSON envelope with --json.`,
     'import-wikipedia': `Usage: permabrain import-wikipedia "<title>" --kind <kind> --topic <topic> [--language en] [--json]

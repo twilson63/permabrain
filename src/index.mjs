@@ -116,6 +116,9 @@ export { logAction, queryLog, logToMarkdown, logDir, tailLog, followLog, exportL
 // Web dashboard snapshot + ZenBin publishing
 export { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 
+// Encrypted article sharing via ZenBin CAP pages
+export { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage, sharePageId } from './share-encrypted.mjs';
+
 // Shell completion generators
 export { generateCompletion, listSupportedShells } from './completion.mjs';
 
