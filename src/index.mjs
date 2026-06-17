@@ -83,8 +83,9 @@ export { runConfigCommand, loadEffectiveConfig, validateConfig, configToMarkdown
 // Named remotes
 export { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 
-// Article-level metrics
+// Article-level metrics and dashboard stats
 export { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
+export { computeStats, statsToMarkdown } from './stats.mjs';
 
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

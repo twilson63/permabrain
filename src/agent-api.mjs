@@ -33,6 +33,7 @@ import { activityFeed } from './activity.mjs';
 import { listArticles } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
+import { computeStats, statsToMarkdown } from './stats.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
@@ -1103,6 +1104,27 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return computeMetrics({ ...opts, home: this._home });
+  },
+
+  /**
+   * Compute dashboard-style aggregate stats from the local cache.
+   *
+   * Adds agents, topics, kinds, consensus score distribution, active
+   * windows, and an activity timeline on top of the base metrics.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.kind] - Filter by article kind
+   * @param {string} [opts.topic] - Filter by topic
+   * @param {string} [opts.author] - Filter by author agent id
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {number} [opts.top=10] - Number of top entries to include
+   * @returns {Promise<Object>} Stats dashboard report
+   */
+  async stats(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return computeStats({ ...opts, home: this._home });
   },
 
   /**

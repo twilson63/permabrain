@@ -106,21 +106,36 @@ assert.equal(consensus.status, 200, 'consensus status 200');
 assert.ok(consensus.body.score !== undefined, 'consensus has score');
 console.log('   ✓ /api/v1/articles/:key/consensus works');
 
-console.log('8. GET /api/v1/status returns node status');
+console.log('8. GET /api/v1/metrics returns aggregate metrics');
+const metrics = await request('GET', '/api/v1/metrics');
+assert.equal(metrics.status, 200, 'metrics status 200');
+assert.equal(metrics.body.totals.articles, 1, 'metrics articles count');
+console.log('   ✓ /api/v1/metrics works');
+
+console.log('9. GET /api/v1/stats returns dashboard stats');
+const stats = await request('GET', '/api/v1/stats');
+assert.equal(stats.status, 200, 'stats status 200');
+assert.ok(stats.body.totals, 'stats has totals');
+assert.ok(stats.body.consensus, 'stats has consensus');
+assert.ok(stats.body.agents, 'stats has agents');
+assert.ok(stats.body.activity, 'stats has activity');
+console.log('   ✓ /api/v1/stats works');
+
+console.log('10. GET /api/v1/status returns node status');
 const status = await request('GET', '/api/v1/status');
 assert.equal(status.status, 200, 'status 200');
 assert.equal(status.body.transport, 'local', 'status transport local');
 assert.ok(status.body.summary, 'status has summary');
 console.log('   ✓ /api/v1/status works');
 
-console.log('9. GET /api/v1/identity returns public identity');
+console.log('11. GET /api/v1/identity returns public identity');
 const identity = await request('GET', '/api/v1/identity');
 assert.equal(identity.status, 200, 'identity status 200');
 assert.ok(identity.body.agentId, 'identity has agentId');
 assert.ok(identity.body.type, 'identity has type');
 console.log('   ✓ /api/v1/identity works');
 
-console.log('10. unknown route returns 404');
+console.log('12. unknown route returns 404');
 const notFound = await request('GET', '/api/v1/not-a-route');
 assert.equal(notFound.status, 404, 'unknown route 404');
 console.log('   ✓ 404 on unknown routes');

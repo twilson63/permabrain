@@ -312,6 +312,19 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 200, result);
     }
 
+    if (method === 'GET' && route === '/api/v1/stats') {
+      const opts = {
+        kind: url.searchParams.get('kind'),
+        topic: url.searchParams.get('topic'),
+        author: url.searchParams.get('author'),
+        after: url.searchParams.get('after'),
+        before: url.searchParams.get('before'),
+        top: url.searchParams.has('top') ? Number(url.searchParams.get('top')) : undefined
+      };
+      const result = await api.stats(opts);
+      return sendJson(res, 200, result);
+    }
+
     if (method === 'POST' && route === '/api/v1/batch-attest') {
       const body = await readBody(req);
       if (!body.attestations?.length) return sendError(res, 400, 'attestations array is required');

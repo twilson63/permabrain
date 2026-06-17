@@ -46,6 +46,7 @@ const COMMANDS = [
   'list',
   'export-articles',
   'metrics',
+  'stats',
   'config',
   'remote',
   'archive',
@@ -104,6 +105,7 @@ Commands:
   status                       Show working-state overview (articles, divergences, forks, merges)
   export-articles              Export a filtered article directory to JSON or markdown
   metrics                      Show aggregate article/attestation metrics
+  stats                        Show dashboard-style aggregate overview
   config                       Get, set, validate, or inspect PermaBrain config
   remote                       Manage named remote endpoints
   archive                      Create an encrypted snapshot of the local PermaBrain home
@@ -527,6 +529,23 @@ Options:
   --after <date>       Only articles updated on or after this ISO date
   --before <date>      Only articles updated on or before this ISO date
   --top N              Number of top-attested articles (default 10)
+  --json               Output structured JSON instead of markdown`,
+    'stats': `Usage: permabrain stats [--kind <kind>] [--topic <topic>] [--author <agent-id>] [--after <iso-date>] [--before <iso-date>] [--top N] [--json]
+
+Show a dashboard-style aggregate overview of the local PermaBrain.
+
+Reports total articles, attestations, unique agents, topics, kinds,
+consensus score distribution, average/median consensus, active windows,
+activity timeline, and top agents/articles. Filters narrow the dataset the
+same way as the metrics command.
+
+Options:
+  --kind <kind>        Filter by article kind
+  --topic <topic>      Filter by topic
+  --author <agent-id>  Filter by author agent id
+  --after <date>       Only articles updated on or after this ISO date
+  --before <date>      Only articles updated on or before this ISO date
+  --top N              Number of top entries per leaderboard (default 10)
   --json               Output structured JSON instead of markdown`,
     'config': `Usage: permabrain config [get|set|validate|env|reset] [path] [value] [--json]
 

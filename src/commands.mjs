@@ -28,6 +28,7 @@ import { activityFeed, activityToMarkdown } from './activity.mjs';
 import { listArticles, listToMarkdown } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
+import { computeStats, statsToMarkdown } from './stats.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
@@ -86,6 +87,7 @@ export async function runCommand(command, args) {
   if (command === 'export-articles') return exportArticlesCommand(args);
   if (command === 'config') return configCommand(args);
   if (command === 'metrics') return metricsCommand(args);
+  if (command === 'stats') return statsCommand(args);
   if (command === 'remote') return remoteCommand(args);
   if (command === 'archive') return archiveCommand(args);
   if (command === 'restore') return restoreCommand(args);
@@ -1320,6 +1322,25 @@ async function metricsCommand(args) {
     printJson(result);
   } else {
     console.log(metricsToMarkdown(result));
+  }
+  return result;
+}
+
+async function statsCommand(args) {
+  const opts = {
+    home: getHome(),
+    kind: args.kind,
+    topic: args.topic,
+    author: args.author,
+    after: args.after,
+    before: args.before,
+    top: args.top ? Number(args.top) : undefined
+  };
+  const result = computeStats(opts);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(statsToMarkdown(result));
   }
   return result;
 }
