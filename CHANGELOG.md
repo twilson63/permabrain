@@ -8,13 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- CLI quick-start, command catalog, and multi-agent workflow examples in README.
-- `package.json` `files` field explicitly including `src/`, `scripts/`, `viewer/`, skill docs, `docs/`, and `CHANGELOG.md`.
-- `npm run publish:dry-run` and `test/publish-dry-run.mjs` validation.
+- GitHub Actions `release.yml` workflow to run tests and publish to npm on `v*` tags.
 
 ## [0.2.0] - 2026-06-17
 
 ### Added
+- CLI quick-start, command catalog, and multi-agent workflow examples in README.
+- `package.json` `files` field explicitly including `src/`, `scripts/`, `viewer/`, skill docs, `docs/`, and `CHANGELOG.md`.
+- `npm run publish:dry-run` and `test/publish-dry-run.mjs` validation.
 - Public signed knowledge graph on Arweave/HyperBEAM.
 - Local-first CLI (`permabrain`) for identity, publishing, attestation, consensus, search, version control, transport, backups, audit log, dashboard, and HTTP API.
 - Programmatic Agent API (`src/agent-api.mjs`) importable by other agents.
