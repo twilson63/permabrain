@@ -1233,6 +1233,25 @@ const api = {
   },
 
   /**
+   * Validate and optionally repair the local PermaBrain state.
+   *
+   * @param {Object} [opts]
+   * @param {boolean} [opts.fix=false] - Attempt safe auto-repairs
+   * @param {boolean} [opts.markdown=false] - Include markdown report
+   * @returns {Promise<Object>} Doctor report
+   */
+  async doctor(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { runDoctor, doctorReportToMarkdown } = await import('./doctor.mjs');
+    const report = await runDoctor(this._home, { fix: opts.fix === true });
+    if (opts.markdown) {
+      return { ...report, markdown: doctorReportToMarkdown(report) };
+    }
+    return report;
+  },
+
+  /**
    * Get the current agent identity.
    * @returns {{agentId, keyType}}
    */

@@ -32,6 +32,7 @@ import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
 import { startServer, stopServer } from './serve.mjs';
+import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 
 import fs from 'node:fs';
 
@@ -90,6 +91,7 @@ export async function runCommand(command, args) {
   if (command === 'restore') return restoreCommand(args);
   if (command === 'backup') return backupCommand(args);
   if (command === 'serve') return serveCommand(args);
+  if (command === 'doctor') return doctorCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -1556,6 +1558,15 @@ async function mergeCommand(args) {
     }
   }
   return result;
+}
+
+async function doctorCommand(args) {
+  const home = getHome();
+  const report = await runDoctor(home, { fix: args.fix === true || args.fix === 'true' });
+  if (args.json) printJson(report);
+  else console.log(doctorReportToMarkdown(report));
+  if (!report.ok && process.env.PERMABRAIN_REQUIRE_DOCTOR_OK === '1') throw new Error('PermaBrain doctor found issues');
+  return report;
 }
 
 async function serveCommand(args) {

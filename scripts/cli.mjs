@@ -51,7 +51,8 @@ const COMMANDS = [
   'archive',
   'backup',
   'restore',
-  'serve'
+  'serve',
+  'doctor'
 ];
 
 function printHelp(command = null) {
@@ -109,6 +110,7 @@ Commands:
   backup                       Manage timestamped backups (create/list/restore/prune)
   restore                      Restore a PermaBrain home from an encrypted snapshot
   serve [ --port N ]           Start the local HTTP API server (default port 8765)
+  doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
 
 Environment:
   PERMABRAIN_HOME              State directory (default: .permabrain)
@@ -606,7 +608,13 @@ Options:
 
 Start the local HTTP API server exposing the PermaBrain agent API over REST.
 Default port is 8765 (override with --port or PERMABRAIN_PORT env var).
-Press Ctrl+C to stop.`
+Press Ctrl+C to stop.`,
+    'doctor': `Usage: permabrain doctor [--fix] [--json]
+
+Validate the local PermaBrain state (config, identity, cache index, object files)
+and report any issues. With --fix, attempts safe auto-repairs: recreates missing
+config.json, rebuilds a stale index from cache/objects, and restores a missing
+identity-init.json when keys.json is present.`
 };
   console.log(help[command] || `Unknown command: ${command}`);
 }

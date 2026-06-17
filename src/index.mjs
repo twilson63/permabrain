@@ -99,3 +99,6 @@ export { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdo
 
 // Local HTTP API server
 export { createServer, startServer, stopServer } from './serve.mjs';
+
+// State doctor / repair
+export { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
