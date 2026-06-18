@@ -779,8 +779,8 @@ const api = {
    */
   validateMetadata(tagsObject, opts = {}) {
     if (!tagsObject || typeof tagsObject !== 'object') throw new Error('tagsObject is required');
-    const type = opts.type || 'article';
-    const result = opts.type === 'attestation' ? validateAttestationMetadata(tagsObject) : validateArticleMetadata(tagsObject);
+    const type = opts.type === 'attestation' ? 'attestation' : 'article';
+    const result = type === 'attestation' ? validateAttestationMetadata(tagsObject) : validateArticleMetadata(tagsObject);
     return { ...result, type };
   },
 
@@ -794,7 +794,7 @@ const api = {
    */
   validateDataItem(dataItem, opts = {}) {
     if (!dataItem || !Array.isArray(dataItem.tags)) throw new Error('dataItem.tags is required');
-    const type = opts.type || 'article';
+    const type = opts.type === 'attestation' ? 'attestation' : 'article';
     const result = validateDataItemTags(dataItem, type);
     return { ...result, type };
   },
@@ -1708,6 +1708,32 @@ const api = {
    */
   importThresholdEnvelope(envelope) {
     return import('./threshold-attestation.mjs').then(({ importThresholdEnvelope }) => importThresholdEnvelope(envelope));
+  },
+
+  /**
+   * Validate article or attestation metadata tags against the PermaBrain JSON Schema.
+   *
+   * @param {Object} tags - Flat tag name/value object
+   * @param {Object} [opts]
+   * @param {string} [opts.type='article'] - 'article' or 'attestation'
+   * @returns {{valid: boolean, errors: Array<{path: string, message: string}>}}
+   */
+  validateMetadata(tags, opts = {}) {
+    const type = opts.type === 'attestation' ? 'attestation' : 'article';
+    if (type === 'attestation') return validateAttestationMetadata(tags);
+    return validateArticleMetadata(tags);
+  },
+
+  /**
+   * Validate an ANS-104-style DataItem's tags against the PermaBrain JSON Schema.
+   *
+   * @param {Object} dataItem - Object with a `tags` array of `{name, value}` objects
+   * @param {Object} [opts]
+   * @param {string} [opts.type='article'] - 'article' or 'attestation'
+   * @returns {{valid: boolean, errors: Array<{path: string, message: string}>}}
+   */
+  validateDataItem(dataItem, opts = {}) {
+    return validateDataItemTags(dataItem, opts.type === 'attestation' ? 'attestation' : 'article');
   },
 
   /**

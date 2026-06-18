@@ -879,12 +879,16 @@ Examples:
 `,
     'validate': `Usage: permabrain validate <article|attestation> [path] [--json]
 
-Validate article or attestation metadata against the PermaBrain JSON Schema.
-If [path] is omitted, validates a built-in example.
+Validate article or attestation metadata (flat tags or DataItem tag array)
+against the PermaBrain JSON Schema. If [path] is omitted, validates a
+built-in example.
+
+The file may be either a flat JSON object of tag name/value pairs or an
+ANS-104-style DataItem with a { tags: [{ name, value }, ...] } array.
 
 Examples:
   permabrain validate article ./tags.json
-  permabrain validate attestation ./tags.json --json
+  permabrain validate attestation ./dataitem.json --json
 `
   };
   console.log(help[command] || `Unknown command: ${command}`);

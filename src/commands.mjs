@@ -1973,8 +1973,8 @@ async function clientCommand(args) {
 }
 
 async function validateCommand(args) {
-  const subcommand = args._[0];
-  if (!subcommand || subcommand === '--help' || subcommand === 'help') {
+  const subcommand = args._[0] || 'article';
+  if (subcommand === '--help' || subcommand === 'help') {
     console.log(`Usage: permabrain validate <article|attestation> [path] [--json]
 
 Validate article or attestation metadata against the PermaBrain JSON Schema.
@@ -1990,11 +1990,7 @@ Examples:
   let tags;
   if (file) {
     const text = fs.readFileSync(file, 'utf8');
-    tags = text.trim().startsWith('{') ? JSON.parse(text) : Object.fromEntries(text.split('\n').filter(Boolean).map((line) => {
-      const idx = line.indexOf(':');
-      if (idx === -1) return null;
-      return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()];
-    }).filter(Boolean));
+    tags = JSON.parse(text);
   } else {
     tags = subcommand === 'article' ? {
       'App-Name': 'PermaBrain',
@@ -2027,33 +2023,23 @@ Examples:
       'Attestation-Created-At': new Date().toISOString()
     };
   }
-  const result = subcommand === 'article' ? validateArticleMetadata(tags) : validateAttestationMetadata(tags);
+
+  let dataItem;
+  if (Array.isArray(tags.tags)) {
+    dataItem = tags;
+  } else if (Array.isArray(tags)) {
+    dataItem = { tags };
+  } else {
+    dataItem = { tags: Object.entries(tags).map(([name, value]) => ({ name, value })) };
+  }
+
+  const result = validateDataItemTags(dataItem, subcommand);
+
   if (args.json) printJson(result);
   else {
     console.log(result.valid ? 'OK' : formatValidationErrors(result));
   }
   return result;
-}
-
-async function completionCommand(args) {
-  const shell = args._[0];
-  if (!shell || shell === '--help' || shell === 'help') {
-    const shells = listSupportedShells().join(', ');
-    console.log(`Usage: permabrain completion <shell>
-
-Supported shells: ${shells}
-
-Examples:
-  permabrain completion bash > /etc/bash_completion.d/permabrain
-  permabrain completion zsh > "${'${fpath[1]}'}/_permabrain"
-  permabrain completion fish > ~/.config/fish/completions/permabrain.fish
-
-Install to your shell and reload, or source the generated script in your rc file.`);
-    return { shells: listSupportedShells() };
-  }
-  const script = generateCompletion(shell);
-  console.log(script);
-  return { shell, script };
 }
 
 async function thresholdAttestCommand(args) {
