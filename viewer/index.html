@@ -256,6 +256,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   .stats-row{grid-template-columns:repeat(2,1fr)}
   .home-cards{grid-template-columns:1fr}
 }
+@keyframes pulse{0%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.2)}100%{opacity:1;transform:scale(1)}}
 </style>
 </head>
 <body>
@@ -303,6 +304,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 </div>
 <div class="status-bar" id="statusBar">
   <span id="statusText">Loading...</span>
+  <span id="liveIndicator" style="display:none;align-items:center;gap:0.3rem;font-size:0.72rem;color:var(--green);margin-left:0.5rem" title="Live updates connected">
+    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite"></span> Live
+  </span>
   <span id="statusCount"></span>
 </div>
 <div class="article-list" id="articleList"></div>
@@ -379,6 +383,14 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var modalHistory = null;
   var modalConsensus = null;
   var modalIndex = -1;        // position within localList.articles
+
+  // --- Live SSE stream state ---
+  var liveEventSource = null;
+  var liveReconnectDelay = 1000;
+  var liveReconnectTimer = null;
+  var livePendingRefresh = false;
+  var liveRefreshTimer = null;
+  var LIVE_DEBOUNCE_MS = 500;
 
   // --- Theme ---
   function applyTheme(t) {
@@ -1226,6 +1238,113 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderStatus();
   }
 
+  // --- Live SSE updates ---
+  function isLiveSupported() {
+    return isLocalServer() && typeof EventSource !== 'undefined';
+  }
+
+  function setLiveIndicator(connected, message) {
+    var el = document.getElementById('liveIndicator');
+    if (!el) return;
+    if (connected) {
+      el.style.display = 'inline-flex';
+      el.title = message || 'Live updates connected';
+      el.querySelector('span').style.background = 'var(--green)';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  function scheduleListRefresh() {
+    if (livePendingRefresh) return;
+    livePendingRefresh = true;
+    if (liveRefreshTimer) clearTimeout(liveRefreshTimer);
+    liveRefreshTimer = setTimeout(function() {
+      livePendingRefresh = false;
+      if (isLocalListMode()) fetchLocalList();
+      if (viewMode === 'dashboard') fetchDashboard();
+      if (viewMode === 'stats') { fetchLocalStats(); renderStatsDashboard(); }
+      if (modalArticle && modalArticle.key) {
+        // refresh modal history/consensus without closing it
+        refreshModalData(modalArticle.key);
+      }
+    }, LIVE_DEBOUNCE_MS);
+  }
+
+  async function refreshModalData(key) {
+    if (!key || !isLocalServer()) return;
+    try {
+      var [historyRes, consensusRes] = await Promise.all([
+        fetch('/api/v1/articles/' + encodeURIComponent(key) + '/history').catch(function() { return { ok: false }; }),
+        fetch('/api/v1/articles/' + encodeURIComponent(key) + '/consensus').catch(function() { return { ok: false }; })
+      ]);
+      if (historyRes.ok) {
+        modalHistory = await historyRes.json();
+        historyData[key] = modalHistory;
+      }
+      if (consensusRes.ok) modalConsensus = await consensusRes.json();
+      if (modalArticle && modalArticle.key === key) renderModalBody();
+      if (selectedKey === key && viewMode === 'article') renderArticle(key);
+    } catch(e) {}
+  }
+
+  function startLiveStream() {
+    if (!isLiveSupported() || liveEventSource) return;
+    var params = new URLSearchParams();
+    var topic = document.getElementById('topicSelect')?.value;
+    if (topic) params.set('topic', topic);
+    var url = '/api/v1/articles/stream' + (params.toString() ? '?' + params.toString() : '');
+    try {
+      liveEventSource = new EventSource(url);
+      liveEventSource.onopen = function() {
+        liveReconnectDelay = 1000;
+        setLiveIndicator(true);
+      };
+      liveEventSource.onmessage = function(e) {
+        try {
+          var event = JSON.parse(e.data);
+          if (event.type === 'heartbeat') return;
+          if (event.type === 'open') return;
+          handleStreamEvent(event);
+        } catch(err) {}
+      };
+      liveEventSource.onerror = function() {
+        setLiveIndicator(false);
+        stopLiveStream();
+        scheduleLiveReconnect();
+      };
+    } catch(e) {
+      scheduleLiveReconnect();
+    }
+  }
+
+  function stopLiveStream() {
+    if (liveEventSource) {
+      try { liveEventSource.close(); } catch(e) {}
+      liveEventSource = null;
+    }
+    setLiveIndicator(false);
+    if (liveReconnectTimer) { clearTimeout(liveReconnectTimer); liveReconnectTimer = null; }
+  }
+
+  function scheduleLiveReconnect() {
+    if (liveReconnectTimer) return;
+    liveReconnectTimer = setTimeout(function() {
+      liveReconnectTimer = null;
+      startLiveStream();
+    }, liveReconnectDelay);
+    liveReconnectDelay = Math.min(30000, liveReconnectDelay * 2);
+  }
+
+  function handleStreamEvent(event) {
+    var name = event.name || event.type;
+    if (!name) return;
+    // Refresh list on any article/attestation lifecycle event.
+    if (['publish','attest','fork','merge','import'].includes(name)) {
+      scheduleListRefresh();
+    }
+  }
+
   function populateTopicSelect(articles) {
     var sel = document.getElementById('topicSelect');
     if (!sel) return;
@@ -1382,7 +1501,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   window.onFilterChange = function() {
-    if (isLocalListMode()) fetchLocalList();
+    if (isLocalListMode()) {
+      // Re-subscribe with the new topic filter so live updates match.
+      stopLiveStream();
+      fetchLocalList().then(startLiveStream);
+    }
   };
 
   window.applyFilters = function() {
@@ -1644,7 +1767,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     activeFilter = topic;
     if (isLocalListMode()) {
       document.getElementById('topicSelect').value = topic === 'all' ? '' : topic;
-      fetchLocalList();
+      stopLiveStream();
+      fetchLocalList().then(startLiveStream);
     } else {
       renderFilters();
       renderList();
@@ -1666,7 +1790,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   };
 
   window.refresh = function() {
-    if (isLocalListMode()) fetchLocalList();
+    stopLiveStream();
+    if (isLocalListMode()) fetchLocalList().then(startLiveStream);
     else syncAll();
   };
 
@@ -1690,7 +1815,9 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   renderFilters();
   if (isLocalServer()) {
     renderHome();
-    fetchLocalList();
+    fetchLocalList().then(function() {
+      startLiveStream();
+    });
   } else {
     renderList();
   }
