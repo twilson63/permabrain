@@ -7,6 +7,10 @@
 - [ ] (none)
 
 ## Done (backlog verified)
+- [x] Cron build loop checkpoint (2026-06-18 08:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `b6cfa21`. No new work picked.
+- [x] Cron build loop checkpoint (2026-06-18 08:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main`. No new work picked.
+
+## Done (backlog verified)
 - [x] Cron build loop checkpoint (2026-06-18 07:34 UTC): no unchecked 'In Progress' or 'Next' tasks; queue empty. Previous seeded task (viewer permalink sharing) was completed at 07:42 UTC. No new work picked.
 - [x] Cron build loop checkpoint (2026-06-18 07:46 UTC): picked seeded Next task — implemented web viewer bookmark/permalink sharing with query-state capture; full `npm test` suite passes; committed and pushed to `origin/main` as `b6cfa21`. No further unchecked tasks; queue empty.
 - [x] Implement web viewer bookmark/permalink sharing with query-state capture: added copy-link button to viewer sidebar; encoded filters (topic, after/before dates, author), search query, sort, selected article, active tab, live transport, view mode, and modal state into URL query params; restored state on load and re-opened matching article/modal; added `test/viewer-permalinks.mjs` and wired into `npm test` plus `test:viewer-permalinks` script. Full `npm test` suite passes; committed and pushed to `origin/main` on 2026-06-18 07:42 UTC.
