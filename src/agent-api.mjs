@@ -49,9 +49,13 @@ import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 import {
   peerInfo,
   diffPeerKeys,
+  diffKeysForPush,
   buildPeerPullBundle,
+  buildPeerPushBundle,
   pullFromPeer,
   pullFromPeerAsBundle,
+  pushToPeer,
+  pushToPeerClient,
   peerStatus,
   peerInfoToMarkdown,
   peerStatusToMarkdown
@@ -1799,6 +1803,36 @@ const api = {
     requireInit(this._home);
     const list = Array.isArray(peers) ? peers : [peers];
     return peerStatus(list, { ...opts, home: this._home });
+  },
+
+  /**
+   * Build a peer push bundle for a list of local keys.
+   *
+   * @param {string[]} keys
+   * @param {Object} [opts]
+   * @returns {Promise<Object>} PermaBrain bundle
+   */
+  async buildPeerPushBundle(keys, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return buildPeerPushBundle(keys, this._home, opts);
+  },
+
+  /**
+   * Push newer/missing local articles to a remote PermaBrain node.
+   *
+   * @param {string} baseUrl - Remote permabrain serve base URL
+   * @param {Object} [opts]
+   * @param {boolean} [opts.includeAttestations=true]
+   * @param {boolean} [opts.includeVersions=true]
+   * @returns {Promise<{peer: Object, pushed: Array, accepted: number, rejected: number, failed: number, bundle: Object, diff: Object, results?: Array}>}
+   */
+  async pushToPeer(baseUrl, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { createClient } = await import('./client.mjs');
+    const client = createClient({ baseUrl });
+    return pushToPeerClient(client, { ...opts, home: this._home });
   },
 
   /**

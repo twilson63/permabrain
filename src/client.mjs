@@ -274,6 +274,9 @@ export function createClient(options = {}) {
     peerPull: (requests, opts = {}) => request('POST', '/api/v1/peer/pull', { requests, includeAttestations: opts.includeAttestations !== false }),
 
     /** @returns {Promise<Object>} */
+    peerPush: (bundle, opts = {}) => request('POST', '/api/v1/peer/push', { bundle, verify: opts.verify !== false, skipDuplicates: opts.skipDuplicates !== false }),
+
+    /** @returns {Promise<Object>} */
     publishEvents: (events) => request('POST', '/api/v1/events/publish', { events }),
 
     /** @returns {Promise<Object>} */

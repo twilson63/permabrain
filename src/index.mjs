@@ -135,9 +135,13 @@ export { forwardEvents, runEventPublisher } from './subscribe.mjs';
 export {
   peerInfo,
   diffPeerKeys,
+  diffKeysForPush,
   buildPeerPullBundle,
+  buildPeerPushBundle,
   pullFromPeer,
   pullFromPeerAsBundle,
+  pushToPeer,
+  pushToPeerClient,
   peerStatus,
   peerInfoToMarkdown,
   peerStatusToMarkdown

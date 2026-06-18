@@ -849,6 +849,14 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 200, result);
     }
 
+    if (method === 'POST' && route === '/api/v1/peer/push') {
+      const body = await readBody(req);
+      if (!body.bundle && !Array.isArray(body.entries)) return sendError(res, 400, 'bundle object with entries is required');
+      const bundle = body.bundle || body;
+      const result = await api.importBundle(bundle, { home: currentHome, verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false });
+      return sendJson(res, 200, { imported: result.filter((r) => r.ok && r.imported).length, skipped: result.filter((r) => r.ok && !r.imported).length, failed: result.filter((r) => !r.ok).length, results: result });
+    }
+
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
   } catch (err) {
     const status = err.status || (err.message?.includes('required') ? 400 : 500);

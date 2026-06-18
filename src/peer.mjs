@@ -222,6 +222,173 @@ export async function pullFromPeerClientAsBundle(client, opts = {}) {
   return { peer: info, bundle, diff };
 }
 
+/**
+ * Compute the set of local articles that should be pushed to a remote peer.
+ *
+ * This is the reverse of diffPeerKeys: we compare the local index against the
+ * remote peer's info and return keys where the local node has a newer/different
+ * version (or the key is entirely missing on the remote). Private/encrypted
+ * articles are skipped unless explicitly included.
+ */
+export function diffKeysForPush(localIndex, remoteInfo, opts = {}) {
+  const remoteArticles = remoteInfo?.articles || {};
+  const localArticles = localIndex?.articles || {};
+  const pushed = [];
+  const newer = [];
+  const missing = [];
+  const divergent = [];
+
+  for (const [key, local] of Object.entries(localArticles)) {
+    if (!opts.includePrivate && (local.visibility === 'private' || local.visibility === 'encrypted')) continue;
+
+    const remote = remoteArticles[key];
+    if (!remote) {
+      missing.push({ key, localVersion: local.version, localId: local.id, reason: 'missing' });
+    } else if (remote.id !== local.id) {
+      if (local.version > remote.version) {
+        newer.push({ key, localVersion: local.version, remoteVersion: remote.version, localId: local.id, remoteId: remote.id, reason: 'newer' });
+      } else if (local.version === remote.version) {
+        divergent.push({ key, localVersion: local.version, localId: local.id, remoteId: remote.id, remoteVersion: remote.version, reason: 'divergent-same-version' });
+      } else {
+        // remote is newer; nothing to push
+      }
+    }
+  }
+
+  pushed.push(...newer, ...missing);
+
+  return {
+    pushed,
+    newer,
+    missing,
+    divergent,
+    unchanged: Object.keys(localArticles).filter((key) => {
+      const remote = remoteArticles[key];
+      return remote && remote.id === localArticles[key].id;
+    }).length
+  };
+}
+
+/**
+ * Build a bundle of local articles/attestations to push to a remote peer.
+ *
+ * @param {string[]} pushKeys - Keys to include in the push bundle
+ * @param {string} home - Local PERMABRAIN_HOME
+ * @param {Object} [opts]
+ * @param {boolean} [opts.includeAttestations=true]
+ * @param {boolean} [opts.includeVersions=true]
+ * @returns {Object} PermaBrain bundle
+ */
+export async function buildPeerPushBundle(pushKeys, home, opts = {}) {
+  const h = home || getHome();
+  const includeAttestations = opts.includeAttestations !== false;
+  const includeVersions = opts.includeVersions !== false;
+
+  const articles = [];
+  const attestations = [];
+
+  for (const key of pushKeys) {
+    if (!key) continue;
+    try {
+      const bundle = await exportBundle({
+        key,
+        includeAttestations,
+        includeVersions,
+        home: h
+      });
+      for (const e of bundle.entries || []) {
+        if (e.type === 'article') articles.push(Buffer.from(e.data, 'base64'));
+        else if (e.type === 'attestation') attestations.push(Buffer.from(e.data, 'base64'));
+      }
+    } catch (err) {
+      // Skip unavailable/invalid keys but preserve intent.
+    }
+  }
+
+  return buildBundle({ articles, attestations, meta: { pushed: pushKeys.length } });
+}
+
+/**
+ * Push local articles/attestations to a remote PermaBrain peer.
+ *
+ * Uses the remote node's /api/v1/peer/info endpoint to determine what the
+ * remote is missing, builds a bundle, and POSTs it to /api/v1/peer/push.
+ *
+ * @param {Object} client - PermaBrain client created via createClient
+ * @param {Object} [opts]
+ * @param {string} [opts.home]
+ * @param {boolean} [opts.includeAttestations=true]
+ * @param {boolean} [opts.includeVersions=true]
+ * @param {boolean} [opts.includePrivate=false]
+ * @returns {Promise<{peer: Object, pushed: Array, accepted: number, rejected: number, failed: number, bundle: Object, diff: Object, results?: Array}>}
+ */
+export async function pushToPeerClient(client, opts = {}) {
+  const home = opts.home || getHome();
+  const info = await client.peerInfo();
+  const localIndex = loadIndex(home);
+  const diff = diffKeysForPush(localIndex, info, { includePrivate: opts.includePrivate });
+
+  if (!diff.pushed.length) {
+    return {
+      peer: info,
+      pushed: [],
+      accepted: 0,
+      rejected: 0,
+      failed: 0,
+      bundle: buildBundle({ articles: [], attestations: [], meta: { pushed: 0 } }),
+      diff
+    };
+  }
+
+  const pushKeys = diff.pushed.map((p) => p.key);
+  const bundle = await buildPeerPushBundle(pushKeys, home, {
+    includeAttestations: opts.includeAttestations !== false,
+    includeVersions: opts.includeVersions !== false
+  });
+
+  const response = await client.peerPush(bundle);
+  const results = (response.results || response);
+  if (!Array.isArray(results)) {
+    return {
+      peer: info,
+      pushed: diff.pushed,
+      accepted: response.imported || 0,
+      rejected: response.skipped || 0,
+      failed: response.failed || 0,
+      bundle,
+      diff,
+      results
+    };
+  }
+  const accepted = results.filter((r) => r.ok && r.imported).length;
+  const rejected = results.filter((r) => r.ok && !r.imported).length;
+  const failed = results.filter((r) => !r.ok).length;
+
+  return {
+    peer: info,
+    pushed: diff.pushed,
+    accepted,
+    rejected,
+    failed,
+    bundle,
+    diff,
+    results
+  };
+}
+
+/**
+ * Push local articles to a remote peer by base URL.
+ *
+ * @param {string} peerBaseUrl
+ * @param {Object} [opts]
+ * @returns {Promise<Object>}
+ */
+export async function pushToPeer(peerBaseUrl, opts = {}) {
+  const home = opts.home || getHome();
+  const client = createClient({ baseUrl: peerBaseUrl });
+  return pushToPeerClient(client, { ...opts, home });
+}
+
 export function peerStatus(peers, opts = {}) {
   const results = (peers || []).map((peer) => {
     const localIndex = loadIndex(opts.home || getHome());

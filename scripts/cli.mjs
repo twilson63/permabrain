@@ -153,6 +153,7 @@ Commands:
   completion <shell>           Generate shell completion script (bash|zsh|fish)
   validate <type> [path]         Validate article/attestation metadata against JSON Schema
   threshold-attest             Create/collect/finalize/share threshold multi-sig attestations
+  peer                         Gossip-style peer sync (info|status|diff|pull|bundle|push)
   events [options]             Subscribe to real-time events from permabrain serve
   subscribe <remote-url> [options]  Forward local events to a remote PermaBrain peer
 

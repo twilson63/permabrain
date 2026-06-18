@@ -55,9 +55,13 @@ import {
 import {
   peerInfo,
   diffPeerKeys,
+  diffKeysForPush,
   buildPeerPullBundle,
+  buildPeerPushBundle,
   pullFromPeer,
   pullFromPeerAsBundle,
+  pushToPeer,
+  pushToPeerClient,
   peerStatus,
   peerInfoToMarkdown,
   peerStatusToMarkdown
@@ -2296,24 +2300,29 @@ async function peerCommand(args) {
   if (args.help || args._[0] === '--help' || args._[0] === 'help') {
     console.log(`Usage: permabrain peer <subcommand> [options]
 
+Gossip-style peer-to-peer article exchange over the HTTP API.
+
 Subcommands:
   info                    Show local peer info (public articles)
-  status --url <url>     Show pull status for a remote peer
-  pull --url <url>      Pull missing/newer articles from a remote peer
+  status --url <url>     Show pull/push status for a remote peer
   diff --url <url>       Show key diff against a remote peer
+  pull --url <url>      Pull missing/newer articles from a remote peer
+  push --url <url>      Push local articles missing on a remote peer
   bundle --url <url>     Pull raw bundle (without importing)
 
 Options:
   --url, -u <url>       Remote peer base URL
   --home <path>          PERMABRAIN_HOME override
   --include-attestations true|false
-  --verify false          Skip signature verification when importing
+  --include-versions true|false
+  --verify false          Skip signature verification when importing (pull/push)
   --json                  Output JSON
 
 Examples:
   permabrain peer info
   permabrain peer status --url http://localhost:9000
   permabrain peer pull --url http://localhost:9000
+  permabrain peer push --url http://localhost:9000
   permabrain peer bundle --url http://localhost:9000 --output peer-bundle.json
 `);
     return { ok: true, help: true };
@@ -2335,9 +2344,15 @@ Examples:
     const client = createClient({ baseUrl: url });
     const info = await client.peerInfo();
     const status = peerStatus([info], { home });
-    if (args.json) printJson(status);
-    else console.log(peerStatusToMarkdown(status));
-    return status;
+    // Also report pushable keys for symmetry.
+    const pushDiff = diffKeysForPush(loadIndex(home), info);
+    const result = { ...status, pushable: pushDiff.pushed.length, newerPushable: pushDiff.newer.length, missingPushable: pushDiff.missing.length };
+    if (args.json) printJson(result);
+    else {
+      console.log(peerStatusToMarkdown(status));
+      console.log(`Pushable to peer: ${pushDiff.pushed.length} (${pushDiff.newer.length} newer, ${pushDiff.missing.length} missing)`);
+    }
+    return result;
   }
 
   if (subcommand === 'diff') {
@@ -2347,19 +2362,23 @@ Examples:
     const client = createClient({ baseUrl: url });
     const info = await client.peerInfo();
     const localIndex = loadIndex(home);
-    const diff = diffPeerKeys(localIndex, info);
-    if (args.json) printJson(diff);
+    const pullDiff = diffPeerKeys(localIndex, info);
+    const pushDiff = diffKeysForPush(localIndex, info);
+    const result = { pull: pullDiff, push: pushDiff };
+    if (args.json) printJson(result);
     else {
       console.log(`Diff against ${info.agentId || url}:`);
-      console.log(`  Pullable: ${diff.pulled.length} (${diff.newer.length} newer, ${diff.missing.length} missing)`);
-      console.log(`  Divergent: ${diff.divergent.length}`);
-      console.log(`  Unchanged: ${diff.unchanged}`);
+      console.log(`  Pullable: ${pullDiff.pulled.length} (${pullDiff.newer.length} newer, ${pullDiff.missing.length} missing)`);
+      console.log(`  Pushable: ${pushDiff.pushed.length} (${pushDiff.newer.length} newer, ${pushDiff.missing.length} missing)`);
+      console.log(`  Divergent: ${pullDiff.divergent.length}`);
+      console.log(`  Unchanged: ${pullDiff.unchanged}`);
       if (args.verbose) {
-        for (const p of diff.pulled) console.log(`  + ${p.key} ${p.reason} ${p.remoteId || ''}`);
-        for (const d of diff.divergent) console.log(`  ! ${d.key} divergent local=${d.localId} remote=${d.remoteId}`);
+        for (const p of pullDiff.pulled) console.log(`  <- ${p.key} ${p.reason} ${p.remoteId || ''}`);
+        for (const p of pushDiff.pushed) console.log(`  -> ${p.key} ${p.reason} ${p.localId || ''}`);
+        for (const d of pullDiff.divergent) console.log(`  ! ${d.key} divergent local=${d.localId} remote=${d.remoteId}`);
       }
     }
-    return diff;
+    return result;
   }
 
   if (subcommand === 'pull') {
@@ -2377,6 +2396,29 @@ Examples:
       console.log(`  Pullable: ${result.diff.pulled.length}`);
       console.log(`  Imported: ${result.imported}`);
       console.log(`  Skipped: ${result.skipped}`);
+      console.log(`  Failed: ${result.failed}`);
+    }
+    return result;
+  }
+
+  if (subcommand === 'push') {
+    const url = args.url || args.u;
+    if (!url) throw new Error('push requires --url');
+    const { createClient } = await import('./client.mjs');
+    const client = createClient({ baseUrl: url });
+    const result = await pushToPeerClient(client, {
+      home,
+      includeAttestations: args['include-attestations'] !== false,
+      includeVersions: args['include-versions'] !== false,
+      verify: args.verify !== false,
+      skipDuplicates: args['skip-duplicates'] !== false
+    });
+    if (args.json) printJson(result);
+    else {
+      console.log(`Pushed to ${result.peer.agentId || url}:`);
+      console.log(`  Pushable: ${result.diff.pushed.length}`);
+      console.log(`  Accepted: ${result.accepted}`);
+      console.log(`  Rejected: ${result.rejected}`);
       console.log(`  Failed: ${result.failed}`);
     }
     return result;
