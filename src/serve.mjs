@@ -29,6 +29,8 @@
  *   POST /api/v1/validate            → validate article/attestation metadata or DataItem tags
  *   GET  /api/v1/validate?type=...     → validation info
  *   GET  /api/v1/schema              → JSON schemas for article/attestation metadata
+ *   GET  /api/v1/routes              → registered HTTP route catalog
+ *   GET  /api/v1/openapi.json        → OpenAPI 3.0 JSON document
  *   GET  /api/v1/events/stream       → Server-Sent Events real-time stream
  *   GET  /api/v1/events/ws           → WebSocket upgrade for real-time events
  *
@@ -43,6 +45,7 @@ import { ensureIdentity, loadIdentity, publicIdentity } from './keys.mjs';
 import { api } from './agent-api.mjs';
 import { getEventBus, subscribeEvents, emitEvent, broadcastToWebSockets, writeSseEvent } from './events.mjs';
 import { createApiKeyAuth, generateApiKey } from './auth.mjs';
+import { buildOpenApiDocument, listRoutes } from './route-registry.mjs';
 
 const DEFAULT_PORT = 8765;
 const DEFAULT_SSE_HEARTBEAT_MS = 30000;
@@ -873,6 +876,16 @@ async function handleRequest(req, res, home, options = {}) {
         article: ARTICLE_METADATA_SCHEMA,
         attestation: ATTESTATION_METADATA_SCHEMA
       });
+    }
+
+    if (method === 'GET' && route === '/api/v1/routes') {
+      const authRequired = needsAuth && !isPublic;
+      return sendJson(res, 200, { routes: listRoutes({ authRequired }) });
+    }
+
+    if (method === 'GET' && route === '/api/v1/openapi.json') {
+      const authRequired = needsAuth && !isPublic;
+      return sendJson(res, 200, buildOpenApiDocument({ requireAuth: authRequired }));
     }
 
     if (method === 'POST' && route === '/api/v1/threshold-attest/import') {

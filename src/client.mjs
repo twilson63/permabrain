@@ -88,6 +88,12 @@ export function createClient(options = {}) {
     post: (path, body, extraHeaders) => request('POST', path, body, extraHeaders),
     get: (path, extraHeaders) => request('GET', path, undefined, extraHeaders),
 
+    /** @returns {Promise<{routes: Array}>} */
+    routes: () => request('GET', '/api/v1/routes'),
+
+    /** @returns {Promise<Object>} */
+    openapi: () => request('GET', '/api/v1/openapi.json'),
+
     /** @returns {Promise<{ok: boolean, transport: string, agentId: string|null, home: string, streamTransport?: string, streams?: object}>} */
     health: () => request('GET', '/health'),
 
