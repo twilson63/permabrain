@@ -67,6 +67,46 @@ const result = await api.sync();
 const index = await api.localIndex();
 ```
 
+## HTTP Client SDK
+
+When talking to a running `permabrain serve` instance, use the typed HTTP client instead of shelling out to the CLI.
+
+```javascript
+import { createClient } from '/home/node/.openclaw/workspace/permabrain/src/index.mjs';
+
+const client = createClient({
+  baseUrl: 'http://localhost:8765',
+  apiKey: process.env.PERMABRAIN_API_KEY // optional, required if server uses --api-key
+});
+
+await client.health();
+const article = await client.get('subject/my-article');
+const consensus = await client.consensus('subject/my-article');
+
+// Bundle / history import/export
+const bundle = await client.exportBundle({ key: 'subject/my-article' });
+const all = await client.exportAll();
+const history = await client.exportHistory('subject/my-article');
+await client.importBundle(bundle);              // accepts { bundle, verify?, skipDuplicates? }
+await client.importHistory(history);            // accepts { bundle, verify?, skipDuplicates? }
+
+// Generate a shell completion script
+const { script } = await client.completion({ shell: 'bash' });
+
+// Discover routes and OpenAPI spec
+const { routes } = await client.routes();
+const spec = await client.openapi();
+```
+
+Authentication methods supported by the server:
+
+- `Authorization: Bearer <api-key>`
+- `X-Api-Key: <api-key>`
+- `?api-key=<api-key>`
+- JSON body `apiKey` field
+
+Public endpoints that never require a key: `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`.
+
 ## Batch Operations
 
 ### Batch Attest — attest to multiple articles in one call

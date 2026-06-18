@@ -256,7 +256,43 @@ const { score } = await client.consensus('person/ada-lovelace');
 permabrain serve [--port 8765] [--stream-transport ws|sse] [--api-key <key>]
 ```
 
-Exposes the agent API over REST. Key endpoints:
+Exposes the agent API over REST.
+
+#### API-key authentication
+
+When `--api-key` is set (or `PERMABRAIN_API_KEY` is set in the environment), all protected endpoints require the key. The following endpoints stay public so clients can discover the server and subscribe to live streams without a secret:
+
+- `GET /health`
+- `GET /api/v1/events/stream`
+- `GET /api/v1/events/ws`
+- `GET /api/v1/articles/stream`
+
+Pass the key in any of these ways:
+
+- Header: `Authorization: Bearer <api-key>`
+- Header: `X-Api-Key: <api-key>`
+- Query parameter: `?api-key=<api-key>`
+- JSON body field: `{ "apiKey": "<api-key>" }` (for POST requests)
+
+```sh
+# Start the server with an API key
+PERMABRAIN_API_KEY=pb_xxx permabrain serve
+
+# Or pass it on the command line
+permabrain serve --api-key pb_xxx
+
+# Use it with the client CLI
+permabrain client health --api-key pb_xxx
+permabrain client routes --api-key pb_xxx
+```
+
+From code:
+
+```javascript
+const client = createClient({ baseUrl: 'http://localhost:8765', apiKey: 'pb_xxx' });
+```
+
+#### Key endpoints:
 
 - `GET /health` — server health, transport, agent id, live-stream advertisement
 - `GET /api/v1/status`
@@ -269,6 +305,13 @@ Exposes the agent API over REST. Key endpoints:
 - `GET /api/v1/search?q=...`
 - `GET /api/v1/dashboard` and `/api/v1/dashboard.html`
 - `GET /api/v1/log` / `POST /api/v1/log`
+- `GET /api/v1/log/export` / `POST /api/v1/log/import`
+- `GET /api/v1/bundles` — export a single article bundle
+- `POST /api/v1/bundles` — import an article bundle
+- `GET /api/v1/export-all` — export all indexed articles as a bundle
+- `GET /api/v1/history-export?key=...` — export a full version history bundle
+- `POST /api/v1/history-import` — import a history bundle
+- `POST /api/v1/completion` — generate a shell completion script
 - `GET /api/v1/events/stream` — Server-Sent Events real-time stream
 - `GET /api/v1/events/ws` — WebSocket real-time event stream
 - `GET /api/v1/articles/stream` — live filtered article/attestation SSE stream
@@ -291,12 +334,24 @@ permabrain client routes --url http://peer.example.com:8765 --json
 Or from code:
 
 ```javascript
-const client = createClient({ baseUrl: 'http://localhost:8765' });
+const client = createClient({ baseUrl: 'http://localhost:8765', apiKey: 'pb_xxx' });
 const { routes } = await client.routes();
 const spec = await client.openapi();
+
+// Export and import bundles
+const bundle = await client.exportBundle({ key: 'person/ada-lovelace' });
+const all = await client.exportAll();
+const history = await client.exportHistory('person/ada-lovelace');
+const importResult = await client.importBundle(bundle);
+const historyResult = await client.importHistory(history);
+
+// Generate a shell completion script
+const { script } = await client.completion({ shell: 'bash' });
 ```
 
 When `--api-key` is set on the server, discovery endpoints require the same key. Pass it with `--api-key` or `PERMABRAIN_API_KEY`.
+
+Bundle import accepts `{ bundle, verify, skipDuplicates }` and history import accepts the same shape. Completion accepts `{ shell: 'bash' | 'zsh' | 'fish' }` and returns `{ script }`.
 
 Run `permabrain serve --help` for details.
 
