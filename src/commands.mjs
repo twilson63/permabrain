@@ -2532,11 +2532,16 @@ Examples:
 
 async function serveCommand(args) {
   const port = args.port ? Number(args.port) : (args.p ? Number(args.p) : undefined);
+  const streamTransport = args['stream-transport'] || args.streamTransport || undefined;
   const home = getHome();
-  const result = await startServer({ home, port });
+  const result = await startServer({ home, port, streamTransport });
   console.log(`PermaBrain HTTP API serving at http://localhost:${result.port}`);
   console.log(`Home: ${result.home}`);
   console.log(`Agent: ${result.agentId || 'unknown'}`);
+  if (result.streamTransport) {
+    console.log(`Default live stream transport: ${result.streamTransport.toUpperCase()}`);
+  }
+
 
   const shutdown = async (signal) => {
     console.log(`\n${signal} received, stopping server...`);

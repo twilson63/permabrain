@@ -71,7 +71,9 @@ let port;
   assert.ok(html.includes('connectSseStream'), 'viewer should expose SSE stream connector');
   assert.ok(html.includes('liveTransport'), 'viewer should display live transport indicator');
   assert.ok(html.includes('cycleLiveTransport'), 'viewer should allow transport toggle');
-  assert.ok(html.includes('startLiveStream'), 'viewer should expose startLiveStream');
+  assert.ok(html.includes('serverPreferredTransport'), 'viewer should read server preferred transport');
+  assert.ok(html.includes('fetchServerPreferredTransport'), 'viewer should fetch server preferred transport');
+  assert.ok(html.includes('cycleLiveTransportIndicator'), 'viewer should expose cycleLiveTransportIndicator');
   assert.ok(html.includes('stopLiveStream'), 'viewer should expose stopLiveStream');
   assert.ok(html.includes('handleStreamEvent'), 'viewer should handle stream events');
   assert.ok(html.includes('liveIndicator'), 'viewer should have live indicator element');
@@ -79,6 +81,24 @@ let port;
   assert.ok(html.includes('refreshModalData'), 'viewer should refresh modal data on live events');
   assert.ok(html.includes('@keyframes pulse'), 'viewer should include pulse animation for live indicator');
 }
+
+// --- /health advertises default stream transport ---
+{
+  const home = makeTempHome();
+  await resetApi(home);
+
+  const { server: srv, port: p } = await startServer({ port: 0, home, streamTransport: 'ws' });
+  server = srv;
+  port = p;
+
+  const health = await httpRequest('GET', '/health');
+  assert.equal(health.body.streamTransport, 'ws', 'server health advertises ws default transport');
+  assert.equal(health.body.streams?.articles?.default, 'ws', 'articles stream default is ws');
+
+  await stopServer(server);
+  fs.rmSync(home, { recursive: true, force: true });
+}
+console.log('   ✓ /health advertises default stream transport');
 
 // --- SSE stream receives publish events ---
 {

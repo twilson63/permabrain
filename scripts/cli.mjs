@@ -145,7 +145,8 @@ Commands:
   archive                      Create an encrypted snapshot of the local PermaBrain home
   backup                       Manage timestamped backups (create/list/restore/prune)
   restore                      Restore a PermaBrain home from an encrypted snapshot
-  serve [ --port N ]           Start the local HTTP API server (default port 8765)
+  serve [ --port N ] [--stream-transport ws|sse]
+                             Start the local HTTP API server (default port 8765)
   doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
   log [filters]                Query the local audit log
   template <file>              Publish an article from a markdown template
@@ -168,7 +169,8 @@ Common examples:
   permabrain consensus person/ada-lovelace
   permabrain dashboard --output dashboard.html --publish
   permabrain log --tail 10
-  permabrain serve --port 8765
+  permabrain serve --port 8765 --stream-transport ws
+  permabrain serve --stream-transport sse
   permabrain events --events publish,attest --duration 30000
   permabrain validate article ./tags.json
 
@@ -698,10 +700,14 @@ Options:
   --max-age-days D        Also delete backups older than D days
   --dry-run               Preview without creating/deleting files
   --json                  Output structured JSON`,
-    'serve': `Usage: permabrain serve [--port N]
+    'serve': `Usage: permabrain serve [--port N] [--stream-transport ws|sse]
 
 Start the local HTTP API server exposing the PermaBrain agent API over REST.
 Default port is 8765 (override with --port or PERMABRAIN_PORT env var).
+Default live stream transport is SSE (override with --stream-transport or
+PERMABRAIN_STREAM_TRANSPORT env var). The viewer can also override transport
+via the ?transport=ws|sse URL parameter.
+
 Press Ctrl+C to stop.`,
     'doctor': `Usage: permabrain doctor [--fix] [--json]
 

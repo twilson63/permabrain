@@ -13,11 +13,11 @@ process.env.PERMABRAIN_TRANSPORT = 'local';
 let server;
 let port;
 
-function request(method, path, body) {
+function requestWithPort(method, path, customPort, body) {
   return new Promise((resolve, reject) => {
     const req = http.request({
       hostname: 'localhost',
-      port,
+      port: customPort,
       method,
       path,
       headers: body ? { 'content-type': 'application/json' } : {}
@@ -39,6 +39,10 @@ function request(method, path, body) {
   });
 }
 
+function request(method, path, body) {
+  return requestWithPort(method, path, port, body);
+}
+
 console.log('1. startServer initializes identity and exposes /health');
 const started = await startServer({ home: tmpHome, port: 0 });
 server = started.server;
@@ -51,6 +55,8 @@ assert.equal(health.status, 200, 'health status 200');
 assert.equal(health.body.ok, true, 'health ok');
 assert.equal(health.body.home, tmpHome, 'health home');
 assert.equal(health.body.transport, 'local', 'health transport local');
+assert.equal(health.body.streamTransport, 'sse', 'health default streamTransport sse');
+assert.equal(health.body.streams?.articles?.default, 'sse', 'health default articles stream sse');
 console.log('   ✓ /health returns identity and home');
 
 console.log('2. POST /api/v1/init runs idempotently');
@@ -148,5 +154,28 @@ api._identity = undefined;
 api._config = undefined;
 
 fs.rmSync(tmpHome, { recursive: true, force: true });
+
+console.log('\n12. startServer streamTransport option advertised in /health');
+{
+  const tmpHome2 = fs.mkdtempSync(path.join(os.tmpdir(), 'permabrain-serve-ws-'));
+  process.env.PERMABRAIN_HOME = tmpHome2;
+  const { server: server2, port: port2 } = await startServer({ port: 0, home: tmpHome2, streamTransport: 'ws' });
+  const health2 = await requestWithPort('GET', '/health', port2);
+  assert.equal(health2.body.streamTransport, 'ws', 'streamTransport ws advertised');
+  assert.equal(health2.body.streams?.articles?.default, 'ws', 'articles default ws advertised');
+  await stopServer(server2);
+  fs.rmSync(tmpHome2, { recursive: true, force: true });
+  console.log('   ✓ /health advertises ws streamTransport');
+}
+
+console.log('13. createServer exposes streamTransport in return object');
+{
+  const tmpHome3 = fs.mkdtempSync(path.join(os.tmpdir(), 'permabrain-serve-create-'));
+  const { server: server3, streamTransport } = createServer({ home: tmpHome3, streamTransport: 'ws' });
+  assert.equal(streamTransport, 'ws', 'createServer returns ws streamTransport');
+  await stopServer(server3);
+  fs.rmSync(tmpHome3, { recursive: true, force: true });
+  console.log('   ✓ createServer returns streamTransport');
+}
 
 console.log('\n✅ All serve tests passed');

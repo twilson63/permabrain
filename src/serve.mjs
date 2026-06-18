@@ -98,6 +98,12 @@ function sendError(res, status, message) {
   sendJson(res, status, { error: message, status });
 }
 
+function normalizeStreamTransport(value) {
+  if (value === 'ws' || value === 'websocket' || value === 'ws-only') return 'ws';
+  if (value === 'sse' || value === 'eventsource' || value === 'sse-only') return 'sse';
+  return 'sse';
+}
+
 function parseBool(value) {
   if (value === undefined || value === null) return undefined;
   if (value === true || value === false) return value;
@@ -214,7 +220,7 @@ function activityOptions(query) {
   };
 }
 
-async function handleRequest(req, res, home) {
+async function handleRequest(req, res, home, options = {}) {
   const url = new URL(req.url, `http://localhost`);
   const method = req.method;
   const pathname = url.pathname;
@@ -224,15 +230,19 @@ async function handleRequest(req, res, home) {
   try {
     if (method === 'GET' && route === '/health') {
       const transport = api._config?.transport || process.env.PERMABRAIN_TRANSPORT || 'local';
+      const streamTransport = options.streamTransport || process.env.PERMABRAIN_STREAM_TRANSPORT || 'sse';
+      const normalized = normalizeStreamTransport(streamTransport);
       return sendJson(res, 200, {
         ok: true,
         transport,
         agentId: api._identity?.agentId || null,
         home: api._home || home,
+        streamTransport: normalized,
         streams: {
           websocket: '/api/v1/events/ws',
           sse: '/api/v1/events/stream',
           articles: {
+            default: normalized,
             sse: '/api/v1/articles/stream',
             websocket: '/api/v1/articles/stream'
           }
@@ -903,7 +913,8 @@ async function handleRequest(req, res, home) {
 
 export function createServer(options = {}) {
   const home = options.home || process.env.PERMABRAIN_HOME || getHome();
-  const server = http.createServer((req, res) => handleRequest(req, res, home));
+  const streamTransport = normalizeStreamTransport(options.streamTransport || process.env.PERMABRAIN_STREAM_TRANSPORT);
+  const server = http.createServer((req, res) => handleRequest(req, res, home, options));
 
   const wss = new WebSocketServer({ noServer: true });
   server.on('upgrade', (request, socket, head) => {
@@ -956,11 +967,11 @@ export function createServer(options = {}) {
     }
   });
 
-  return { server, home, wss };
+  return { server, home, wss, streamTransport };
 }
 
 export async function startServer(options = {}) {
-  const { server, home, wss } = createServer(options);
+  const { server, home, wss, streamTransport } = createServer(options);
   const requestedPort = options.port ?? (process.env.PERMABRAIN_PORT || DEFAULT_PORT);
   await new Promise((resolve, reject) => {
     server.listen(requestedPort, (err) => (err ? reject(err) : resolve()));
@@ -968,7 +979,7 @@ export async function startServer(options = {}) {
   const actualPort = server.address()?.port || requestedPort;
   await ensureApiInit(home);
   const identity = api._identity;
-  return { server, home, port: actualPort, agentId: identity?.agentId || null, wss };
+  return { server, home, port: actualPort, agentId: identity?.agentId || null, wss, streamTransport };
 }
 
 export function stopServer(server) {

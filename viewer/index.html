@@ -392,10 +392,25 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var livePendingRefresh = false;
   var liveRefreshTimer = null;
   var LIVE_DEBOUNCE_MS = 500;
+  var serverPreferredTransport = null; // 'sse' | 'ws' advertised by /health
+
+  function fetchServerPreferredTransport() {
+    try {
+      fetch('/health')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && (data.streamTransport === 'sse' || data.streamTransport === 'ws')) {
+            serverPreferredTransport = data.streamTransport;
+          }
+        })
+        .catch(function() {});
+    } catch(e) {}
+  }
 
   function getPreferredLiveTransport() {
     var param = new URLSearchParams(window.location.search).get('transport');
     if (param === 'ws' || param === 'sse') return param;
+    if (serverPreferredTransport === 'ws' || serverPreferredTransport === 'sse') return serverPreferredTransport;
     var saved = localStorage.getItem('permabrain-live-transport');
     if (saved === 'ws' || saved === 'sse') return saved;
     return 'sse';
@@ -1272,9 +1287,17 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     }
   }
 
+  function cycleLiveTransportIndicator() {
+    var label = document.getElementById('liveTransport');
+    var el = document.getElementById('liveIndicator');
+    if (label) label.textContent = liveTransport.toUpperCase();
+    if (el) el.style.display = 'inline-flex';
+  }
+
   window.cycleLiveTransport = function() {
     var next = liveTransport === 'sse' ? 'ws' : 'sse';
     setPreferredLiveTransport(next);
+    cycleLiveTransportIndicator();
     stopLiveStream();
     startLiveStream();
   };
@@ -1329,6 +1352,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   function startLiveStream() {
     if (!isLiveSupported() || liveConnection) return;
     liveTransport = getPreferredLiveTransport();
+    cycleLiveTransportIndicator();
     if (liveTransport === 'ws' && typeof WebSocket !== 'undefined') {
       connectWebSocketStream();
     } else if (typeof EventSource !== 'undefined') {
@@ -1911,6 +1935,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   };
 
   // --- Boot ---
+  if (isLocalServer()) fetchServerPreferredTransport();
   renderFilters();
   if (isLocalServer()) {
     renderHome();

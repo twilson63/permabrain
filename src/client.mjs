@@ -86,7 +86,7 @@ export function createClient(options = {}) {
     post: (path, body, extraHeaders) => request('POST', path, body, extraHeaders),
     get: (path, extraHeaders) => request('GET', path, undefined, extraHeaders),
 
-    /** @returns {Promise<{ok: boolean, transport: string, agentId: string|null, home: string}>} */
+    /** @returns {Promise<{ok: boolean, transport: string, agentId: string|null, home: string, streamTransport?: string, streams?: object}>} */
     health: () => request('GET', '/health'),
 
     /** @returns {Promise<{home: string, agentId: string, keyType: string, config: Object}>} */

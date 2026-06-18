@@ -52,6 +52,8 @@ server = started.server;
 port = started.port;
 const health = await httpRequest('GET', '/health');
 assert.equal(health.status, 200);
+assert.equal(health.body.streamTransport, 'sse', 'default stream transport is sse');
+assert.equal(health.body.streams?.articles?.default, 'sse', 'default articles stream is sse');
 assert.equal(health.body.streams?.websocket, '/api/v1/events/ws');
 assert.equal(health.body.streams?.sse, '/api/v1/events/stream');
 console.log('   ✓ /health advertises stream endpoints');

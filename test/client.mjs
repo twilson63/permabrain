@@ -26,6 +26,7 @@ client = createClient({ baseUrl: `http://localhost:${port}` });
 const health = await client.health();
 assert.equal(health.ok, true, 'health ok');
 assert.equal(health.transport, 'local', 'health transport local');
+assert.equal(health.streamTransport, 'sse', 'client health advertises default sse streamTransport');
 assert.ok(health.agentId, 'health agentId present');
 console.log('   ✓ /health via client');
 
