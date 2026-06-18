@@ -194,6 +194,7 @@
 
 ## Notes
 - Consolidated tasks.md on 2026-06-17 14:04 UTC: moved all completed items into a single Done section, deduplicated entries, and refreshed Next/Backlog.
+- Cron build loop checkpoint (2026-06-18 18:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `8f726f7`. Queue remains empty; no implementation work picked. Seeded next chunk: health/metrics/monitoring endpoint (`GET /api/v1/metrics`) for `permabrain serve` — runtime counters, article/attestation totals, peer events, request throughput, optional Prometheus format.
 - Push historically blocked when GH_TOKEN was not set; remote URL now embeds the PAT, so recent pushes succeeded.
 - Cron build loop checkpoint (2026-06-18 16:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `9ea6bbf`. No implementation work picked. Queue is empty; seed next feature chunk on the next heartbeat.
 - Recent focus: dashboard, ZenBin publish, template, log tail/follow/export/import, stats, backup, doctor, archive, remote, bundle, history, search, metrics, activity, sync/merge/fork, diff, list, topic feed, status, export-articles, import-history, config, remotes, HTTP API server, version flag, README/packaging refresh.
