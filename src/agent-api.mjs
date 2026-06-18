@@ -60,9 +60,14 @@ import {
   peerInfoToMarkdown,
   peerStatusToMarkdown
 } from './peer.mjs';
+import { subscribeQuery, matchesQueryStream } from './query-stream.mjs';
 
 function requireGoalModule() {
   return import('./goal.mjs');
+}
+
+function requireQueryStream() {
+  return import('./query-stream.mjs');
 }
 
 function requireInit(home) {
@@ -1664,6 +1669,21 @@ const api = {
     const shell = opts.shell || opts._?.[0] || 'bash';
     const script = generateCompletion(shell);
     return { shell, script, shells: listSupportedShells() };
+  },
+
+  /**
+   * Subscribe to live article/attestation updates matching query filters.
+   *
+   * @param {Object} opts
+   * @param {string|string[]} [opts.topic]
+   * @param {string|string[]} [opts.kind]
+   * @param {string|string[]} [opts.agent]
+   * @param {string|string[]} [opts.key]
+   * @param {string|string[]} [opts.events]
+   * @returns {{[Symbol.asyncIterator]: function, cancel: function}}
+   */
+  subscribeQuery(opts = {}) {
+    return subscribeQuery(opts);
   },
 
   /**

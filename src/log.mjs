@@ -127,6 +127,9 @@ export function logAction(opts = {}) {
   rotateLog(home);
 
   // Emit a real-time event for server streams (WebSocket / SSE).
+  // Forward common article metadata from details so query-stream filters
+  // (topic, kind, title) can match publish/attest/update events.
+  const details = entry.details || {};
   emitEvent(action, {
     status: entry.status,
     agentId: entry.agentId,
@@ -134,7 +137,10 @@ export function logAction(opts = {}) {
     id: entry.id,
     message: entry.message,
     details: entry.details,
-    createdAt: entry.createdAt
+    createdAt: entry.createdAt,
+    topic: details.topic || null,
+    kind: details.kind || null,
+    title: details.title || null
   });
 
   return entry;

@@ -58,7 +58,8 @@ export function subscribeEventsOverSse(opts = {}) {
   const baseUrl = parseBaseUrl(opts.baseUrl);
   const events = parseEventsArg(opts.events);
   const signal = opts.signal;
-  const url = new URL(`${baseUrl}/api/v1/events/stream`);
+  const urlPath = opts.url || '/api/v1/events/stream';
+  const url = new URL(urlPath.startsWith('http') ? urlPath : `${baseUrl}${urlPath}`);
   if (events.length > 0) url.searchParams.set('events', events.join(','));
 
   let reader = null;

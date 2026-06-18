@@ -252,6 +252,39 @@ async function handleRequest(req, res, home) {
       return;
     }
 
+    if (method === 'GET' && route === '/api/v1/articles/stream') {
+      const { subscribeQuery } = await import('./query-stream.mjs');
+      const filters = {
+        topic: url.searchParams.get('topic') || undefined,
+        kind: url.searchParams.get('kind') || undefined,
+        agent: url.searchParams.get('agent') || undefined,
+        key: url.searchParams.get('key') || undefined,
+        events: url.searchParams.get('events') || undefined
+      };
+      const controller = new AbortController();
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        'connection': 'keep-alive'
+      });
+      res.write(`data: ${JSON.stringify({ type: 'open', timestamp: new Date().toISOString() })}\n\n`);
+      const sub = subscribeQuery({ ...filters, signal: controller.signal });
+      req.on('close', () => controller.abort());
+      (async () => {
+        try {
+          for await (const event of sub) {
+            if (res.writableEnded || controller.signal.aborted) break;
+            writeSseEvent(res, event);
+          }
+        } catch {
+          // subscription cancelled
+        } finally {
+          try { res.end(); } catch {}
+        }
+      })();
+      return;
+    }
+
     if (method === 'POST' && route === '/api/v1/events/publish') {
       const body = await readBody(req);
       if (!Array.isArray(body.events)) return sendError(res, 400, 'events array is required');

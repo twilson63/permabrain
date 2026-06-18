@@ -283,6 +283,9 @@ export function createClient(options = {}) {
     subscribe: (opts = {}) => request('GET', `/api/v1/events${toQuery(opts)}`),
 
     /** @returns {Promise<Object>} */
+    subscribeQuery: (opts = {}) => request('GET', `/api/v1/articles/stream${toQuery(opts)}`),
+
+    /** @returns {Promise<Object>} */
     getThresholdEnvelope: (envelopeId) => request('GET', `/api/v1/threshold/envelope/${encodeURIComponent(envelopeId)}`),
 
     /** @returns {Promise<Object>} */

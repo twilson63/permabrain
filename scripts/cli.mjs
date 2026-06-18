@@ -70,6 +70,7 @@ const COMMANDS = [
   'threshold-attest',
   'peer',
   'events',
+  'query-stream',
   'subscribe'
 ];
 
@@ -155,6 +156,7 @@ Commands:
   threshold-attest             Create/collect/finalize/share threshold multi-sig attestations
   peer                         Gossip-style peer sync (info|status|diff|pull|bundle|push)
   events [options]             Subscribe to real-time events from permabrain serve
+  query-stream [options]       Subscribe to live filtered article/attestation updates
   subscribe <remote-url> [options]  Forward local events to a remote PermaBrain peer
 
 Common examples:
@@ -880,6 +882,34 @@ Examples:
   permabrain events
   permabrain events --url http://localhost:9000 --events publish,attest
   permabrain events --ws --json --duration 30000
+`,
+    'query-stream': `Usage: permabrain query-stream [options]
+
+Subscribe to a live filtered stream of article/attestation updates from a
+running permabrain serve instance.
+
+Filters:
+  --topic <topic>          Article topic
+  --kind <kind>            Article kind
+  --agent <agent-id>       Author or attesting agent id
+  --key <canonical-key>    Specific article key
+  --events <names>         Comma-separated event names (publish, attest, ...)
+
+Connection:
+  --url <url>              Server base URL (default http://localhost:8765)
+  --ws                     Use WebSocket instead of SSE
+
+Termination:
+  --duration <ms>          Stop after N milliseconds
+  --count <n>              Stop after receiving N events
+
+Output:
+  --json                   Print each event as JSON
+  --compact                Print compact one-line events (default)
+
+Examples:
+  permabrain query-stream --topic ai --events publish,attest
+  permabrain query-stream --kind subject --agent ed25519:a --duration 30000 --json
 `,
     'validate': `Usage: permabrain validate <article|attestation> [path] [--json]
 

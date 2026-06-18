@@ -134,6 +134,7 @@ export async function runCommand(command, args) {
   if (command === 'completion') return completionCommand(args);
   if (command === 'validate') return validateCommand(args);
   if (command === 'events') return eventsCommand(args);
+  if (command === 'query-stream') return queryStreamCommand(args);
   if (command === 'subscribe') return subscribeRemoteCommand(args);
   if (command === 'threshold-attest' || command === 'threshold') return thresholdAttestCommand(args);
   if (command === 'peer') return peerCommand(args);
@@ -2224,6 +2225,85 @@ Examples:
   }
 
   throw new Error(`Unknown threshold-attest subcommand: ${subcommand}`);
+}
+
+async function queryStreamCommand(args) {
+  if (args.help || args._[0] === '--help' || args._[0] === 'help') {
+    console.log(`Usage: permabrain query-stream [options]
+
+Subscribe to a live filtered stream of article/attestation updates from a
+running permabrain serve instance.
+
+Filters:
+  --topic <topic>          Article topic
+  --kind <kind>            Article kind
+  --agent <agent-id>       Author or attesting agent id
+  --key <canonical-key>    Specific article key
+  --events <names>         Comma-separated event names (publish, attest, ...)
+
+Connection:
+  --url <url>              Server base URL (default http://localhost:8765)
+  --ws                     Use WebSocket instead of SSE
+
+Termination:
+  --duration <ms>          Stop after N milliseconds
+  --count <n>              Stop after receiving N events
+
+Output:
+  --json                   Print each event as JSON
+  --compact                Print compact one-line events (default)
+
+Examples:
+  permabrain query-stream --topic ai --events publish,attest
+  permabrain query-stream --kind subject --agent ed25519:a --duration 30000 --json
+`);
+    return { ok: true, help: true };
+  }
+  const url = args.url || args.u || 'http://localhost:8765';
+  const transport = args.ws ? 'ws' : 'sse';
+  const format = args.json ? 'json' : 'compact';
+  const maxMs = args.duration ? Number(args.duration) : undefined;
+  const maxEvents = args.count ? Number(args.count) : undefined;
+
+  const path = '/api/v1/articles/stream';
+  const params = new URLSearchParams();
+  if (args.topic) params.set('topic', args.topic);
+  if (args.kind) params.set('kind', args.kind);
+  if (args.agent) params.set('agent', args.agent);
+  if (args.key) params.set('key', args.key);
+  if (args.events) params.set('events', args.events);
+  const query = params.toString();
+  const fullPath = query ? `${path}?${query}` : path;
+
+  const { subscribeEventsOverSse } = await import('./events-client.mjs');
+
+  let count = 0;
+  const startTime = Date.now();
+  const controller = new AbortController();
+  function stop() { controller.abort(); }
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  try {
+    const sub = subscribeEventsOverSse({ baseUrl: url, url: fullPath, signal: controller.signal });
+    for await (const event of sub) {
+      if (event.type === 'error') {
+        if (args.json) console.log(JSON.stringify(event));
+        else console.error(`Error: ${event.message}`);
+        continue;
+      }
+      if (args.json) console.log(JSON.stringify(event));
+      else console.log(formatEvent(event, format));
+      count++;
+      if (count >= maxEvents || (maxMs && Date.now() - startTime >= maxMs)) {
+        stop();
+        break;
+      }
+    }
+  } finally {
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+  }
+  return { count };
 }
 
 async function eventsCommand(args) {

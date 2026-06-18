@@ -125,6 +125,9 @@ export { generateCompletion, listSupportedShells } from './completion.mjs';
 // Real-time event bus and subscriptions
 export { getEventBus, emitEvent, subscribeEvents } from './events.mjs';
 
+// Query stream (live filtered article/attestation subscriptions)
+export { subscribeQuery, matchesQueryStream } from './query-stream.mjs';
+
 // Remote event subscriber (connect to permabrain serve)
 export { subscribeEventsRemote, subscribeEventsOverSse, subscribeEventsOverWebSocket, formatEvent, runEventsSubscriber } from './events-client.mjs';
 

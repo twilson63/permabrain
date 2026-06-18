@@ -125,7 +125,7 @@ export async function publishArticle({ file, content, kind, topic, key, title, s
   // Record a local audit event for the publish action.
   try {
     const { logAction } = await import('./log.mjs');
-    logAction({ home, action: 'publish', status: 'ok', key: finalKey, id: item.id, message: `Published ${isEncrypted ? 'encrypted ' : ''}${kind}/${topic} article`, details: { version, encrypted: isEncrypted, reference: reference?.referenceId } });
+    logAction({ home, action: 'publish', status: 'ok', key: finalKey, id: item.id, message: `Published ${isEncrypted ? 'encrypted ' : ''}${kind}/${topic} article`, details: { version, encrypted: isEncrypted, reference: reference?.referenceId, topic, kind, title: finalTitle } });
   } catch {
     // Audit logging is best-effort.
   }
