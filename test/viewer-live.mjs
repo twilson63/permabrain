@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import { WebSocket } from 'ws';
 import { fileURLToPath } from 'node:url';
 import { startServer, stopServer } from '../src/serve.mjs';
 import { api } from '../src/agent-api.mjs';
@@ -65,6 +66,11 @@ let port;
   const html = fs.readFileSync(viewerPath, 'utf8');
   assert.ok(html.includes('/api/v1/articles/stream'), 'viewer should reference query-stream SSE endpoint');
   assert.ok(html.includes('EventSource'), 'viewer should use EventSource for SSE');
+  assert.ok(html.includes('WebSocket'), 'viewer should support WebSocket failover');
+  assert.ok(html.includes('connectWebSocketStream'), 'viewer should expose WebSocket stream connector');
+  assert.ok(html.includes('connectSseStream'), 'viewer should expose SSE stream connector');
+  assert.ok(html.includes('liveTransport'), 'viewer should display live transport indicator');
+  assert.ok(html.includes('cycleLiveTransport'), 'viewer should allow transport toggle');
   assert.ok(html.includes('startLiveStream'), 'viewer should expose startLiveStream');
   assert.ok(html.includes('stopLiveStream'), 'viewer should expose stopLiveStream');
   assert.ok(html.includes('handleStreamEvent'), 'viewer should handle stream events');
@@ -231,5 +237,108 @@ let port;
   await stopServer(server);
   fs.rmSync(home, { recursive: true, force: true });
 }
+
+
+function connectQueryStreamWebSocket(path) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://localhost:${port}${path}`);
+    const messages = [];
+    ws.on('open', () => resolve({ ws, messages }));
+    ws.on('message', (data) => messages.push(JSON.parse(data.toString())));
+    ws.on('error', reject);
+  });
+}
+
+// --- WebSocket query-stream receives publish events ---
+{
+  const home = makeTempHome();
+  await resetApi(home);
+
+  const { server: srv, port: p } = await startServer({ port: 0, home });
+  server = srv;
+  port = p;
+
+  await httpRequest('POST', '/api/v1/init', { home, transport: 'local' });
+
+  const { ws, messages } = await connectQueryStreamWebSocket('/api/v1/articles/stream?events=publish,attest');
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(messages[0]?.type, 'open', 'WebSocket query-stream sends open message');
+
+  await httpRequest('POST', '/api/v1/articles', {
+    title: 'WebSocket Live Article',
+    content: '# WS Live\n\nContent.',
+    kind: 'subject',
+    topic: 'viewer-live-ws',
+    sourceUrl: 'http://example.com/ws-live',
+    sourceName: 'ws-live-source',
+    language: 'en',
+    key: 'subject/viewer-live-ws'
+  });
+  await httpRequest('POST', '/api/v1/articles/' + encodeURIComponent('subject/viewer-live-ws') + '/attest', {
+    opinion: 'valid',
+    confidence: 0.9,
+    reason: 'ws test'
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const publishEvent = messages.find((m) => m.type === 'event' && m.name === 'publish');
+  const attestEvent = messages.find((m) => m.type === 'event' && m.name === 'attest');
+  assert.ok(publishEvent, 'WebSocket query-stream receives publish event');
+  assert.equal(publishEvent.key, 'subject/viewer-live-ws');
+  assert.equal(publishEvent.topic, 'viewer-live-ws');
+  assert.ok(attestEvent, 'WebSocket query-stream receives attest event');
+  assert.equal(attestEvent.key, 'subject/viewer-live-ws');
+
+  ws.close();
+  await stopServer(server);
+  fs.rmSync(home, { recursive: true, force: true });
+}
+console.log('   ✓ WebSocket query-stream receives publish/attest events');
+
+// --- WebSocket query-stream filters by topic ---
+{
+  const home = makeTempHome();
+  await resetApi(home);
+
+  const { server: srv, port: p } = await startServer({ port: 0, home });
+  server = srv;
+  port = p;
+
+  await httpRequest('POST', '/api/v1/init', { home, transport: 'local' });
+
+  const { ws, messages } = await connectQueryStreamWebSocket('/api/v1/articles/stream?topic=ws-matching-topic&events=publish');
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  await httpRequest('POST', '/api/v1/articles', {
+    title: 'Filtered Out',
+    content: 'Ignored.',
+    kind: 'subject',
+    topic: 'ws-other-topic',
+    sourceUrl: 'http://example.com/other',
+    sourceName: 'other-source',
+    language: 'en',
+    key: 'subject/ws-other'
+  });
+  await httpRequest('POST', '/api/v1/articles', {
+    title: 'Filtered In',
+    content: 'Received.',
+    kind: 'subject',
+    topic: 'ws-matching-topic',
+    sourceUrl: 'http://example.com/matching',
+    sourceName: 'matching-source',
+    language: 'en',
+    key: 'subject/ws-matching'
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const publishEvents = messages.filter((m) => m.type === 'event' && m.name === 'publish');
+  assert.equal(publishEvents.length, 1, 'WebSocket query-stream filters by topic');
+  assert.equal(publishEvents[0].topic, 'ws-matching-topic');
+
+  ws.close();
+  await stopServer(server);
+  fs.rmSync(home, { recursive: true, force: true });
+}
+console.log('   ✓ WebSocket query-stream filters by topic');
 
 console.log('viewer-live tests passed');

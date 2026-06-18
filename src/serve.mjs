@@ -231,7 +231,11 @@ async function handleRequest(req, res, home) {
         home: api._home || home,
         streams: {
           websocket: '/api/v1/events/ws',
-          sse: '/api/v1/events/stream'
+          sse: '/api/v1/events/stream',
+          articles: {
+            sse: '/api/v1/articles/stream',
+            websocket: '/api/v1/articles/stream'
+          }
         }
       });
     }
@@ -904,7 +908,8 @@ export function createServer(options = {}) {
   const wss = new WebSocketServer({ noServer: true });
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url, `http://localhost`);
-    if (url.pathname.replace(/\/$/, '') === '/api/v1/events/ws') {
+    const pathname = url.pathname.replace(/\/$/, '');
+    if (pathname === '/api/v1/events/ws') {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wsClients.add(ws);
         ws.send(JSON.stringify({ type: 'open', timestamp: new Date().toISOString() }));
@@ -917,6 +922,34 @@ export function createServer(options = {}) {
           wsClients.delete(ws);
           if (wsClients.size === 0 && sseClients.size === 0) stopEventSubscription();
         });
+      });
+    } else if (pathname === '/api/v1/articles/stream') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        const filters = {
+          topic: url.searchParams.get('topic') || undefined,
+          kind: url.searchParams.get('kind') || undefined,
+          agent: url.searchParams.get('agent') || undefined,
+          key: url.searchParams.get('key') || undefined,
+          events: url.searchParams.get('events') || undefined
+        };
+        const controller = new AbortController();
+        ws.send(JSON.stringify({ type: 'open', timestamp: new Date().toISOString() }));
+        (async () => {
+          try {
+            const { subscribeQuery } = await import('./query-stream.mjs');
+            const sub = subscribeQuery({ ...filters, signal: controller.signal });
+            for await (const event of sub) {
+              if (ws.readyState !== 1) break;
+              ws.send(JSON.stringify(event));
+            }
+          } catch {
+            // subscription cancelled or closed
+          } finally {
+            try { ws.close(); } catch {}
+          }
+        })();
+        ws.on('close', () => controller.abort());
+        ws.on('error', () => controller.abort());
       });
     } else {
       socket.destroy();

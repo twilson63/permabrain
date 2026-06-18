@@ -304,8 +304,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 </div>
 <div class="status-bar" id="statusBar">
   <span id="statusText">Loading...</span>
-  <span id="liveIndicator" style="display:none;align-items:center;gap:0.3rem;font-size:0.72rem;color:var(--green);margin-left:0.5rem" title="Live updates connected">
-    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite"></span> Live
+  <span id="liveIndicator" style="display:none;align-items:center;gap:0.3rem;font-size:0.72rem;color:var(--green);margin-left:0.5rem;cursor:pointer" title="Click to toggle transport (SSE/WebSocket)" onclick="window.cycleLiveTransport()">
+    <span id="liveDot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite"></span> Live <span id="liveTransport">SSE</span>
   </span>
   <span id="statusCount"></span>
 </div>
@@ -384,13 +384,27 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var modalConsensus = null;
   var modalIndex = -1;        // position within localList.articles
 
-  // --- Live SSE stream state ---
-  var liveEventSource = null;
+  // --- Live stream state ---
+  var liveConnection = null;     // EventSource or WebSocket instance
+  var liveTransport = 'sse';     // 'sse' | 'ws'
   var liveReconnectDelay = 1000;
   var liveReconnectTimer = null;
   var livePendingRefresh = false;
   var liveRefreshTimer = null;
   var LIVE_DEBOUNCE_MS = 500;
+
+  function getPreferredLiveTransport() {
+    var param = new URLSearchParams(window.location.search).get('transport');
+    if (param === 'ws' || param === 'sse') return param;
+    var saved = localStorage.getItem('permabrain-live-transport');
+    if (saved === 'ws' || saved === 'sse') return saved;
+    return 'sse';
+  }
+
+  function setPreferredLiveTransport(t) {
+    liveTransport = t;
+    localStorage.setItem('permabrain-live-transport', t);
+  }
 
   // --- Theme ---
   function applyTheme(t) {
@@ -1238,22 +1252,32 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderStatus();
   }
 
-  // --- Live SSE updates ---
+  // --- Live updates (SSE with WebSocket failover) ---
   function isLiveSupported() {
-    return isLocalServer() && typeof EventSource !== 'undefined';
+    return isLocalServer() && (typeof EventSource !== 'undefined' || typeof WebSocket !== 'undefined');
   }
 
-  function setLiveIndicator(connected, message) {
+  function setLiveIndicator(connected, message, transport) {
     var el = document.getElementById('liveIndicator');
+    var dot = document.getElementById('liveDot');
+    var label = document.getElementById('liveTransport');
     if (!el) return;
     if (connected) {
       el.style.display = 'inline-flex';
-      el.title = message || 'Live updates connected';
-      el.querySelector('span').style.background = 'var(--green)';
+      el.title = message || 'Live updates connected via ' + (transport || liveTransport).toUpperCase();
+      if (dot) dot.style.background = 'var(--green)';
+      if (label) label.textContent = (transport || liveTransport).toUpperCase();
     } else {
       el.style.display = 'none';
     }
   }
+
+  window.cycleLiveTransport = function() {
+    var next = liveTransport === 'sse' ? 'ws' : 'sse';
+    setPreferredLiveTransport(next);
+    stopLiveStream();
+    startLiveStream();
+  };
 
   function scheduleListRefresh() {
     if (livePendingRefresh) return;
@@ -1288,19 +1312,44 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     } catch(e) {}
   }
 
-  function startLiveStream() {
-    if (!isLiveSupported() || liveEventSource) return;
+  function buildStreamUrl(protocol) {
     var params = new URLSearchParams();
     var topic = document.getElementById('topicSelect')?.value;
     if (topic) params.set('topic', topic);
-    var url = '/api/v1/articles/stream' + (params.toString() ? '?' + params.toString() : '');
+    var base = '/api/v1/articles/stream';
+    var qs = params.toString();
+    if (protocol === 'ws') {
+      var loc = window.location;
+      var wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+      return wsProto + '//' + loc.host + base + (qs ? '?' + qs : '');
+    }
+    return base + (qs ? '?' + qs : '');
+  }
+
+  function startLiveStream() {
+    if (!isLiveSupported() || liveConnection) return;
+    liveTransport = getPreferredLiveTransport();
+    if (liveTransport === 'ws' && typeof WebSocket !== 'undefined') {
+      connectWebSocketStream();
+    } else if (typeof EventSource !== 'undefined') {
+      connectSseStream();
+    } else if (typeof WebSocket !== 'undefined') {
+      connectWebSocketStream();
+    }
+  }
+
+  function connectSseStream() {
+    if (liveConnection) return;
+    liveTransport = 'sse';
+    var url = buildStreamUrl('sse');
     try {
-      liveEventSource = new EventSource(url);
-      liveEventSource.onopen = function() {
+      var es = new EventSource(url);
+      liveConnection = es;
+      es.onopen = function() {
         liveReconnectDelay = 1000;
-        setLiveIndicator(true);
+        setLiveIndicator(true, null, 'sse');
       };
-      liveEventSource.onmessage = function(e) {
+      es.onmessage = function(e) {
         try {
           var event = JSON.parse(e.data);
           if (event.type === 'heartbeat') return;
@@ -1308,7 +1357,41 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
           handleStreamEvent(event);
         } catch(err) {}
       };
-      liveEventSource.onerror = function() {
+      es.onerror = function() {
+        setLiveIndicator(false);
+        stopLiveStream();
+        scheduleLiveReconnect();
+      };
+    } catch(e) {
+      scheduleLiveReconnect();
+    }
+  }
+
+  function connectWebSocketStream() {
+    if (liveConnection) return;
+    liveTransport = 'ws';
+    var url = buildStreamUrl('ws');
+    try {
+      var ws = new WebSocket(url);
+      liveConnection = ws;
+      ws.onopen = function() {
+        liveReconnectDelay = 1000;
+        setLiveIndicator(true, null, 'ws');
+      };
+      ws.onmessage = function(e) {
+        try {
+          var event = JSON.parse(e.data);
+          if (event.type === 'heartbeat') return;
+          if (event.type === 'open') return;
+          handleStreamEvent(event);
+        } catch(err) {}
+      };
+      ws.onclose = function() {
+        setLiveIndicator(false);
+        stopLiveStream();
+        scheduleLiveReconnect();
+      };
+      ws.onerror = function() {
         setLiveIndicator(false);
         stopLiveStream();
         scheduleLiveReconnect();
@@ -1319,9 +1402,12 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   function stopLiveStream() {
-    if (liveEventSource) {
-      try { liveEventSource.close(); } catch(e) {}
-      liveEventSource = null;
+    if (liveConnection) {
+      try {
+        if (liveConnection.close) liveConnection.close();
+        else if (liveConnection.terminate) liveConnection.terminate();
+      } catch(e) {}
+      liveConnection = null;
     }
     setLiveIndicator(false);
     if (liveReconnectTimer) { clearTimeout(liveReconnectTimer); liveReconnectTimer = null; }
@@ -1329,11 +1415,24 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   function scheduleLiveReconnect() {
     if (liveReconnectTimer) return;
+    // If the current transport failed, try the other one on the next attempt.
+    var failedTransport = liveTransport;
+    var otherTransport = failedTransport === 'sse' ? 'ws' : 'sse';
+    var fallback = isOtherTransportAvailable(otherTransport);
+    if (fallback && liveReconnectDelay >= 4000) {
+      setPreferredLiveTransport(otherTransport);
+    }
     liveReconnectTimer = setTimeout(function() {
       liveReconnectTimer = null;
       startLiveStream();
     }, liveReconnectDelay);
     liveReconnectDelay = Math.min(30000, liveReconnectDelay * 2);
+  }
+
+  function isOtherTransportAvailable(t) {
+    if (t === 'sse') return typeof EventSource !== 'undefined';
+    if (t === 'ws') return typeof WebSocket !== 'undefined';
+    return false;
   }
 
   function handleStreamEvent(event) {
