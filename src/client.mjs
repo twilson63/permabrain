@@ -268,6 +268,12 @@ export function createClient(options = {}) {
     importThresholdEnvelope: (body) => request('POST', '/api/v1/threshold-attest/import', body),
 
     /** @returns {Promise<Object>} */
+    peerInfo: () => request('GET', '/api/v1/peer/info'),
+
+    /** @returns {Promise<Object>} */
+    peerPull: (requests, opts = {}) => request('POST', '/api/v1/peer/pull', { requests, includeAttestations: opts.includeAttestations !== false }),
+
+    /** @returns {Promise<Object>} */
     getThresholdEnvelope: (envelopeId) => request('GET', `/api/v1/threshold/envelope/${encodeURIComponent(envelopeId)}`),
 
     /** @returns {Promise<Object>} */

@@ -128,6 +128,18 @@ export { getEventBus, emitEvent, subscribeEvents } from './events.mjs';
 // Remote event subscriber (connect to permabrain serve)
 export { subscribeEventsRemote, subscribeEventsOverSse, subscribeEventsOverWebSocket, formatEvent, runEventsSubscriber } from './events-client.mjs';
 
+// Peer sync (gossip-style article exchange)
+export {
+  peerInfo,
+  diffPeerKeys,
+  buildPeerPullBundle,
+  pullFromPeer,
+  pullFromPeerAsBundle,
+  peerStatus,
+  peerInfoToMarkdown,
+  peerStatusToMarkdown
+} from './peer.mjs';
+
 // JSON Schema metadata validation
 export {
   ARTICLE_METADATA_SCHEMA,

@@ -319,6 +319,7 @@ console.log('11. API completeness check');
 const expectedMethods = [
   'events', 'subscribeEventsRemote', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
   'validateMetadata', 'validateDataItem',
+  'peerInfo', 'buildPeerPullBundle', 'pullFromPeer', 'pullFromPeerAsBundle', 'peerStatus',
   'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
   'sync', 'localIndex', 'importWikipedia', 'attestForAgent', 'provisionAgent',
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',
@@ -331,7 +332,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 83 API methods present');
+console.log('   ✓ All 88 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');

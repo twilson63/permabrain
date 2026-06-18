@@ -46,6 +46,16 @@ import { validateArticleMetadata, validateAttestationMetadata, validateDataItemT
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
+import {
+  peerInfo,
+  diffPeerKeys,
+  buildPeerPullBundle,
+  pullFromPeer,
+  pullFromPeerAsBundle,
+  peerStatus,
+  peerInfoToMarkdown,
+  peerStatusToMarkdown
+} from './peer.mjs';
 
 function requireGoalModule() {
   return import('./goal.mjs');
@@ -149,7 +159,7 @@ const api = {
    * @returns {Promise<{home, agentId, keyType}>}
    */
   async ensureInit(options = {}) {
-    if (this._home) return { home: this._home, agentId: this._identity.agentId, keyType: this._identity.type };
+    if (this._home && this._identity) return { home: this._home, agentId: this._identity.agentId, keyType: this._identity.type };
     try {
       const home = getHome();
       loadConfig(home);
@@ -1698,6 +1708,77 @@ const api = {
   async verifyThresholdEnvelope(envelope) {
     const threshold = await import('./threshold-attestation.mjs');
     return threshold.verifyThresholdEnvelope(envelope);
+  },
+
+  /**
+   * Return public peer-sync info for this node.
+   *
+   * Includes agentId, transport, protocol version, and a map of public
+   * (non-encrypted/non-private) articles with their current version/id.
+   *
+   * @param {Object} [opts]
+   * @param {boolean} [opts.includeAttestations=true]
+   * @returns {{agentId, transport, version, peerProtocol, articles, attestationCount, attestations}}
+   */
+  peerInfo(opts = {}) {
+    requireInit(this._home);
+    return peerInfo(this._home, opts);
+  },
+
+  /**
+   * Build a peer pull bundle for a list of requested keys/ids.
+   *
+   * @param {Array<{key?: string, id?: string, sinceVersion?: number}>} requests
+   * @param {Object} [opts]
+   * @param {boolean} [opts.includeAttestations=true]
+   * @param {boolean} [opts.includeVersions=true]
+   * @returns {Promise<Object>} PermaBrain bundle
+   */
+  async buildPeerPullBundle(requests, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return buildPeerPullBundle(requests, this._home, opts);
+  },
+
+  /**
+   * Pull newer/missing articles from a remote PermaBrain node.
+   *
+   * Uses the remote node's /api/v1/peer/info and /api/v1/peer/pull endpoints.
+   *
+   * @param {string} baseUrl - Remote permabrain serve base URL
+   * @param {Object} [opts]
+   * @param {boolean} [opts.includeAttestations=true]
+   * @param {boolean} [opts.verify=true]
+   * @param {boolean} [opts.skipDuplicates=true]
+   * @returns {Promise<{peer: Object, pulled: Array, imported: number, skipped: number, failed: number, diff: Object, results?: Array}>}
+   */
+  async pullFromPeer(baseUrl, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { createClient } = await import('./client.mjs');
+    const client = createClient({ baseUrl });
+    return pullFromPeerClient(client, { ...opts, home: this._home });
+  },
+
+  async pullFromPeerAsBundle(baseUrl, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { createClient } = await import('./client.mjs');
+    const client = createClient({ baseUrl });
+    return pullFromPeerClientAsBundle(client, { ...opts, home: this._home });
+  },
+
+  /**
+   * Compute pullable summary for one or more peer infos.
+   *
+   * @param {Object|Object[]} peers
+   * @param {Object} [opts]
+   * @returns {{peers: Array, totalPullable: number, uniquePeers: number}}
+   */
+  peerStatus(peers, opts = {}) {
+    requireInit(this._home);
+    const list = Array.isArray(peers) ? peers : [peers];
+    return peerStatus(list, { ...opts, home: this._home });
   },
 
   /**

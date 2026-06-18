@@ -123,6 +123,23 @@ function setApiHome(home) {
   try { api._identity = loadIdentity(home); } catch { api._identity = null; }
 }
 
+async function resetApiForRequest(home) {
+  if (api._home !== home) {
+    api._home = home;
+    api._config = null;
+    api._identity = null;
+  }
+  try {
+    api._config = loadConfig(home);
+    api._identity = loadIdentity(home);
+  } catch {
+    initState({ env: { ...process.env, PERMABRAIN_HOME: home } });
+    await ensureIdentity(home);
+    try { api._config = loadConfig(home); } catch { api._config = defaultConfig(); }
+    try { api._identity = loadIdentity(home); } catch { api._identity = null; }
+  }
+}
+
 async function ensureApiInit(home) {
   if (!api._home) {
     try {
@@ -246,7 +263,8 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 200, result);
     }
 
-    const currentHome = await ensureApiInit(home);
+    await resetApiForRequest(home);
+    const currentHome = api._home;
 
     if (route === '/api/v1/articles') {
       if (method === 'GET') {
@@ -801,6 +819,21 @@ async function handleRequest(req, res, home) {
       if (!body.envelope) return sendError(res, 400, 'envelope is required');
       const stored = await api.importThresholdEnvelope(body.envelope);
       return sendJson(res, 200, stored);
+    }
+
+    if (method === 'GET' && route === '/api/v1/peer/info') {
+      const { peerInfo } = await import('./peer.mjs');
+      const info = peerInfo(currentHome);
+      return sendJson(res, 200, info);
+    }
+
+    if (method === 'POST' && route === '/api/v1/peer/pull') {
+      const body = await readBody(req);
+      if (!Array.isArray(body.requests)) return sendError(res, 400, 'requests array is required');
+      const includeAttestations = body.includeAttestations !== false;
+      const { buildPeerPullBundle } = await import('./peer.mjs');
+      const result = await buildPeerPullBundle(body.requests, currentHome, { includeAttestations });
+      return sendJson(res, 200, result);
     }
 
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);

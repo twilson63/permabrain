@@ -68,7 +68,8 @@ const COMMANDS = [
   'client',
   'completion',
   'threshold-attest',
-  'validate'
+  'peer',
+  'events'
 ];
 
 // Alias support: map legacy/import-export subcommands to canonical names.

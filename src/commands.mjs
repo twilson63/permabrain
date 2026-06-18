@@ -52,6 +52,17 @@ import {
   exportThresholdEnvelope
 } from './threshold-attestation.mjs';
 
+import {
+  peerInfo,
+  diffPeerKeys,
+  buildPeerPullBundle,
+  pullFromPeer,
+  pullFromPeerAsBundle,
+  peerStatus,
+  peerInfoToMarkdown,
+  peerStatusToMarkdown
+} from './peer.mjs';
+
 import fs from 'node:fs';
 
 function printJson(value) {
@@ -120,6 +131,7 @@ export async function runCommand(command, args) {
   if (command === 'validate') return validateCommand(args);
   if (command === 'events' || command === 'subscribe') return eventsCommand(args);
   if (command === 'threshold-attest' || command === 'threshold') return thresholdAttestCommand(args);
+  if (command === 'peer') return peerCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -2238,6 +2250,124 @@ Examples:
   const maxMs = args.duration ? Number(args.duration) : undefined;
   const maxEvents = args.count ? Number(args.count) : undefined;
   return runEventsSubscriber({ baseUrl: url, transport, events, format, maxMs, maxEvents });
+}
+
+async function peerCommand(args) {
+  const subcommand = args._[0] || 'info';
+
+  if (args.help || args._[0] === '--help' || args._[0] === 'help') {
+    console.log(`Usage: permabrain peer <subcommand> [options]
+
+Subcommands:
+  info                    Show local peer info (public articles)
+  status --url <url>     Show pull status for a remote peer
+  pull --url <url>      Pull missing/newer articles from a remote peer
+  diff --url <url>       Show key diff against a remote peer
+  bundle --url <url>     Pull raw bundle (without importing)
+
+Options:
+  --url, -u <url>       Remote peer base URL
+  --home <path>          PERMABRAIN_HOME override
+  --include-attestations true|false
+  --verify false          Skip signature verification when importing
+  --json                  Output JSON
+
+Examples:
+  permabrain peer info
+  permabrain peer status --url http://localhost:9000
+  permabrain peer pull --url http://localhost:9000
+  permabrain peer bundle --url http://localhost:9000 --output peer-bundle.json
+`);
+    return { ok: true, help: true };
+  }
+
+  const home = getHome();
+
+  if (subcommand === 'info') {
+    const info = peerInfo(home, { includeAttestations: args['include-attestations'] !== false });
+    if (args.json) printJson(info);
+    else console.log(peerInfoToMarkdown(info, { verbose: args.verbose }));
+    return info;
+  }
+
+  if (subcommand === 'status') {
+    const url = args.url || args.u;
+    if (!url) throw new Error('status requires --url');
+    const { createClient } = await import('./client.mjs');
+    const client = createClient({ baseUrl: url });
+    const info = await client.peerInfo();
+    const status = peerStatus([info], { home });
+    if (args.json) printJson(status);
+    else console.log(peerStatusToMarkdown(status));
+    return status;
+  }
+
+  if (subcommand === 'diff') {
+    const url = args.url || args.u;
+    if (!url) throw new Error('diff requires --url');
+    const { createClient } = await import('./client.mjs');
+    const client = createClient({ baseUrl: url });
+    const info = await client.peerInfo();
+    const localIndex = loadIndex(home);
+    const diff = diffPeerKeys(localIndex, info);
+    if (args.json) printJson(diff);
+    else {
+      console.log(`Diff against ${info.agentId || url}:`);
+      console.log(`  Pullable: ${diff.pulled.length} (${diff.newer.length} newer, ${diff.missing.length} missing)`);
+      console.log(`  Divergent: ${diff.divergent.length}`);
+      console.log(`  Unchanged: ${diff.unchanged}`);
+      if (args.verbose) {
+        for (const p of diff.pulled) console.log(`  + ${p.key} ${p.reason} ${p.remoteId || ''}`);
+        for (const d of diff.divergent) console.log(`  ! ${d.key} divergent local=${d.localId} remote=${d.remoteId}`);
+      }
+    }
+    return diff;
+  }
+
+  if (subcommand === 'pull') {
+    const url = args.url || args.u;
+    if (!url) throw new Error('pull requires --url');
+    const result = await pullFromPeer(url, {
+      home,
+      includeAttestations: args['include-attestations'] !== false,
+      verify: args.verify !== false,
+      skipDuplicates: args['skip-duplicates'] !== false
+    });
+    if (args.json) printJson(result);
+    else {
+      console.log(`Pulled from ${result.peer.agentId || url}:`);
+      console.log(`  Pullable: ${result.diff.pulled.length}`);
+      console.log(`  Imported: ${result.imported}`);
+      console.log(`  Skipped: ${result.skipped}`);
+      console.log(`  Failed: ${result.failed}`);
+    }
+    return result;
+  }
+
+  if (subcommand === 'bundle') {
+    const url = args.url || args.u;
+    if (!url) throw new Error('bundle requires --url');
+    const { createClient } = await import('./client.mjs');
+    const client = createClient({ baseUrl: url });
+    const result = await pullFromPeerAsBundle(client, {
+      home,
+      includeAttestations: args['include-attestations'] !== false
+    });
+    if (args.output) {
+      fs.writeFileSync(args.output, JSON.stringify(result.bundle, null, 2) + '\n');
+      console.log(`Wrote bundle to ${args.output}`);
+    } else if (args.json) {
+      printJson(result.bundle);
+    } else {
+      console.log(`Bundle from ${result.peer.agentId || url}:`);
+      console.log(`  Pullable: ${result.diff.pulled.length}`);
+      console.log(`  Articles: ${result.bundle.articles?.length || 0}`);
+      console.log(`  Attestations: ${result.bundle.attestations?.length || 0}`);
+    }
+    return result;
+  }
+
+  throw new Error(`Unknown peer subcommand: ${subcommand}`);
 }
 
 async function serveCommand(args) {

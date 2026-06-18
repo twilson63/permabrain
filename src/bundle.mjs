@@ -5,6 +5,7 @@ import { tagsToObject } from './tags.mjs';
 import { getTransport } from './transport.mjs';
 import { getHome, loadConfig } from './config.mjs';
 import { queryAttestationsForKey } from './attestation.mjs';
+import { updateArticleInCache } from './cache.mjs';
 
 const BUNDLE_VERSION = 'permabrain-bundle/1.0.0';
 
@@ -182,6 +183,7 @@ export async function importBundle(bundle, { transport, home, verify = true, ski
         continue;
       }
       const published = await t.submit(raw);
+      updateArticleInCache(h, parseAns104(raw));
       results.push({ type: 'article', key: articleKey, id: published?.id || id, ok: true, imported: true });
     } else if (entry.type === 'attestation') {
       const target = tags['Attestation-Target'];
