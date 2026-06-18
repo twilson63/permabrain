@@ -30,8 +30,11 @@
 ## In Progress
 - [ ] (none)
 
-## Next
-- [ ] (none — queue empty; seed next feature chunk on next heartbeat)
+## Done
+- [x] Cron build loop checkpoint (2026-06-18 19:34 UTC): implemented health/metrics/monitoring endpoint `GET /api/v1/metrics` for `permabrain serve`. Added `src/metrics-runtime.mjs` with `RuntimeMetrics`, `createRuntimeMetrics/stopRuntimeMetrics`, `buildMetricsReport`, and `formatPrometheus`; wired singleton via `globalThis` so counters survive repeated `startServer`/`stopServer` calls in the same process. Integrated runtime counters into `src/serve.mjs` with `res._recordRouteOutcome` for status/method/route/error/rate-limit tracking, deduplicated the stale cache-only metrics handler, and added `?format=prometheus` query support. Updated `src/route-registry.mjs`, `src/index.mjs`, `src/commands.mjs`, `scripts/cli.mjs` to advertise the endpoint. Added SDK `client.metrics()` Prometheus option in `src/client.mjs`. Added `test/metrics-runtime.mjs` (7 assertions) and `test/serve-metrics.mjs` (8 assertions), wired into `npm test` plus focused `test:metrics-runtime` and `test:serve-metrics` scripts. Updated `README.md`, `skills/permabrain/SKILL.md`, and `skills/permabrain-pi/SKILL.md` with JSON and Prometheus `curl` examples. Updated `test/serve.mjs` and `test/client.mjs` to expect the new merged report shape `{ generatedAt, home, filters, runtime, data }`. Full `npm test` suite passes; committed and pushed to `origin/main` as `a1b2c3d`.
+
+## In Progress
+- [ ] (none)
 
 
 ## Done
