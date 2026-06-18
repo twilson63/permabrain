@@ -1,7 +1,7 @@
 # PermaBrain Build Tasks
 
 ## Done
-- [x] Cron build loop checkpoint (2026-06-18 13:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `0cbfd55`. No implementation work picked. Seeded next chunk: HTTP API client SDK test coverage expansion for `client.articles()`, `client.article()`, `client.attest()`, `client.publish()`, and `client.search()`.
+- [x] Cron build loop checkpoint (2026-06-18 13:34 UTC): picked Next task — expanded HTTP API client SDK test coverage. Added `client.article()` and `client.articles()` aliases plus `client.createArticle()` alias in `src/client.mjs`; improved 404 mapping for missing articles/attestations in `src/serve.mjs`; added `test/client-sdk.mjs` (10 tests) covering `client.publish()`, `client.createArticle()`, `client.article()`, `client.articles()`, `client.attest()`, and `client.search()` with filters, auth, and error handling; wired `test:client-sdk` script and included suite in `npm test`. Full `npm test` suite passes; committed and pushed to `origin/main` as `63f314d`.
 - [x] Cron build loop checkpoint (2026-06-18 11:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `05c55e2`. No implementation work picked. Seeded next chunk: HTTP API route discovery / OpenAPI JSON endpoint for `permabrain serve`.
 - [x] Add HTTP API key-based auth middleware for `permabrain serve` endpoints, CLI `--api-key`/env var, and SDK `apiKey` option. Implemented `src/auth.mjs`, wired `--api-key`/`PERMABRAIN_API_KEY` into `serveCommand`, applied middleware in `createServer/startServer` for protected routes (public `/health`, event/stream routes exempted), and added SDK `createClient({ apiKey })` support. Added `test/auth.mjs` and `test/serve-auth.mjs` coverage and included them in `npm test`. Also fixed a pre-existing body double-read bug in `src/serve.mjs` route handlers and the undeclared `reader` variable in `src/events-client.mjs`. Full `npm test` suite passes; committed to `main` as `85583a1` on 2026-06-18 11:15 UTC.
 
@@ -12,7 +12,7 @@
 - [x] Wire HTTP API route discovery into `permabrain client` CLI and README: added `permabrain client routes` and `permabrain client openapi` actions in `src/commands.mjs`, updated `scripts/cli.mjs` help, documented `/api/v1/routes` + `/api/v1/openapi.json` in README, added `test/client-routes.mjs`, and wired it into `npm test` + `test:client-routes`. Full `npm test` suite passes; committed to `main` as `0cbfd55` on 2026-06-18 12:34 UTC.
 
 ## Next
-- [ ] Expand HTTP API client SDK test coverage for `client.articles()`, `client.article()`, `client.attest()`, `client.publish()`, and `client.search()` against `permabrain serve`.
+- [ ] (none — seed next feature chunk in next build loop)
 
 
 ## Done
