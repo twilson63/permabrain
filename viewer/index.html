@@ -198,6 +198,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .timeline-item .tl-meta{font-size:0.75rem;color:var(--muted)}
 /* Decryption panel */
 .decrypt-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+
+/* Interactive local filter panel */
+.filter-panel{padding:0.5rem 1rem;border-bottom:1px solid var(--border);display:none;flex-direction:column;gap:0.5rem}
+.filter-panel.active{display:flex}
+.filter-row{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center}
+.filter-row label{font-size:0.72rem;color:var(--muted);white-space:nowrap}
+.filter-row select,.filter-row input{padding:0.25rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;background:var(--bg);color:var(--text);min-width:8rem}
+.filter-row input[type="date"]{min-width:7rem;font-family:inherit}
+.filter-row select:focus,.filter-row input:focus{outline:none;border-color:var(--accent)}
+.filter-actions{display:flex;gap:0.4rem;margin-top:0.2rem}
+.filter-actions button{padding:0.2rem 0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:0.72rem;cursor:pointer}
+.filter-actions button:hover{border-color:var(--accent);color:var(--accent)}
+.filter-actions .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.filter-actions .btn-primary:hover{opacity:0.9;color:#fff}
+
+/* Article detail modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:110;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:1rem;border-bottom:1px solid var(--border)}
+.modal-header h2{font-size:1.1rem;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal-close{background:none;border:none;font-size:1.4rem;color:var(--muted);cursor:pointer;line-height:1}
+.modal-close:hover{color:var(--red)}
+.modal-body{flex:1;overflow-y:auto;padding:1.5rem}
+.modal-footer{padding:0.75rem 1rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;justify-content:flex-end}
+.modal-footer button{padding:0.35rem 0.8rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:0.8rem;cursor:pointer}
+.modal-footer button:hover{border-color:var(--accent);color:var(--accent)}
+.modal-loading{display:flex;align-items:center;justify-content:center;padding:3rem;color:var(--muted);font-size:0.85rem}
+
+/* Article list extra meta */
+.article-item .consensus{font-size:0.7rem;color:var(--green);margin-left:auto}
+.article-item .consensus.low{color:var(--red)}
+.article-item .consensus.moderate{color:var(--orange)}
 .decrypt-panel h3{font-size:1rem;margin-bottom:0.5rem}
 .decrypt-panel p{font-size:0.8rem;color:var(--muted);margin-bottom:0.75rem}
 .decrypt-panel input{width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text);margin-bottom:0.5rem}
@@ -242,6 +275,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <input type="text" class="search" id="search" placeholder="Search articles..." oninput="renderList()">
   <div class="filters" id="filters"></div>
 </div>
+<div class="filter-panel" id="filterPanel">
+  <div class="filter-row">
+    <label for="topicSelect">Topic</label>
+    <select id="topicSelect" onchange="window.onFilterChange()"><option value="">All topics</option></select>
+  </div>
+  <div class="filter-row">
+    <label for="filterAfter">After</label>
+    <input type="date" id="filterAfter" onchange="window.onFilterChange()">
+    <label for="filterBefore">Before</label>
+    <input type="date" id="filterBefore" onchange="window.onFilterChange()">
+  </div>
+  <div class="filter-row">
+    <label for="filterAuthor">Author</label>
+    <input type="text" id="filterAuthor" placeholder="Agent id" oninput="window.onFilterChange()">
+  </div>
+  <div class="filter-actions">
+    <button class="btn-primary" onclick="window.applyFilters()">Apply</button>
+    <button onclick="window.resetFilters()">Reset</button>
+  </div>
+</div>
 <div class="sort-bar">
   <label>Sort:</label>
   <button class="sort-btn active" data-sort="date" onclick="window.setSort('date')">Date</button>
@@ -263,6 +316,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 </div>
 </div>
 </div>
+
+<!-- Article detail modal -->
+<div class="modal-overlay" id="articleModal" onclick="window.closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2 id="modalTitle">Article</h2>
+      <button class="modal-close" onclick="window.closeModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div class="modal-loading"><div class="spinner"></div> Loading article...</div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="window.modalPrev()">&larr; Prev</button>
+      <button onclick="window.modalNext()">Next &rarr;</button>
+      <button class="btn-primary" onclick="window.closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { viewerDecrypt, isEncryptedEnvelope } from './crypto.mjs';
 window.viewerDecrypt = viewerDecrypt;
@@ -300,6 +372,13 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var statsLoading = false;
   var statsError = null;
   var localStatsData = null;  // live /api/v1/stats per key for selected article
+
+  // --- Interactive local list state ---
+  var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
+  var modalArticle = null;    // currently displayed article in modal
+  var modalHistory = null;
+  var modalConsensus = null;
+  var modalIndex = -1;        // position within localList.articles
 
   // --- Theme ---
   function applyTheme(t) {
@@ -456,9 +535,19 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   // --- Main sync ---
   async function syncAll() {
+    if (isLocalServer()) {
+      loading = false;
+      error = null;
+      lastSync = new Date();
+      document.getElementById('filterPanel').classList.add('active');
+      await fetchLocalList();
+      if (!selectedKey && !modalArticle) renderHome();
+      return;
+    }
     loading = true;
     error = null;
     renderStatus();
+    document.getElementById('filterPanel').classList.remove('active');
 
     // Load cached index from IndexedDB
     try {
@@ -668,6 +757,13 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   function renderFilters() {
+    var panel = document.getElementById('filterPanel');
+    if (isLocalListMode()) {
+      if (panel) panel.classList.add('active');
+      document.getElementById('filters').innerHTML = '';
+      return;
+    }
+    if (panel) panel.classList.remove('active');
     var topics = getTopics();
     var el = document.getElementById('filters');
     el.innerHTML = topics.map(function(k) {
@@ -678,6 +774,19 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   function renderStatus() {
+    var statusEl = document.getElementById('statusText');
+    var countEl = document.getElementById('statusCount');
+    if (isLocalListMode()) {
+      if (localList.loading) {
+        statusEl.innerHTML = '<span class="spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px"></span> Loading local list...';
+      } else if (localList.error) {
+        statusEl.innerHTML = '<span style="color:var(--red)">List error</span> <button class="refresh-btn" onclick="window.refresh()">Retry</button>';
+      } else {
+        statusEl.innerHTML = 'Local list <button class="refresh-btn" onclick="window.refresh()">&#x21BB;</button>';
+      }
+      countEl.textContent = (localList.total || 0) + ' article' + ((localList.total || 0) !== 1 ? 's' : '');
+      return;
+    }
     var statusEl = document.getElementById('statusText');
     var countEl = document.getElementById('statusCount');
     if (loading) {
@@ -692,6 +801,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   function sortedArticles() {
+    if (isLocalListMode()) return localList.articles;
     var filtered = articles.filter(function(a) {
       if (activeFilter === 'encrypted') return a.visibility === 'encrypted' || isEncryptedEnvelope(a._content || '');
       if (activeFilter !== 'all' && a.topic !== activeFilter) return false;
@@ -715,6 +825,12 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   function renderHome() {
     if (viewMode !== 'home') return;
+    if (isLocalListMode()) {
+      document.getElementById('main').innerHTML = '<div class="home"><h1>&#x1F9E0; <span>PermaBrain</span></h1><p class="home-subtitle">Local viewer — select an article from the sidebar, or use the filters above.</p><div class="stats-row">' +
+        '<div class="stat-card"><div class="stat-value">' + (localList.total || 0) + '</div><div class="stat-label">Articles</div></div>' +
+        '</div></div>';
+      return;
+    }
     var main = document.getElementById('main');
     if (error) {
       main.innerHTML = '<div class="empty-state"><h2>Could not load articles</h2><p>' + esc(error) + '</p><button class="btn-icon" onclick="window.refresh()">Retry</button></div>';
@@ -778,6 +894,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   function renderList() {
+    if (isLocalListMode()) {
+      renderLocalList();
+      return;
+    }
     var filtered = sortedArticles();
     var el = document.getElementById('articleList');
     if (!filtered.length && !loading) {
@@ -788,9 +908,9 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       var atts = attestations[a.key] || [];
       var cons = getConsensus(a.key);
       var attDot = atts.length ? '<span class="att-dot"></span>' : '<span class="att-dot unattested"></span>';
-      var attLabel = atts.length ? '<span style="color:var(--green);font-size:0.72rem">\u2713 ' + atts.length + '</span>' : '';
+      var attLabel = atts.length ? '<span style="color:var(--green);font-size:0.72rem">✓ ' + atts.length + '</span>' : '';
       var lockIcon = a.visibility === 'encrypted' || isEncryptedEnvelope(a._content || '') ? '&#128274; ' : '';
-      return '<div class="article-item' + (selectedKey === a.key ? ' selected' : '') + '" data-key="' + esc(a.key) + '" onclick="window.selectArticle(\'' + esc(a.key) + '\')">' +
+      return '<div class="article-item' + (selectedKey === a.key ? ' selected' : '') + '" data-key="' + esc(a.key) + '" onclick="window.selectArticle(\'' + esc(a.key) + '\')" title="Click for details">' +
         '<div class="key">' + esc(a.key) + '</div>' +
         '<div class="title">' + lockIcon + esc(a.title) + '</div>' +
         '<div class="meta">' + attDot + ' ' + esc(a.kind) + ' &middot; ' + esc(a.topic) + ' &middot; v' + a.version + ' ' + attLabel + '</div>' +
@@ -950,6 +1070,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   // --- Public API ---
   window.selectArticle = function(key) {
+    if (isLocalListMode()) {
+      var idx = localList.articles.findIndex(function(a) { return a.key === key; });
+      if (idx >= 0) window.openArticleModal(idx);
+      return;
+    }
     activeTab = 'content';
     viewMode = 'article';
     stopDashboardRefresh();
@@ -962,6 +1087,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     selectedKey = null;
     renderList();
     renderHome();
+    if (isLocalListMode()) fetchLocalList();
   };
 
   window.showDashboard = async function() {
@@ -1054,6 +1180,225 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     }
     if (viewMode === 'dashboard') renderDashboard();
   }
+
+  // --- Interactive local article list (uses /api/v1/list) ---
+  function isLocalListMode() {
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats';
+  }
+
+  function readFiltersFromDom() {
+    return {
+      topic: document.getElementById('topicSelect').value || undefined,
+      after: document.getElementById('filterAfter').value || undefined,
+      before: document.getElementById('filterBefore').value || undefined,
+      author: document.getElementById('filterAuthor').value.trim() || undefined,
+      q: (document.getElementById('search').value || '').toLowerCase() || undefined
+    };
+  }
+
+  async function fetchLocalList() {
+    if (!isLocalServer()) return;
+    localList.loading = true;
+    localList.error = null;
+    localList.filters = readFiltersFromDom();
+    localList.sort = activeSort;
+    renderList();
+    try {
+      var params = new URLSearchParams();
+      if (localList.filters.topic) params.set('topic', localList.filters.topic);
+      if (localList.filters.author) params.set('author', localList.filters.author);
+      if (localList.filters.after) params.set('after', localList.filters.after + 'T00:00:00.000Z');
+      if (localList.filters.before) params.set('before', localList.filters.before + 'T23:59:59.999Z');
+      params.set('sort', activeSort);
+      params.set('limit', '100');
+      var r = await fetch('/api/v1/list?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      localList.total = data.total || 0;
+      localList.articles = data.articles || [];
+      localList.loading = false;
+      populateTopicSelect(data.articles || []);
+    } catch(e) {
+      localList.error = e.message;
+      localList.loading = false;
+    }
+    renderList();
+    renderStatus();
+  }
+
+  function populateTopicSelect(articles) {
+    var sel = document.getElementById('topicSelect');
+    if (!sel) return;
+    var topics = new Set();
+    articles.forEach(function(a) { if (a.topic) topics.add(a.topic); });
+    var current = sel.value;
+    sel.innerHTML = '<option value="">All topics</option>' +
+      Array.from(topics).sort().map(function(t) { return '<option value="' + esc(t) + '"' + (t === current ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('');
+  }
+
+  function renderLocalList() {
+    var el = document.getElementById('articleList');
+    var items = localList.articles;
+    if (localList.filters.q) {
+      var q = localList.filters.q;
+      items = items.filter(function(a) {
+        return (a.title || '').toLowerCase().indexOf(q) !== -1 ||
+          (a.key || '').toLowerCase().indexOf(q) !== -1 ||
+          (a.topic || '').toLowerCase().indexOf(q) !== -1;
+      });
+    }
+    if (!items.length && !localList.loading) {
+      el.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:0.85rem">No articles match</div>';
+      return;
+    }
+    el.innerHTML = items.map(function(a, idx) {
+      var score = a.consensus && typeof a.consensus.score === 'number' ? a.consensus.score : null;
+      var scoreClass = score === null ? '' : (score >= 0.8 ? 'good' : (score >= 0.5 ? 'moderate' : 'low'));
+      var lockIcon = a.encrypted ? '&#128274; ' : '';
+      return '<div class="article-item' + (modalIndex === idx && modalArticle && modalArticle.key === a.key ? ' selected' : '') + '" data-key="' + esc(a.key) + '" onclick="window.openArticleModal(' + idx + ')" title="Click for details">' +
+        '<div class="key">' + esc(a.key) + '</div>' +
+        '<div class="title">' + lockIcon + esc(a.title || '(untitled)') + '</div>' +
+        '<div class="meta">' + esc(a.kind || '—') + ' · ' + esc(a.topic || '—') + ' · v' + (a.version || 1) + ' · attests ' + (a.attestationCount || 0) +
+        (score !== null ? ' <span class="consensus ' + scoreClass + '">score ' + score.toFixed(2) + '</span>' : '') +
+        '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  // --- Article detail modal (uses /api/v1/articles/:key) ---
+  window.openArticleModal = async function(idx) {
+    if (idx < 0 || idx >= localList.articles.length) return;
+    modalIndex = idx;
+    var summary = localList.articles[idx];
+    modalArticle = null;
+    modalHistory = null;
+    modalConsensus = null;
+    document.getElementById('articleModal').classList.add('show');
+    document.getElementById('modalTitle').textContent = summary.title || summary.key || 'Article';
+    document.getElementById('modalBody').innerHTML = '<div class="modal-loading"><div class="spinner"></div> Loading article...</div>';
+    try {
+      var [articleRes, historyRes, consensusRes] = await Promise.all([
+        fetch('/api/v1/articles/' + encodeURIComponent(summary.key)),
+        fetch('/api/v1/articles/' + encodeURIComponent(summary.key) + '/history').catch(function() { return { ok: false }; }),
+        fetch('/api/v1/articles/' + encodeURIComponent(summary.key) + '/consensus').catch(function() { return { ok: false }; })
+      ]);
+      if (!articleRes.ok) throw new Error('HTTP ' + articleRes.status);
+      modalArticle = await articleRes.json();
+      if (historyRes.ok) modalHistory = await historyRes.json();
+      if (consensusRes.ok) modalConsensus = await consensusRes.json();
+    } catch(e) {
+      document.getElementById('modalBody').innerHTML = '<div class="error-box">' + esc(e.message) + '</div>';
+      return;
+    }
+    renderModalBody();
+  };
+
+  window.closeModal = function(event) {
+    if (event && event.target !== document.getElementById('articleModal')) return;
+    document.getElementById('articleModal').classList.remove('show');
+    modalArticle = null;
+    modalHistory = null;
+    modalConsensus = null;
+    modalIndex = -1;
+    renderList();
+  };
+
+  window.modalNext = function() {
+    if (modalIndex < localList.articles.length - 1) window.openArticleModal(modalIndex + 1);
+  };
+
+  window.modalPrev = function() {
+    if (modalIndex > 0) window.openArticleModal(modalIndex - 1);
+  };
+
+  function renderModalBody() {
+    var a = modalArticle;
+    if (!a) return;
+    var contentHtml = '';
+    if (a.encrypted) {
+      contentHtml = buildDecryptPanel(a) + '<p style="color:var(--muted)">Content is encrypted. Enter a seed above to decrypt.</p>';
+    } else if (a.content) {
+      try {
+        contentHtml = (typeof marked !== 'undefined' && marked.parse) ? marked.parse(a.content) : '<pre>' + esc(a.content) + '</pre>';
+      } catch(e) {
+        contentHtml = '<pre>' + esc(a.content) + '</pre>';
+      }
+    } else {
+      contentHtml = '<p style="color:var(--muted)">Content not available.</p>';
+    }
+
+    var atts = modalConsensus && modalConsensus.attestations ? modalConsensus.attestations : (a.attestations || []);
+    var score = modalConsensus && typeof modalConsensus.score === 'number' ? modalConsensus.score : (a.consensus && typeof a.consensus.score === 'number' ? a.consensus.score : null);
+    var totalAtts = atts.length;
+    var badgeClass = totalAtts ? 'badge-valid' : 'badge-pending';
+    var badgeLabel = totalAtts ? '&#10003; Attested' : 'Unattested';
+
+    var attCards = atts.map(function(att) {
+      var opClass = 'opinion-' + (att.opinion || 'valid').replace(' ', '-');
+      var shortAgent = (att.agentId || att.authorAgentId || '').length > 30 ? (att.agentId || att.authorAgentId || '').substring(0, 30) + '...' : (att.agentId || att.authorAgentId || '');
+      return '<div class="attestation-card">' +
+        '<span class="opinion ' + opClass + '">' + esc((att.opinion || 'valid').toUpperCase()) + '</span>' +
+        '<span class="confidence">confidence: ' + (att.confidence || 0) + '</span>' +
+        (att.createdAt ? '<span class="date">' + new Date(att.createdAt).toLocaleDateString() + '</span>' : '') +
+        '<div class="reason">' + esc(att.reason || '') + '</div>' +
+        '<div class="agent">by ' + esc(shortAgent) + '</div>' +
+        '</div>';
+    }).join('');
+
+    var scoreClass = score === null ? '' : (score >= 0.8 ? 'good' : (score >= 0.5 ? 'moderate' : 'low'));
+    var breakdown = '';
+    if (modalConsensus && modalConsensus.breakdown && Object.keys(modalConsensus.breakdown).length) {
+      breakdown = '<div class="breakdown">' + Object.keys(modalConsensus.breakdown).map(function(op) {
+        return '<div class="breakdown-item"><div class="count">' + modalConsensus.breakdown[op] + '</div><div class="name">' + esc(op) + '</div></div>';
+      }).join('') + '</div>';
+    }
+
+    var versions = (modalHistory && modalHistory.timeline) ? modalHistory.timeline.filter(function(e) { return e.type === 'version'; }) : [];
+    var versionHtml = versions.length ? '<h3>Version History</h3><ul class="version-list">' + versions.slice().reverse().map(function(e) {
+      var v = e.version || {};
+      return '<li class="version-item"><span class="version-num">v' + (v.version || '—') + '</span> <a class="version-link" href="https://arweave.net/' + (v.id || '') + '" target="_blank">' + (v.id || '').substring(0, 12) + '…</a> <span class="version-date">' + fmtTs(v.updatedAt) + '</span></li>';
+    }).join('') + '</ul>' : '';
+
+    document.getElementById('modalBody').innerHTML =
+      '<div class="article-header">' +
+        '<div class="badges">' +
+          '<span class="badge badge-kind">' + esc(a.kind || '—') + '</span>' +
+          '<span class="badge badge-topic">' + esc(a.topic || '—') + '</span>' +
+          '<span class="badge ' + badgeClass + '">' + badgeLabel + '</span>' +
+        '</div>' +
+        '<h1>' + esc(a.title || '(untitled)') + '</h1>' +
+        '<div class="canonical">' + esc(a.key || '') + '</div>' +
+        '<div class="version">v' + (a.version || 1) + ' · ' + esc(a.sourceName || '') + (a.updatedAt ? ' · ' + new Date(a.updatedAt).toLocaleDateString() : '') + '</div>' +
+        '<div class="links">' +
+          '<a href="https://arweave.net/' + (a.id || '') + '" target="_blank">&#x1F517; Arweave</a>' +
+          '<a href="https://viewblock.io/arweave/tx/' + (a.id || '') + '" target="_blank">&#x1F4CA; Viewblock</a>' +
+          (a.sourceUrl ? '<a href="' + esc(a.sourceUrl) + '" target="_blank">&#x1F4C4; Source</a>' : '') +
+        '</div>' +
+      '</div>' +
+      '<h3>Content</h3>' + contentHtml +
+      '<h3>Attestations (' + totalAtts + ')</h3>' + (attCards || '<p style="color:var(--muted)">No attestations yet.</p>') +
+      '<div class="consensus-box" style="margin-top:1rem"><div class="score ' + scoreClass + '">' + (score !== null ? score.toFixed(2) : 'N/A') + '</div><div class="label">Consensus Score</div>' + breakdown + '</div>' +
+      versionHtml;
+  }
+
+  window.onFilterChange = function() {
+    if (isLocalListMode()) fetchLocalList();
+  };
+
+  window.applyFilters = function() {
+    if (isLocalListMode()) fetchLocalList();
+  };
+
+  window.resetFilters = function() {
+    document.getElementById('topicSelect').value = '';
+    document.getElementById('filterAfter').value = '';
+    document.getElementById('filterBefore').value = '';
+    document.getElementById('filterAuthor').value = '';
+    document.getElementById('search').value = '';
+    activeFilter = 'all';
+    if (isLocalListMode()) fetchLocalList();
+    else { renderFilters(); renderList(); }
+  };
 
   function renderHistoryTab(key) {
     var localHistory = isLocalServer() && historyData[key];
@@ -1297,8 +1642,13 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   window.setFilter = function(topic) {
     activeFilter = topic;
-    renderFilters();
-    renderList();
+    if (isLocalListMode()) {
+      document.getElementById('topicSelect').value = topic === 'all' ? '' : topic;
+      fetchLocalList();
+    } else {
+      renderFilters();
+      renderList();
+    }
   };
 
   window.setSort = function(sort) {
@@ -1306,7 +1656,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     document.querySelectorAll('.sort-btn').forEach(function(b) {
       b.classList.toggle('active', b.dataset.sort === sort);
     });
-    renderList();
+    if (isLocalListMode()) fetchLocalList();
+    else renderList();
   };
 
   window.toggleSidebar = function() {
@@ -1315,33 +1666,41 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   };
 
   window.refresh = function() {
-    syncAll();
+    if (isLocalListMode()) fetchLocalList();
+    else syncAll();
   };
 
   window.decryptSelected = async function() {
-    var a = articles.find(function(x) { return x.key === selectedKey; });
+    var a = modalArticle;
+    if (!a && selectedKey) a = articles.find(function(x) { return x.key === selectedKey; });
     if (!a) return;
     var input = document.getElementById('decryptSeed');
     var seed = input ? input.value.trim() : '';
     if (!seed) {
       a._decryptError = 'Enter a seed to decrypt';
-      renderArticle(selectedKey);
+      if (modalArticle) renderModalBody(); else renderArticle(selectedKey);
       return;
     }
     a._decryptError = null;
     await tryDecryptArticle(a, seed);
+    if (modalArticle) renderModalBody();
   };
 
   // --- Boot ---
   renderFilters();
-  renderList();
+  if (isLocalServer()) {
+    renderHome();
+    fetchLocalList();
+  } else {
+    renderList();
+  }
   // Pre-render dashboard if already in dashboard mode (e.g., page reload)
   if (viewMode === 'dashboard') window.showDashboard();
   openDB().then(function() {
-    syncAll();
+    if (!isLocalServer()) syncAll();
   }).catch(function(err) {
     console.error('IndexedDB open failed:', err);
-    syncAll();
+    if (!isLocalServer()) syncAll();
   });
 })();
 </script>
