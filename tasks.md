@@ -20,8 +20,16 @@
 ## Done
 - [x] Document API-key auth, `POST /api/v1/completion`, and bundle/history import endpoints in README and skill docs. Updated README.md with API-key auth section, public endpoints, key delivery methods, and new HTTP routes; expanded the SDK snippet to cover `createClient({ apiKey })`, bundle/history import/export, and `client.completion()`. Updated `skills/permabrain/SKILL.md` with an HTTP API and Authentication section and `skills/permabrain-pi/SKILL.md` with an HTTP Client SDK section. Synced package-internal skill docs under `permabrain/skills/`. Full `npm test` suite passes; committed to `main` as `9ea6bbf` and pushed to `origin/main` on 2026-06-18 15:34 UTC.
 
+- [x] Cron build loop checkpoint (2026-06-18 17:04 UTC): queue empty at start; seeded and implemented HTTP API rate limiting for `permabrain serve`. Added `src/rate-limit.mjs` token-bucket per-client limiter with `--rate-limit`, `--rate-window`, `--rate-burst`, `--trust-proxy`, and equivalent env vars. Wired middleware into `src/serve.mjs` for all non-stream routes, returning 429 with `Retry-After` and adding `RateLimit-*` headers on every response. Updated `src/commands.mjs`, `scripts/cli.mjs`, `src/index.mjs`, and `test/module-import.mjs` for new exports. Added `test/rate-limit.mjs` unit tests and `test/serve-rate-limit.mjs` HTTP integration tests, wired into `npm test` and focused scripts. Documented rate limiting in `README.md` and both skill docs. Full `npm test` suite passes; committed and pushed to `origin/main` as `070b02a`.
+
+## Done
+- [x] Cron build loop checkpoint (2026-06-18 17:34 UTC): implemented structured request logging / access logs + request-ID tracing for `permabrain serve`. Added `src/request-log.mjs` with a bounded in-memory ring buffer, `X-Request-ID` propagation (header assigned or preserved, returned on every response), sensitive header/query redaction, optional trust-proxy client-IP extraction, and `short`/`combined`/`json`/`none` access-log formats. Wired the logger into `src/serve.mjs` (middleware + `GET /api/v1/log/requests` endpoint with JSON/markdown responses + auth), `src/commands.mjs`, `scripts/cli.mjs` (`--access-log`, `--request-log-max-entries`, env vars), `src/route-registry.mjs` (endpoint metadata), and `src/index.mjs` (barrel exports). Added `src/client.mjs` SDK methods `client.requests()` and `client.requestsMarkdown()`. Added `test/request-log.mjs` (unit) and `test/serve-request-log.mjs` (integration) coverage, wired into `npm test` and focused scripts. Documented request logging in `README.md` and both skill docs. Full `npm test` suite passes; committed and pushed to `origin/main` as `8f726f7`.
+
+## In Progress
+- [ ] (none)
+
 ## Next
-- [ ] (none — queue empty; seed next feature chunk on next heartbeat)
+- [ ] (none)
 
 
 ## Done
