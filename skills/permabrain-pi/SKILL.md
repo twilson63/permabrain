@@ -105,7 +105,7 @@ Authentication methods supported by the server:
 - `?api-key=<api-key>`
 - JSON body `apiKey` field
 
-Public endpoints that never require a key: `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`.
+Public endpoints that never require a key: `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`. CORS is open by default; use `--cors-origin` or `PERMABRAIN_CORS_ORIGIN` to restrict browser clients.
 
 ## Batch Operations
 

@@ -52,6 +52,23 @@ import { buildOpenApiDocument, listRoutes } from './route-registry.mjs';
 
 const DEFAULT_PORT = 8765;
 const DEFAULT_SSE_HEARTBEAT_MS = 30000;
+const CORS_ALLOWED_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
+const CORS_ALLOWED_HEADERS = 'Content-Type, Authorization, X-Api-Key, X-Requested-With';
+
+function resolveAllowedOrigin(requestOrigin, configuredOrigin) {
+  if (!configuredOrigin || configuredOrigin === '*') return '*';
+  if (!requestOrigin) return configuredOrigin;
+  if (requestOrigin === configuredOrigin) return configuredOrigin;
+  return null;
+}
+
+function applyCorsHeaders(res, allowedOrigin) {
+  if (!allowedOrigin) return;
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods', CORS_ALLOWED_METHODS);
+  res.setHeader('Access-Control-Allow-Headers', CORS_ALLOWED_HEADERS);
+  res.setHeader('Vary', 'Origin');
+}
 
 function sendJson(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json' });
@@ -233,6 +250,16 @@ async function handleRequest(req, res, home, options = {}) {
   const pathname = url.pathname;
 
   const route = pathname.replace(/\/$/, '') || '/';
+
+  const requestOrigin = req.headers.origin || null;
+  const allowedOrigin = resolveAllowedOrigin(requestOrigin, options.corsOrigin);
+  applyCorsHeaders(res, allowedOrigin);
+
+  if (method === 'OPTIONS') {
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.writeHead(204);
+    return res.end();
+  }
 
   try {
     let body = null;
@@ -969,7 +996,8 @@ export function createServer(options = {}) {
   const streamTransport = normalizeStreamTransport(options.streamTransport || process.env.PERMABRAIN_STREAM_TRANSPORT);
   const apiKey = options.apiKey || process.env.PERMABRAIN_API_KEY || undefined;
   const apiKeyAuth = apiKey ? createApiKeyAuth({ apiKey }) : null;
-  const serverOptions = { ...options, home, streamTransport, apiKeyAuth };
+  const corsOrigin = options.corsOrigin || process.env.PERMABRAIN_CORS_ORIGIN || '*';
+  const serverOptions = { ...options, home, streamTransport, apiKeyAuth, corsOrigin };
   const server = http.createServer((req, res) => handleRequest(req, res, home, serverOptions));
 
   const wss = new WebSocketServer({ noServer: true });

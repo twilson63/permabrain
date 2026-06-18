@@ -497,7 +497,7 @@ When the server is started with `--api-key` or `PERMABRAIN_API_KEY`, protected e
 - `?api-key=<key>` query parameter
 - `apiKey` field in a JSON POST body
 
-Public endpoints (no key required) are `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, and `/api/v1/articles/stream`.
+Public endpoints (no key required) are `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, and `/api/v1/articles/stream`. CORS is open by default; restrict it with `--cors-origin <origin>` or `PERMABRAIN_CORS_ORIGIN`.
 
 Useful REST endpoints beyond the basics:
 

@@ -253,7 +253,7 @@ const { score } = await client.consensus('person/ada-lovelace');
 ### Local HTTP API
 
 ```sh
-permabrain serve [--port 8765] [--stream-transport ws|sse] [--api-key <key>]
+permabrain serve [--port 8765] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>]
 ```
 
 Exposes the agent API over REST.
@@ -273,6 +273,19 @@ Pass the key in any of these ways:
 - Header: `X-Api-Key: <api-key>`
 - Query parameter: `?api-key=<api-key>`
 - JSON body field: `{ "apiKey": "<api-key>" }` (for POST requests)
+
+#### CORS
+
+By default `permabrain serve` sends open CORS headers (`Access-Control-Allow-Origin: *`) so browser viewers and SDK clients on other origins can call the API. Preflight `OPTIONS` requests are handled automatically.
+
+Restrict to a single trusted origin:
+
+```sh
+permabrain serve --cors-origin http://trusted.example.com
+PERMABRAIN_CORS_ORIGIN=http://trusted.example.com permabrain serve
+```
+
+When a specific origin is configured, the server only returns `Access-Control-Allow-Origin` for matching `Origin` headers.
 
 ```sh
 # Start the server with an API key

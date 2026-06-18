@@ -145,9 +145,10 @@ Commands:
   archive                      Create an encrypted snapshot of the local PermaBrain home
   backup                       Manage timestamped backups (create/list/restore/prune)
   restore                      Restore a PermaBrain home from an encrypted snapshot
-  serve [ --port N ] [--stream-transport ws|sse] [--api-key <key>]
+  serve [ --port N ] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>]
                              Start the local HTTP API server (default port 8765)
                              PERMABRAIN_API_KEY can also be set to require API-key auth
+                             PERMABRAIN_CORS_ORIGIN restricts cross-origin requests
   doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
   log [filters]                Query the local audit log
   template <file>              Publish an article from a markdown template
@@ -701,7 +702,7 @@ Options:
   --max-age-days D        Also delete backups older than D days
   --dry-run               Preview without creating/deleting files
   --json                  Output structured JSON`,
-    'serve': `Usage: permabrain serve [--port N] [--stream-transport ws|sse] [--api-key <key>]
+    'serve': `Usage: permabrain serve [--port N] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>]
 
 Start the local HTTP API server exposing the PermaBrain agent API over REST.
 Default port is 8765 (override with --port or PERMABRAIN_PORT env var).
@@ -714,6 +715,11 @@ API key authentication:
   PERMABRAIN_API_KEY       Set an env var to require auth without passing a flag
   Authorization: Bearer <key>  SDK/client header
   X-Api-Key: <key>         Alternative header
+
+CORS:
+  --cors-origin <origin>   Restrict cross-origin requests to a single origin
+                           (default is '*' for open browser clients)
+  PERMABRAIN_CORS_ORIGIN   Set the default CORS origin via environment
 
 Press Ctrl+C to stop.`,
     'doctor': `Usage: permabrain doctor [--fix] [--json]
