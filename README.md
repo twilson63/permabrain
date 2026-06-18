@@ -287,6 +287,28 @@ PERMABRAIN_CORS_ORIGIN=http://trusted.example.com permabrain serve
 
 When a specific origin is configured, the server only returns `Access-Control-Allow-Origin` for matching `Origin` headers.
 
+#### Rate limiting
+
+`permabrain serve` can apply a token-bucket rate limit per client to protect public endpoints:
+
+```sh
+permabrain serve --rate-limit 60 --rate-window 60000 --rate-burst 10
+```
+
+- `--rate-limit <max>` — allowed requests per window (default 60)
+- `--rate-window <ms>` — sliding window in milliseconds (default 60000)
+- `--rate-burst <n>` — extra burst capacity (default 10)
+
+Set via environment variables:
+
+```sh
+PERMABRAIN_RATE_LIMIT=60
+PERMABRAIN_RATE_WINDOW=60000
+PERMABRAIN_RATE_BURST=10
+```
+
+When the limit is exceeded the server returns `429 Too Many Requests` with a `Retry-After` header. Rate-limit state is keyed by client IP; use `--trust-proxy` (or `PERMABRAIN_TRUST_PROXY=true`) when the server sits behind a reverse proxy so the `X-Forwarded-For` header is honored. Live event/stream routes (`/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`) are exempt from HTTP rate limiting so long-lived connections are not disrupted.
+
 ```sh
 # Start the server with an API key
 PERMABRAIN_API_KEY=pb_xxx permabrain serve

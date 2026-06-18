@@ -2564,8 +2564,12 @@ async function serveCommand(args) {
   const streamTransport = args['stream-transport'] || args.streamTransport || undefined;
   const apiKey = args['api-key'] || process.env.PERMABRAIN_API_KEY || undefined;
   const corsOrigin = args['cors-origin'] || process.env.PERMABRAIN_CORS_ORIGIN || undefined;
+  const rateLimit = args['rate-limit'] !== undefined ? args['rate-limit'] : (process.env.PERMABRAIN_RATE_LIMIT !== undefined ? process.env.PERMABRAIN_RATE_LIMIT : undefined);
+  const rateWindow = args['rate-window'] || process.env.PERMABRAIN_RATE_WINDOW || undefined;
+  const rateBurst = args['rate-burst'] || process.env.PERMABRAIN_RATE_BURST || undefined;
+  const trustProxy = args['trust-proxy'] === true || args['trust-proxy'] === 'true' || process.env.PERMABRAIN_TRUST_PROXY === 'true' || undefined;
   const home = getHome();
-  const result = await startServer({ home, port, streamTransport, apiKey, corsOrigin });
+  const result = await startServer({ home, port, streamTransport, apiKey, corsOrigin, rateLimit, rateWindow, rateBurst, trustProxy });
   console.log(`PermaBrain HTTP API serving at http://localhost:${result.port}`);
   console.log(`Home: ${result.home}`);
   console.log(`Agent: ${result.agentId || 'unknown'}`);
@@ -2576,6 +2580,15 @@ async function serveCommand(args) {
     console.log(`CORS restricted to origin: ${corsOrigin}`);
   } else {
     console.log('CORS: open to all origins (*)');
+  }
+  if (rateLimit !== undefined) {
+    if (rateLimit === 0 || rateLimit === '0') {
+      console.log('Rate limiting: disabled');
+    } else {
+      console.log(`Rate limiting: ${rateLimit} req/${(rateWindow || 60000) / 1000}s window, burst ${rateBurst || 10}`);
+    }
+  } else {
+    console.log('Rate limiting: disabled by default');
   }
 
 

@@ -107,6 +107,14 @@ Authentication methods supported by the server:
 
 Public endpoints that never require a key: `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`. CORS is open by default; use `--cors-origin` or `PERMABRAIN_CORS_ORIGIN` to restrict browser clients.
 
+Rate limiting is disabled by default. Enable it when exposing a server publicly:
+
+```sh
+permabrain serve --rate-limit 60 --rate-window 60000 --rate-burst 10
+```
+
+Environment equivalents: `PERMABRAIN_RATE_LIMIT`, `PERMABRAIN_RATE_WINDOW`, `PERMABRAIN_RATE_BURST`. Use `PERMABRAIN_TRUST_PROXY=true` (or `--trust-proxy`) behind a reverse proxy so `X-Forwarded-For` is used as the client identifier. Event/stream routes are exempt from HTTP rate limiting.
+
 ## Batch Operations
 
 ### Batch Attest — attest to multiple articles in one call

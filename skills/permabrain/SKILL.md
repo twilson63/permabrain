@@ -159,6 +159,28 @@ await api.init({ transport: 'arweave' });
 const article = await api.publish({ ... }); // uploads automatically
 ```
 
+## `permabrain serve` HTTP API
+
+The CLI can expose the agent API over HTTP:
+
+```sh
+node scripts/cli.mjs serve --port 8765 \
+  --api-key $PERMABRAIN_API_KEY \
+  --cors-origin https://viewer.example.com \
+  --rate-limit 60 --rate-window 60000 --rate-burst 10
+```
+
+Useful flags:
+
+- `--api-key` / `PERMABRAIN_API_KEY` — require authentication on protected routes
+- `--cors-origin` / `PERMABRAIN_CORS_ORIGIN` — restrict CORS to a specific origin
+- `--rate-limit` / `PERMABRAIN_RATE_LIMIT` — max requests per window per client
+- `--rate-window` / `PERMABRAIN_RATE_WINDOW` — window length in milliseconds
+- `--rate-burst` / `PERMABRAIN_RATE_BURST` — extra burst allowance
+- `--trust-proxy` / `PERMABRAIN_TRUST_PROXY` — honor `X-Forwarded-For` behind reverse proxies
+
+Public endpoints: `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`. Event/stream routes are exempt from HTTP rate limiting.
+
 ## CLI Commands (Fallback)
 
 If the API is unavailable, use the CLI at `/home/node/.openclaw/workspace/permabrain-project/`:

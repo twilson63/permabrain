@@ -49,6 +49,7 @@ import { api } from './agent-api.mjs';
 import { getEventBus, subscribeEvents, emitEvent, broadcastToWebSockets, writeSseEvent } from './events.mjs';
 import { createApiKeyAuth, generateApiKey } from './auth.mjs';
 import { buildOpenApiDocument, listRoutes } from './route-registry.mjs';
+import { createRateLimiter, DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS, DEFAULT_RATE_LIMIT_BURST } from './rate-limit.mjs';
 
 const DEFAULT_PORT = 8765;
 const DEFAULT_SSE_HEARTBEAT_MS = 30000;
@@ -70,9 +71,23 @@ function applyCorsHeaders(res, allowedOrigin) {
   res.setHeader('Vary', 'Origin');
 }
 
-function sendJson(res, status, body) {
-  res.writeHead(status, { 'content-type': 'application/json' });
+function sendJson(res, status, body, extraHeaders = {}) {
+  const headers = { ...(res.rateLimitHeaders || {}), ...extraHeaders };
+  res.writeHead(status, { 'content-type': 'application/json', ...headers });
   res.end(JSON.stringify(body, null, 2));
+}
+
+function sendError(res, status, message, extraHeaders = {}) {
+  const headers = { ...(res.rateLimitHeaders || {}), ...extraHeaders };
+  sendJson(res, status, { error: message, status }, headers);
+}
+
+function rateLimitHeaders(result) {
+  const headers = {};
+  if (result.limit >= 0) headers['RateLimit-Limit'] = String(result.limit);
+  if (result.remaining >= 0) headers['RateLimit-Remaining'] = String(result.remaining);
+  if (result.resetAt > 0) headers['RateLimit-Reset'] = String(Math.ceil(result.resetAt / 1000));
+  return headers;
 }
 
 const wsClients = new Set();
@@ -118,9 +133,7 @@ function maybeStartEventSubscription() {
   }
 }
 
-function sendError(res, status, message) {
-  sendJson(res, status, { error: message, status });
-}
+
 
 function normalizeStreamTransport(value) {
   if (value === 'ws' || value === 'websocket' || value === 'ws-only') return 'ws';
@@ -259,6 +272,22 @@ async function handleRequest(req, res, home, options = {}) {
     res.setHeader('Access-Control-Max-Age', '86400');
     res.writeHead(204);
     return res.end();
+  }
+
+  // Rate limiting applies to all HTTP routes except stream upgrade endpoints
+  // (SSE/WebSocket) which maintain long-lived connections.
+  const rateLimiter = options.rateLimiter;
+  const isStreamRoute = route === '/api/v1/events/stream' || route === '/api/v1/articles/stream' || route === '/api/v1/events/ws';
+  if (rateLimiter && !isStreamRoute) {
+    const limitResult = rateLimiter.check(req);
+    const rlHeaders = rateLimitHeaders(limitResult);
+    applyCorsHeaders(res, allowedOrigin);
+    if (!limitResult.ok) {
+      const retryHeaders = { ...rlHeaders, 'Retry-After': String(limitResult.retryAfter) };
+      return sendError(res, 429, limitResult.error, retryHeaders);
+    }
+    // Attach rate-limit headers to all successful responses below.
+    res.rateLimitHeaders = rlHeaders;
   }
 
   try {
@@ -997,7 +1026,25 @@ export function createServer(options = {}) {
   const apiKey = options.apiKey || process.env.PERMABRAIN_API_KEY || undefined;
   const apiKeyAuth = apiKey ? createApiKeyAuth({ apiKey }) : null;
   const corsOrigin = options.corsOrigin || process.env.PERMABRAIN_CORS_ORIGIN || '*';
-  const serverOptions = { ...options, home, streamTransport, apiKeyAuth, corsOrigin };
+
+  // Rate limiting: disabled by default unless an option/env is provided. `0`
+  // disables the limiter entirely.
+  const rateLimitMax = options.rateLimit !== undefined
+    ? options.rateLimit
+    : (process.env.PERMABRAIN_RATE_LIMIT !== undefined ? process.env.PERMABRAIN_RATE_LIMIT : undefined);
+  const rateLimitWindow = options.rateWindow || process.env.PERMABRAIN_RATE_WINDOW;
+  const rateLimitBurst = options.rateBurst || process.env.PERMABRAIN_RATE_BURST;
+  const trustProxy = options.trustProxy || process.env.PERMABRAIN_TRUST_PROXY;
+  const rateLimiter = rateLimitMax === 0 || rateLimitMax === '0'
+    ? null
+    : createRateLimiter({
+        max: rateLimitMax,
+        windowMs: rateLimitWindow,
+        burst: rateLimitBurst,
+        trustProxy
+      });
+
+  const serverOptions = { ...options, home, streamTransport, apiKeyAuth, corsOrigin, rateLimiter };
   const server = http.createServer((req, res) => handleRequest(req, res, home, serverOptions));
 
   const wss = new WebSocketServer({ noServer: true });

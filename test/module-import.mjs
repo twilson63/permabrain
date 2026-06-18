@@ -220,11 +220,14 @@ import { generateCompletion, listSupportedShells } from '../src/index.mjs';
 
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
+import { createRateLimiter, getClientIdentifier } from '../src/index.mjs';
 assert.equal(typeof createServer, 'function', 'createServer');
 assert.equal(typeof startServer, 'function', 'startServer');
 assert.equal(typeof stopServer, 'function', 'stopServer');
 assert.equal(typeof createClient, 'function', 'createClient');
-console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client)');
+assert.equal(typeof createRateLimiter, 'function', 'createRateLimiter');
+assert.equal(typeof getClientIdentifier, 'function', 'getClientIdentifier');
+console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client + rate limit)');
 
 // --- 5. package.json exports field ---
 console.log('5. package.json exports field');
