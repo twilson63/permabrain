@@ -1,3 +1,5 @@
+import { subscribeEventsOverSse, subscribeEventsOverWebSocket } from './events-client.mjs';
+
 /**
  * PermaBrain HTTP Client SDK
  *
@@ -273,7 +275,10 @@ export function createClient(options = {}) {
     createThresholdAttestation: (body) => request('POST', '/api/v1/threshold-attest', body),
 
     /** @returns {Promise<Object>} */
-    addThresholdSigner: (body) => request('POST', '/api/v1/threshold-attest/sign', body),
+    addThresholdSigner: (signer) => {
+      const { envelopeId, agentId, signature, signatureType, publicKey } = signer;
+      return request('POST', '/api/v1/threshold-attest/sign', { envelopeId, signer: { agentId, signature, signatureType, publicKey } });
+    },
 
     /** @returns {Promise<Object>} */
     finalizeThresholdAttestation: (body) => request('POST', '/api/v1/threshold-attest/finalize', body),
@@ -298,6 +303,49 @@ export function createClient(options = {}) {
 
     /** @returns {Promise<Object>} */
     subscribe: (opts = {}) => request('GET', `/api/v1/events${toQuery(opts)}`),
+
+    /**
+     * Subscribe to the live event stream (SSE by default, WebSocket optional).
+     * Returns an async iterator of event objects plus a cancel() method.
+     *
+     * @param {Object} [opts]
+     * @param {'sse'|'ws'} [opts.transport='sse']
+     * @param {string|string[]} [opts.events]
+     * @param {AbortSignal} [opts.signal]
+     * @returns {{[Symbol.asyncIterator]: function, cancel: function}}
+     */
+    streamEvents: (opts = {}) => {
+      const transport = opts.transport || 'sse';
+      const urlPath = transport === 'ws' || transport === 'websocket' ? '/api/v1/events/ws' : '/api/v1/events/stream';
+      const common = { baseUrl, apiKey: options.apiKey, events: opts.events, signal: opts.signal };
+      if (transport === 'ws' || transport === 'websocket') return subscribeEventsOverWebSocket(common);
+      return subscribeEventsOverSse({ ...common, url: urlPath });
+    },
+
+    /**
+     * Subscribe to the live article/attestation query stream (SSE by default).
+     *
+     * @param {Object} [opts]
+     * @param {'sse'|'ws'} [opts.transport='sse']
+     * @param {string|string[]} [opts.topic]
+     * @param {string|string[]} [opts.kind]
+     * @param {string|string[]} [opts.agent]
+     * @param {string|string[]} [opts.key]
+     * @param {string|string[]} [opts.events]
+     * @param {AbortSignal} [opts.signal]
+     * @returns {{[Symbol.asyncIterator]: function, cancel: function}}
+     */
+    streamQuery: (opts = {}) => {
+      const transport = opts.transport || 'sse';
+      const urlPath = '/api/v1/articles/stream';
+      const common = { baseUrl, apiKey: options.apiKey, signal: opts.signal };
+      const params = { topic: opts.topic, kind: opts.kind, agent: opts.agent, key: opts.key, events: opts.events };
+      if (transport === 'ws' || transport === 'websocket') {
+        const wsUrl = baseUrl.replace(/^http/, 'ws') + urlPath + toQuery(params);
+        return subscribeEventsOverWebSocket({ ...common, url: wsUrl });
+      }
+      return subscribeEventsOverSse({ ...common, url: urlPath + toQuery(params) });
+    },
 
     /** @returns {Promise<Object>} */
     subscribeQuery: (opts = {}) => request('GET', `/api/v1/articles/stream${toQuery(opts)}`),

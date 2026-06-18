@@ -16,6 +16,7 @@
  */
 
 import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
+import { loadIndex } from './cache.mjs';
 import { ensureIdentity, loadIdentity } from './keys.mjs';
 import { publishArticle, queryArticles, getArticle } from './article.mjs';
 import { attestArticle } from './attestation.mjs';
@@ -255,7 +256,7 @@ const api = {
     if (!topic) throw new Error('topic is required');
     if (!sourceUrl) throw new Error('sourceUrl is required');
     const normalizedVisibility = visibility || (encryptedFor?.length ? 'encrypted' : 'public');
-    const result = await publishArticle({ content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, encryptedFor, visibility: normalizedVisibility, ...rest });
+    const result = await publishArticle({ content, kind, topic, sourceUrl, useHyperbeam, useHyperbeamReference, encryptedFor, visibility: normalizedVisibility, ...rest, home: this._home });
     return { summary: result.summary, item: result.item, reference: result.reference, encrypted: result.encrypted, encryptionEnvelope: result.encryptionEnvelope };
   },
 
@@ -1714,7 +1715,10 @@ const api = {
    * @returns {Object} Updated envelope
    */
   addThresholdSigner(envelopeId, signer) {
-    return import('./threshold-attestation.mjs').then(({ addCoSigner }) => addCoSigner(envelopeId, signer));
+    return import('./threshold-attestation.mjs').then(({ addCoSigner }) => {
+      const updated = addCoSigner(envelopeId, signer);
+      return updated;
+    });
   },
 
   /**

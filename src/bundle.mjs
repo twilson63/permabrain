@@ -45,7 +45,8 @@ function normalizeRaw(entry) {
 
 export async function exportBundle({ key, id, includeAttestations = true, includeVersions = true, transport, home } = {}) {
   const h = home || getHome();
-  const t = getTransport(loadConfig(h), h, { useHyperbeam: transport === true || transport === 'hyperbeam' });
+  const config = loadConfig(h);
+  const t = getTransport(config, h, { useHyperbeam: transport === true || transport === 'hyperbeam' });
   let dataItem;
 
   if (id) {
@@ -60,11 +61,30 @@ export async function exportBundle({ key, id, includeAttestations = true, includ
 
   if (!dataItem) throw new Error('Article not found');
   const raw = dataItem.ans104Base64 ? Buffer.from(dataItem.ans104Base64, 'base64url') : (Buffer.isBuffer(dataItem) ? dataItem : dataItem.raw);
-  if (!raw) throw new Error('Could not retrieve raw DataItem');
+  if (!raw) {
+    // If the transport summary had an id but no raw bytes, try fetching the full item by id.
+    if (id && typeof t.getItem === 'function') {
+      dataItem = await t.getItem(id);
+      const raw2 = dataItem?.ans104Base64 ? Buffer.from(dataItem.ans104Base64, 'base64url') : dataItem?.raw;
+      if (raw2) {
+        const parsed2 = parseAns104(raw2);
+        if (id === parsed2.id) {
+          const parsed = parsed2;
+          const tags = tagsToObject(parsed.tags || []);
+          const articleKey = tags['Article-Key'];
+          return exportBundleFromParsed({ parsed, raw: raw2, articleKey, t, includeAttestations, includeVersions, h });
+        }
+      }
+    }
+    throw new Error('Could not retrieve raw DataItem');
+  }
   const parsed = parseAns104(raw);
   const tags = tagsToObject(parsed.tags || []);
   const articleKey = tags['Article-Key'];
+  return exportBundleFromParsed({ parsed, raw, articleKey, t, includeAttestations, includeVersions, h });
+}
 
+async function exportBundleFromParsed({ parsed, raw, articleKey, t, includeAttestations, includeVersions, h }) {
   const articles = [raw];
   const attestations = [];
 
@@ -102,13 +122,19 @@ async function logBundleImport(home, results) {
 }
 
 export async function exportAllArticles({ includeAttestations = true, transport, home } = {}) {
+  const h = home || getHome();
+  const config = loadConfig(h);
+  const t = getTransport(config, h, { useHyperbeam: transport === true || transport === 'hyperbeam' });
+  const articles = [];
+  const attestations = [];
+  const keys = new Set();
 
   const localArticles = await t.localIndex?.() || [];
   const articleKeys = [...new Set(localArticles.map(a => a.key).filter(Boolean))];
 
   for (const key of articleKeys) {
     try {
-      const bundle = await exportBundle({ key, includeAttestations, includeVersions: true, transport });
+      const bundle = await exportBundle({ key, includeAttestations, includeVersions: true, transport, home: h });
       for (const e of bundle.entries) {
         if (e.type === 'article') {
           articles.push({ key, base64: e.data });
@@ -150,9 +176,8 @@ async function collectVersions(articleKey, rootId, transport) {
 export async function importBundle(bundle, { transport, home, verify = true, skipDuplicates = true } = {}) {
   const h = home || getHome();
   const t = getTransport(loadConfig(h), h, { useHyperbeam: transport === true || transport === 'hyperbeam' });
-  const results = [];
-
   if (!bundle || typeof bundle !== 'object') throw new Error('importBundle requires a bundle object');
+  const results = [];
 
   const entries = bundle.entries || (bundle.articles && bundle.attestations
     ? [
@@ -190,11 +215,10 @@ export async function importBundle(bundle, { transport, home, verify = true, ski
       const submitted = await t.submit(raw);
       results.push({ type: 'attestation', target, id: submitted?.id || id, ok: true, imported: true });
     } else {
-      results.push({ type: entry.type, ok: false, error: 'Unknown bundle entry type' });
+      results.push({ type: entry.type, key: entry.key, id, ok: false, error: 'Unknown entry type' });
     }
   }
 
   logBundleImport(h, results);
-
   return results;
 }

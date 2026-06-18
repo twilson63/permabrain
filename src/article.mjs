@@ -21,8 +21,8 @@ export function sourceNameFromUrl(url) {
   }
 }
 
-export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [], visibility = 'public', extraTags = [], opts = {} }) {
-  const home = getHome();
+export async function publishArticle({ file, content, kind, topic, key, title, sourceUrl, sourceName, sourceLicense = '', language = 'en', useHyperbeamReference = null, useHyperbeam = false, encryptedFor = [], visibility = 'public', extraTags = [], opts = {}, home: explicitHome } = {}) {
+  const home = explicitHome || getHome();
   const config = loadConfig(home);
   const identity = loadIdentity(home);
   const transport = getTransport(config, home, { useHyperbeam });

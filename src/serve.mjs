@@ -38,6 +38,8 @@
  */
 
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import { URL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
@@ -576,7 +578,7 @@ async function handleRequest(req, res, home, options = {}) {
           includeVersions: url.searchParams.get('no-versions') === null,
           useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam'))
         };
-        const result = await api.exportBundle(opts);
+        const result = await api.exportBundle({ ...opts, useHyperbeam: opts.useHyperbeam ?? false, home: currentHome });
         return sendJson(res, 200, result);
       }
       if (method === 'POST') {
@@ -819,7 +821,7 @@ async function handleRequest(req, res, home, options = {}) {
       const body = bodyOrRead || await readBody(req);
       if (!body.envelopeId) return sendError(res, 400, 'envelopeId is required');
       if (!body.signer?.agentId || !body.signer?.signature) return sendError(res, 400, 'signer.agentId and signer.signature are required');
-      const updated = api.addThresholdSigner(body.envelopeId, body.signer);
+      const updated = await api.addThresholdSigner(body.envelopeId, body.signer);
       return sendJson(res, 200, updated);
     }
 
@@ -1017,6 +1019,16 @@ export async function startServer(options = {}) {
   });
   const actualPort = server.address()?.port || requestedPort;
   await ensureApiInit(home);
+  // Force the loaded config to match the requested home/env so API calls inside
+  // the server use the intended transport and state directory.
+  if (fs.existsSync(path.join(home, 'config.json'))) {
+    api._config = loadConfig(home);
+  } else {
+    initState({ env: { ...process.env, PERMABRAIN_HOME: home } });
+    await ensureIdentity(home);
+    api._config = loadConfig(home);
+  }
+  api._home = home;
   const identity = api._identity;
   return { server, home, port: actualPort, agentId: identity?.agentId || null, wss, streamTransport };
 }

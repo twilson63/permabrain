@@ -344,10 +344,45 @@ export class ArweaveTransport {
       throw new Error(`Arweave GraphQL pagination exceeded ${maxPages} pages`);
     }, { breaker: this._breaker('arweave:query'), label: 'arweave:query', retryOptions: { maxAttempts: 3, baseDelayMs: 250 } });
   }
+
+  async queryByKey(key) {
+    return resolveLatestArweaveArticle(key, this.config);
+  }
+
+  async getItem(id) {
+    return resolveArweaveDataItem(id, this.config);
+  }
+
+  async submit(raw) {
+    throw new Error('ArweaveTransport.submit is not supported; use a bundler for writes');
+  }
+
+  async query({ tags = [], cursor, limit = 100 } = {}) {
+    const filters = {};
+    for (let i = 0; i < tags.length; i += 2) filters[tags[i]] = tags[i + 1];
+    const items = await this.queryByTags(filters);
+    const start = Number(cursor) || 0;
+    const slice = items.slice(start, start + limit);
+    return { items: slice.map(summarizeArticle), cursor: start + slice.length < items.length ? start + slice.length : null };
+  }
 }
 
 export function itemSummary(item) {
   return { id: item.id, owner: item.owner, timestamp: item.timestamp, tags: tagsToObject(item.tags || []), text: payloadText(item) };
+}
+
+async function resolveLatestArweaveArticle(key, config) {
+  const t = new ArweaveTransport(config);
+  const items = await t.queryByTags({ 'App-Name': 'PermaBrain', 'PermaBrain-Type': 'article', 'Article-Key': key });
+  const latest = latestByArticleKey(items).get(key);
+  if (!latest) return null;
+  return { summary: summarizeArticle(latest) };
+}
+
+async function resolveArweaveDataItem(id, config) {
+  const t = new ArweaveTransport(config);
+  const item = await t.fetchDataItem(id);
+  return item;
 }
 
 export async function probeTransport(config, home, opts = {}) {
