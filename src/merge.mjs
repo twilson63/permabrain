@@ -116,8 +116,13 @@ export async function mergeArticles(targetKey, sourceKey, opts = {}) {
     editsApplied: deriveMergeEdits(target, source, opts),
     carriedAttestations,
     item: publishResult.item,
-    reference: publishResult.reference
+    reference: publishResult.reference,
+    preview: mergedContent
   };
+}
+
+export async function previewMerge(targetKey, sourceKey, opts = {}) {
+  return mergeArticles(targetKey, sourceKey, { ...opts, dryRun: true });
 }
 
 async function resolveArticleWithContent(key, opts) {

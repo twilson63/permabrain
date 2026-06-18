@@ -198,6 +198,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .timeline-item .tl-meta{font-size:0.75rem;color:var(--muted)}
 /* Decryption panel */
 .decrypt-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+/* Compare panel */
+.compare-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+.compare-toolbar{display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.compare-toolbar select{min-width:10rem}
+.compare-toolbar label{font-size:0.72rem;color:var(--muted);white-space:nowrap}
+.compare-result{max-height:60vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:1rem;background:var(--bg);font-family:monospace;font-size:0.82rem;line-height:1.5}
+.diff-meta{font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem}
+.diff-hunk{margin-bottom:0.75rem;border-left:2px solid var(--accent);padding-left:0.5rem}
+.diff-hunk-header{font-weight:600;color:var(--accent);margin-bottom:0.25rem}
+.diff-line{padding:0.05rem 0}
+.diff-line.add{background:rgba(26,127,55,0.12);color:var(--green)}
+.diff-line.del{background:rgba(207,34,46,0.12);color:var(--red)}
+[data-theme="dark"] .diff-line.add{background:rgba(63,185,80,0.15)}
+[data-theme="dark"] .diff-line.del{background:rgba(248,81,73,0.15)}
+.diff-line.ctx{color:var(--muted)}
+.conflict-marker{background:rgba(154,103,0,0.15);color:var(--orange);font-weight:600;padding:0.15rem 0}
+.conflict-target{border-left:3px solid var(--red);padding-left:0.4rem;margin:0.2rem 0}
+.conflict-source{border-left:3px solid var(--green);padding-left:0.4rem;margin:0.2rem 0}
+.merge-preview{border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem}
+.merge-actions{display:flex;gap:0.5rem;margin-top:1rem}
 
 /* Interactive local filter panel */
 .filter-panel{padding:0.5rem 1rem;border-bottom:1px solid var(--border);display:none;flex-direction:column;gap:0.5rem}
@@ -272,6 +292,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
+    <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
   </div>
@@ -366,7 +387,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats'
+  var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var dashboardData = null;
   var dashboardLoading = false;
   var dashboardError = null;
@@ -658,6 +680,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderStatus();
     if (selectedKey) { viewMode = 'article'; renderArticle(selectedKey); }
     else if (viewMode === 'dashboard') { renderDashboard(); }
+    else if (viewMode === 'compare') { renderCompare(); }
     else { renderHome(); }
   }
 
@@ -1142,6 +1165,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       if (auditFilters.after) params.set('auditAfter', auditFilters.after);
       if (auditFilters.before) params.set('auditBefore', auditFilters.before);
     }
+    if (viewMode === 'compare') {
+      if (compareState.base) params.set('compareBase', compareState.base);
+      if (compareState.head) params.set('compareHead', compareState.head);
+      if (compareState.base || compareState.head) params.set('compare', 'a');
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -1167,7 +1195,9 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       auditStatus: params.get('auditStatus') || '',
       auditPath: params.get('auditPath') || '',
       auditAfter: params.get('auditAfter') || '',
-      auditBefore: params.get('auditBefore') || ''
+      auditBefore: params.get('auditBefore') || '',
+      compareBase: params.get('compareBase') || '',
+      compareHead: params.get('compareHead') || ''
     };
   }
 
@@ -1193,7 +1223,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       liveTransport = state.transport;
       localStorage.setItem('permabrain-live-transport', state.transport);
     }
-    if (state.view && ['home','article','dashboard','stats','audit'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.auditMethod) auditFilters.method = state.auditMethod;
@@ -1201,6 +1231,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (state.auditPath) auditFilters.path = state.auditPath;
     if (state.auditAfter) auditFilters.after = state.auditAfter;
     if (state.auditBefore) auditFilters.before = state.auditBefore;
+    if (state.compareBase) compareState.base = state.compareBase;
+    if (state.compareHead) compareState.head = state.compareHead;
     if (state.tab) activeTab = state.tab;
     return state;
   }
@@ -1299,6 +1331,239 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     startAuditStream();
     updateUrlState();
   };
+
+  window.showCompare = async function() {
+    viewMode = 'compare';
+    selectedKey = null;
+    stopDashboardRefresh();
+    stopAuditStream();
+    renderList();
+    renderCompare();
+    updateUrlState();
+  };
+
+  window.setCompareBase = function(base) {
+    compareState.base = base || '';
+    updateUrlState();
+  };
+
+  window.setCompareHead = function(head) {
+    compareState.head = head || '';
+    updateUrlState();
+  };
+
+  function updateCompareSelects() {
+    var baseSel = document.getElementById('compareBaseSelect');
+    var headSel = document.getElementById('compareHeadSelect');
+    if (!baseSel || !headSel) return;
+    var source = isLocalServer() ? (localList.articles || []) : articles;
+    var options = source.map(function(a) {
+      return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+    }).join('');
+    var baseCurrent = baseSel.value || compareState.base || '';
+    var headCurrent = headSel.value || compareState.head || '';
+    baseSel.innerHTML = '<option value="">Select article…</option>' + options;
+    headSel.innerHTML = '<option value="">Select article…</option>' + options;
+    baseSel.value = source.some(function(a){ return a.key === baseCurrent; }) ? baseCurrent : (compareState.base || '');
+    headSel.value = source.some(function(a){ return a.key === headCurrent; }) ? headCurrent : (compareState.head || '');
+  }
+
+  async function runCompareDiff() {
+    if (!isLocalServer()) return;
+    compareState.loading = true;
+    compareState.error = null;
+    compareState.result = null;
+    compareState.mergePreview = null;
+    compareState.pendingMerge = null;
+    renderCompare();
+    try {
+      var params = new URLSearchParams();
+      params.set('base', compareState.base);
+      params.set('head', compareState.head);
+      params.set('format', 'unified');
+      var r = await fetch('/api/v1/diff?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+      compareState.result = await r.json();
+    } catch(e) {
+      compareState.error = e.message;
+    } finally {
+      compareState.loading = false;
+    }
+    renderCompare();
+    updateUrlState();
+  }
+
+  window.runCompare = runCompareDiff;
+
+  async function previewMerge() {
+    if (!isLocalServer()) return;
+    compareState.loading = true;
+    compareState.error = null;
+    compareState.mergePreview = null;
+    compareState.pendingMerge = null;
+    renderCompare();
+    try {
+      var r = await fetch('/api/v1/merge', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          targetKey: compareState.base,
+          sourceKey: compareState.head,
+          noCarryAttestations: true,
+          dryRun: true
+        })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+      compareState.mergePreview = await r.json();
+    } catch(e) {
+      compareState.error = e.message;
+    } finally {
+      compareState.loading = false;
+    }
+    renderCompare();
+    updateUrlState();
+  }
+
+  window.previewMerge = previewMerge;
+
+  async function applyMerge() {
+    if (!isLocalServer()) return;
+    compareState.loading = true;
+    compareState.error = null;
+    compareState.pendingMerge = null;
+    renderCompare();
+    try {
+      var r = await fetch('/api/v1/merge', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          targetKey: compareState.base,
+          sourceKey: compareState.head,
+          noCarryAttestations: true
+        })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+      compareState.pendingMerge = await r.json();
+    } catch(e) {
+      compareState.error = e.message;
+    } finally {
+      compareState.loading = false;
+    }
+    renderCompare();
+    updateUrlState();
+    if (isLocalListMode()) fetchLocalList();
+  }
+
+  window.applyMerge = applyMerge;
+
+  function renderDiffUnified(text) {
+    if (!text) return '<p style="color:var(--muted)">No diff output.</p>';
+    var lines = String(text).split(/\r?\n/);
+    var out = '';
+    var inHunk = false;
+    var hunkContent = '';
+    function flushHunk() {
+      if (!inHunk) return;
+      out += '<div class="diff-hunk"><div class="diff-hunk-header">@@</div>' + hunkContent + '</div>';
+      inHunk = false;
+      hunkContent = '';
+    }
+    lines.forEach(function(line) {
+      if (line.startsWith('@@')) {
+        flushHunk();
+        inHunk = true;
+        out += '<div class="diff-hunk-header">' + esc(line) + '</div>';
+      } else if (line.startsWith('+')) {
+        hunkContent += '<div class="diff-line add">' + esc(line) + '</div>';
+      } else if (line.startsWith('-')) {
+        hunkContent += '<div class="diff-line del">' + esc(line) + '</div>';
+      } else if (line.startsWith(' ')) {
+        hunkContent += '<div class="diff-line ctx">' + esc(line) + '</div>';
+      } else {
+        hunkContent += '<div class="diff-line">' + esc(line) + '</div>';
+      }
+    });
+    flushHunk();
+    return out || '<p style="color:var(--muted)">No changes found.</p>';
+  }
+
+  function renderDiffHunks(hunks) {
+    if (!Array.isArray(hunks) || !hunks.length) return '';
+    return hunks.map(function(h) {
+      return '<div class="diff-hunk"><div class="diff-hunk-header">@@ -' + (h.baseStart || 0) + ',' + (h.baseLines || 0) + ' +' + (h.headStart || 0) + ',' + (h.headLines || 0) + ' @@</div>' +
+        (h.lines || []).map(function(ln) {
+          var cls = ln.startsWith('+') ? 'add' : (ln.startsWith('-') ? 'del' : 'ctx');
+          return '<div class="diff-line ' + cls + '">' + esc(ln) + '</div>';
+        }).join('') + '</div>';
+    }).join('');
+  }
+
+  function renderMergePreview(result) {
+    if (!result) return '';
+    var text = result.preview || '';
+    var conflictLines = [];
+    var output = '';
+    text.split(/\r?\n/).forEach(function(line) {
+      if (line.startsWith('<<<<<<<')) {
+        output += '<div class="conflict-marker">' + esc(line) + '</div>';
+      } else if (line.startsWith('=======')) {
+        output += '<div class="conflict-marker">' + esc(line) + '</div>';
+      } else if (line.startsWith('>>>>>>>')) {
+        output += '<div class="conflict-marker">' + esc(line) + '</div>';
+      } else {
+        output += '<div class="diff-line">' + esc(line) + '</div>';
+      }
+    });
+    if (!output) return '';
+    return '<div class="merge-preview"><h3>Merge preview (' + (result.hasConflicts ? result.conflictCount + ' conflict(s)' : 'auto-merged') + ')</h3><div>' + output + '</div></div>';
+  }
+
+  function renderCompareResult() {
+    if (compareState.loading) return '<div class="loading"><div class="spinner"></div> Comparing...</div>';
+    if (compareState.error) return '<div class="error-box">Compare failed: ' + esc(compareState.error) + '</div>';
+    var result = compareState.result;
+    if (!result) return '<p style="color:var(--muted)">Choose two articles and click Diff or Merge to see results.</p>';
+    var meta = '<div class="diff-meta">' + (result.baseKey || compareState.base) + ' → ' + (result.headKey || compareState.head) +
+      ' · ' + (result.changes || 0) + ' change(s)' +
+      (typeof result.additions === 'number' ? ' · +' + result.additions : '') +
+      (typeof result.deletions === 'number' ? ' · -' + result.deletions : '') + '</div>';
+    return meta + (result.hunks ? renderDiffHunks(result.hunks) : renderDiffUnified(result.text));
+  }
+
+  window.renderCompareResult = renderCompareResult;
+
+  function renderCompare() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Compare unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to diff and merge articles on the local node.</p></div>';
+      return;
+    }
+    var source = isLocalListMode() ? (localList.articles || []) : articles;
+    var options = source.map(function(a) {
+      return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+    }).join('');
+    function buildSelect(id, current, onchange) {
+      var opts = '<option value="">Select article…</option>' + options;
+      return '<select id="' + id + '" onchange="' + onchange + '" style="min-width:14rem">' +
+        opts.replace(/value="([^"]*)"/g, function(m, key) {
+          return 'value="' + esc(key) + '"' + (key === current ? ' selected' : '');
+        }) + '</select>';
+    }
+    var toolbar = '<div class="compare-toolbar">' +
+      '<label>Base (target)' + buildSelect('compareBaseSelect', compareState.base, 'window.setCompareBase(this.value)') + '</label>' +
+      '<label>Head (source)' + buildSelect('compareHeadSelect', compareState.head, 'window.setCompareHead(this.value)') + '</label>' +
+      '<button class="btn-icon" onclick="window.runCompare()" title="Show unified diff">Diff</button>' +
+      '<button class="btn-icon" onclick="window.previewMerge()" title="Preview three-way merge">Merge preview</button>' +
+      '<button class="btn-icon" onclick="window.applyMerge()" title="Apply merge">Merge</button>' +
+      '</div>';
+    var resultHtml = renderCompareResult();
+    var mergeHtml = compareState.mergePreview ? renderMergePreview(compareState.mergePreview) : '';
+    var pendingHtml = compareState.pendingMerge ? '<div class="merge-preview"><h3>✓ Merge applied</h3><p>New version: <span class="version-link">' + esc((compareState.pendingMerge.target && compareState.pendingMerge.target.id) || '') + '</span></p><p>' + (compareState.pendingMerge.hasConflicts ? 'Conflicts were marked in the merged content.' : 'No conflicts.') + '</p></div>' : '';
+    main.innerHTML = '<div class="home"><h1>&#128260; <span>Compare</span></h1><p class="home-subtitle">Diff and merge article versions</p><div class="compare-panel">' + toolbar + '<div class="compare-result" id="comparePanel">' + resultHtml + '</div>' + mergeHtml + pendingHtml + '</div></div>';
+    updateCompareSelects();
+  }
+
+  window.renderCompare = renderCompare;
 
   function stopAuditStream() {
     if (auditEventSource) {
@@ -2224,6 +2489,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
         if (bootState.view === 'dashboard') window.showDashboard();
         else if (bootState.view === 'stats') window.showStats();
         else if (bootState.view === 'audit') window.showAudit();
+        else if (bootState.view === 'compare') window.showCompare();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
