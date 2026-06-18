@@ -934,7 +934,7 @@ async function handleRequest(req, res, home, options = {}) {
 
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
   } catch (err) {
-    const status = err.status || (err.message?.includes('required') ? 400 : 500);
+    const status = err.status || (err.message?.includes('required') ? 400 : (err.message?.includes('Article not found') || err.message?.includes('Attestation not found') || err.message?.includes('not found') ? 404 : 500));
     sendError(res, status, err.message || String(err));
   }
 }

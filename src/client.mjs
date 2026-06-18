@@ -103,8 +103,17 @@ export function createClient(options = {}) {
     /** @returns {Promise<{articles: Array, count: number}>} */
     query: (filters = {}) => request('GET', `/api/v1/articles${toQuery(filters)}`),
 
+    /** Alias for {@link query}. @returns {Promise<{articles: Array, count: number}>} */
+    articles: (filters = {}) => request('GET', `/api/v1/articles${toQuery(filters)}`),
+
+    /** @returns {Promise<Object>} */
+    article: (key, opts = {}) => request('GET', `/api/v1/articles/${encodeURIComponent(key)}${toQuery(opts)}`),
+
     /** @returns {Promise<{summary: Object, item: Object, reference?: Object, encrypted: boolean, encryptionEnvelope?: Object}>} */
     publish: (body) => request('POST', '/api/v1/articles', body),
+
+    /** Alias for {@link publish}. @returns {Promise<{summary: Object, item: Object, reference?: Object, encrypted: boolean, encryptionEnvelope?: Object}>} */
+    createArticle: (body) => request('POST', '/api/v1/articles', body),
 
     /** @returns {Promise<Object>} */
     get: (key, opts = {}) => request('GET', `/api/v1/articles/${encodeURIComponent(key)}${toQuery(opts)}`),
