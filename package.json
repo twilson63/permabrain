@@ -88,6 +88,7 @@
     "test:publish-dry-run": "node test/publish-dry-run.mjs",
     "test:version": "node test/version.mjs",
     "test:serve-dashboard": "node test/serve-dashboard.mjs",
+    "test:serve-openapi": "node test/serve-openapi.mjs",
     "test:schema": "node test/schema.mjs",
     "test:validate": "node test/validate.mjs",
     "test:client": "node test/client.mjs",
