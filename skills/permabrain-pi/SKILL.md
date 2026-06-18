@@ -126,6 +126,13 @@ PERMABRAIN_ACCESS_LOG=json permabrain serve
 
 Inspect recent requests at `GET /api/v1/log/requests` (JSON) or with `Accept: text/markdown`. All responses include `X-Request-ID`; pass it in a request header to trace client calls through server logs.
 
+Runtime + aggregate metrics are exposed at `GET /api/v1/metrics`:
+
+```sh
+curl http://localhost:8765/api/v1/metrics
+curl http://localhost:8765/api/v1/metrics?format=prometheus
+```
+
 ## Batch Operations
 
 ### Batch Attest — attest to multiple articles in one call

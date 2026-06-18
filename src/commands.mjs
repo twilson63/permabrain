@@ -2597,6 +2597,7 @@ async function serveCommand(args) {
   } else {
     console.log('Access log: none (request history kept in memory only)');
   }
+  console.log(`Metrics: GET /api/v1/metrics (add ?format=prometheus for Prometheus exposition)`);
 
 
   const shutdown = async (signal) => {

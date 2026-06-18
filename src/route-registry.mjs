@@ -285,9 +285,10 @@ export const ROUTES = [
   {
     route: '/api/v1/metrics',
     method: 'GET',
-    description: 'Aggregate article/attestation metrics.',
+    description: 'Runtime and aggregate metrics (JSON or Prometheus format).',
     public: false,
     params: [
+      { name: 'format', in: 'query', type: 'string', required: false },
       { name: 'kind', in: 'query', type: 'string', required: false },
       { name: 'topic', in: 'query', type: 'string', required: false },
       { name: 'author', in: 'query', type: 'string', required: false },
@@ -295,7 +296,7 @@ export const ROUTES = [
       { name: 'before', in: 'query', type: 'string', required: false },
       { name: 'top', in: 'query', type: 'integer', required: false }
     ],
-    response: { totals: 'object', counts: 'object', top: 'array' }
+    response: { generatedAt: 'string', runtime: 'object', data: 'object' }
   },
   {
     route: '/api/v1/stats',

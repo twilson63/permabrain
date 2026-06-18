@@ -99,7 +99,20 @@ export { archive, restore } from './archive.mjs';
 export { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
 
 // Local HTTP API server
-export { createServer, startServer, stopServer } from './serve.mjs';
+export {
+  createServer,
+  startServer,
+  stopServer
+} from './serve.mjs';
+
+// Runtime metrics for permabrain serve
+export {
+  createRuntimeMetrics,
+  stopRuntimeMetrics,
+  buildMetricsReport,
+  formatPrometheus,
+  runtimeMetrics
+} from './metrics-runtime.mjs';
 
 // HTTP API key authentication helpers
 export { createApiKeyAuth, generateApiKey, hashApiKey } from './auth.mjs';
@@ -173,7 +186,7 @@ export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRe
 // HTTP request logging / access-log ring buffer
 export { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown } from './request-log.mjs';
 
-// Threshold / multi-sig attestations
+
 export {
   createThresholdEnvelope,
   addCoSigner,

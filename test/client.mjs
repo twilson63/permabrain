@@ -103,7 +103,7 @@ console.log('   ✓ identity via client');
 
 console.log('13. metrics and stats via client');
 const metrics = await client.metrics();
-assert.ok(metrics.totals, 'metrics totals');
+assert.ok(metrics.data && metrics.data.totals, 'metrics totals');
 const stats = await client.stats();
 assert.ok(stats.totals, 'stats totals');
 console.log('   ✓ metrics + stats via client');

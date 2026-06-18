@@ -344,6 +344,20 @@ curl -H "Accept: text/markdown" http://localhost:8765/api/v1/log/requests?limit=
 
 Every response includes an `X-Request-ID` header. Pass `X-Request-ID` in a request to correlate server logs with client traces.
 
+### Metrics and monitoring
+
+`permabrain serve` exposes runtime and aggregate metrics at `/api/v1/metrics`:
+
+```sh
+# JSON report (runtime counters + article/attestation totals)
+curl http://localhost:8765/api/v1/metrics
+
+# Prometheus-compatible exposition text
+curl http://localhost:8765/api/v1/metrics?format=prometheus
+```
+
+The JSON report includes server uptime, request counts, HTTP status buckets, event counters, active stream connections, and the same data totals returned by `permabrain metrics`. Prometheus output exposes `permabrain_runtime_*`, `permabrain_articles_total`, `permabrain_attestations_total`, and related gauges.
+
 ```sh
 # Start the server with an API key
 PERMABRAIN_API_KEY=pb_xxx permabrain serve
@@ -612,6 +626,8 @@ const { summary } = await client.publish({
 const article = await client.get('person/ada-lovelace');
 const { score } = await client.consensus('person/ada-lovelace');
 const html = await client.dashboardHTML();
+const metrics = await client.metrics();           // JSON runtime + data metrics
+const prom = await client.metrics({ format: 'prometheus' }); // Prometheus text
 ```
 
 The client mirrors the agent API surface and returns JSON responses from the REST endpoints. Every method rejects with `{ status, error }` when the server responds with a non-2xx status code.

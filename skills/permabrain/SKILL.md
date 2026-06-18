@@ -190,6 +190,13 @@ curl http://localhost:8765/api/v1/log/requests
 curl -H "Accept: text/markdown" "http://localhost:8765/api/v1/log/requests?limit=20&status=500"
 ```
 
+Runtime + aggregate metrics are available at `/api/v1/metrics`:
+
+```sh
+curl http://localhost:8765/api/v1/metrics              # JSON
+curl http://localhost:8765/api/v1/metrics?format=prometheus  # Prometheus exposition
+```
+
 ## CLI Commands (Fallback)
 
 If the API is unavailable, use the CLI at `/home/node/.openclaw/workspace/permabrain-project/`:

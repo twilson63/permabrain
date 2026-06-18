@@ -752,6 +752,11 @@ Access / request logging:
 Inspect recent requests via GET /api/v1/log/requests (JSON) or with
 Accept: text/markdown for a readable table.
 
+Metrics and monitoring:
+  GET /api/v1/metrics         Runtime counters + aggregate data metrics (JSON)
+  GET /api/v1/metrics?format=prometheus
+                              Prometheus-compatible exposition text
+
 Press Ctrl+C to stop.`,
     'doctor': `Usage: permabrain doctor [--fix] [--json]
 

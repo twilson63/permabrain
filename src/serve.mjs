@@ -52,6 +52,7 @@ import { createApiKeyAuth, generateApiKey } from './auth.mjs';
 import { buildOpenApiDocument, listRoutes } from './route-registry.mjs';
 import { createRateLimiter, DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS, DEFAULT_RATE_LIMIT_BURST } from './rate-limit.mjs';
 import { requestLogger } from './request-log.mjs';
+import { createRuntimeMetrics, stopRuntimeMetrics, buildMetricsReport, formatPrometheus } from './metrics-runtime.mjs';
 
 const DEFAULT_PORT = 8765;
 const DEFAULT_SSE_HEARTBEAT_MS = 30000;
@@ -77,11 +78,14 @@ function sendJson(res, status, body, extraHeaders = {}) {
   const headers = { ...(res.rateLimitHeaders || {}), ...extraHeaders };
   res.writeHead(status, { 'content-type': 'application/json', ...headers });
   res.end(JSON.stringify(body, null, 2));
+  if (res._recordRouteOutcome) res._recordRouteOutcome(status);
 }
 
 function sendError(res, status, message, extraHeaders = {}) {
   const headers = { ...(res.rateLimitHeaders || {}), ...extraHeaders };
-  sendJson(res, status, { error: message, status }, headers);
+  if (res._recordRouteOutcome) res._recordRouteOutcome(status, status >= 500);
+  res.writeHead(status, { 'content-type': 'application/json', ...headers });
+  res.end(JSON.stringify({ error: message, status }, null, 2));
 }
 
 function rateLimitHeaders(result) {
@@ -263,8 +267,14 @@ async function handleRequest(req, res, home, options = {}) {
   const url = new URL(req.url, `http://localhost`);
   const method = req.method;
   const pathname = url.pathname;
-
+  const runtimeMetrics = options.runtimeMetrics;
   const route = pathname.replace(/\/$/, '') || '/';
+
+  res._recordRouteOutcome = (statusCode, error = false) => {
+    if (runtimeMetrics) {
+      runtimeMetrics.countRequest({ statusCode, method, route, error });
+    }
+  };
 
   const requestOrigin = req.headers.origin || null;
   const allowedOrigin = resolveAllowedOrigin(requestOrigin, options.corsOrigin);
@@ -286,6 +296,7 @@ async function handleRequest(req, res, home, options = {}) {
     applyCorsHeaders(res, allowedOrigin);
     if (!limitResult.ok) {
       const retryHeaders = { ...rlHeaders, 'Retry-After': String(limitResult.retryAfter) };
+      res._recordRouteOutcome(429, false);
       return sendError(res, 429, limitResult.error, retryHeaders);
     }
     // Attach rate-limit headers to all successful responses below.
@@ -301,6 +312,7 @@ async function handleRequest(req, res, home, options = {}) {
       body = await readBody(req);
       const authResult = auth.check({ headers: req.headers, url: req.url }, body);
       if (!authResult.ok) {
+        res._recordRouteOutcome(authResult.status, true);
         return sendError(res, authResult.status, authResult.error);
       }
     }
@@ -546,7 +558,8 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'GET' && route === '/api/v1/metrics') {
-      const opts = {
+      const format = url.searchParams.get('format');
+      const filters = {
         kind: url.searchParams.get('kind'),
         topic: url.searchParams.get('topic'),
         author: url.searchParams.get('author'),
@@ -554,8 +567,15 @@ async function handleRequest(req, res, home, options = {}) {
         before: url.searchParams.get('before'),
         top: url.searchParams.has('top') ? Number(url.searchParams.get('top')) : undefined
       };
-      const result = await api.metrics(opts);
-      return sendJson(res, 200, result);
+      if (runtimeMetrics) {
+        runtimeMetrics.setActiveStreams({ sse: sseClients.size, websocket: wsClients.size });
+      }
+      const report = await buildMetricsReport({ runtime: runtimeMetrics, home: currentHome, filters });
+      if (format === 'prometheus') {
+        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+        return res.end(formatPrometheus(report));
+      }
+      return sendJson(res, 200, report);
     }
 
     if (method === 'GET' && route === '/api/v1/stats') {
@@ -1035,6 +1055,7 @@ async function handleRequest(req, res, home, options = {}) {
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
   } catch (err) {
     const status = err.status || (err.message?.includes('required') ? 400 : (err.message?.includes('Article not found') || err.message?.includes('Attestation not found') || err.message?.includes('not found') ? 404 : 500));
+    if (res._recordRouteOutcome) res._recordRouteOutcome(status, status >= 500);
     sendError(res, status, err.message || String(err));
   }
 }
@@ -1071,10 +1092,18 @@ export function createServer(options = {}) {
     trustProxy
   });
 
-  const serverOptions = { ...options, home, streamTransport, apiKeyAuth, corsOrigin, rateLimiter, requestLogger: reqLogger };
+  const runtimeMetrics = createRuntimeMetrics();
+
+  const serverOptions = { ...options, home, streamTransport, apiKeyAuth, corsOrigin, rateLimiter, requestLogger: reqLogger, runtimeMetrics };
   const server = http.createServer((req, res) => {
     reqLogger.middleware()(req, res, () => handleRequest(req, res, home, serverOptions));
   });
+
+  if (runtimeMetrics) {
+    const handler = () => runtimeMetrics.setActiveStreams({ sse: sseClients.size, websocket: wsClients.size });
+    server.on('request', handler);
+    server.permabrainMetricsHandler = handler;
+  }
 
   const wss = new WebSocketServer({ noServer: true });
   server.on('upgrade', (request, socket, head) => {
@@ -1164,6 +1193,11 @@ export async function startServer(options = {}) {
 export function stopServer(server) {
   return new Promise((resolve) => {
     stopEventSubscription();
+    stopRuntimeMetrics(server?.runtimeMetrics);
+    if (server?.permabrainMetricsHandler) {
+      server.off('request', server.permabrainMetricsHandler);
+      server.permabrainMetricsHandler = null;
+    }
     for (const ws of wsClients) {
       try { ws.close(); } catch {}
     }
@@ -1175,3 +1209,5 @@ export function stopServer(server) {
     server.close(resolve);
   });
 }
+
+export { createRuntimeMetrics, stopRuntimeMetrics, buildMetricsReport, formatPrometheus };

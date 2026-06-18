@@ -115,7 +115,7 @@ console.log('   ✓ /api/v1/articles/:key/consensus works');
 console.log('8. GET /api/v1/metrics returns aggregate metrics');
 const metrics = await request('GET', '/api/v1/metrics');
 assert.equal(metrics.status, 200, 'metrics status 200');
-assert.equal(metrics.body.totals.articles, 1, 'metrics articles count');
+assert.equal(metrics.body.data.totals.articles, 1, 'metrics articles count');
 console.log('   ✓ /api/v1/metrics works');
 
 console.log('9. GET /api/v1/stats returns dashboard stats');
