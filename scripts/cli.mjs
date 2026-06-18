@@ -69,7 +69,8 @@ const COMMANDS = [
   'completion',
   'threshold-attest',
   'peer',
-  'events'
+  'events',
+  'subscribe'
 ];
 
 // Alias support: map legacy/import-export subcommands to canonical names.
@@ -153,6 +154,7 @@ Commands:
   validate <type> [path]         Validate article/attestation metadata against JSON Schema
   threshold-attest             Create/collect/finalize/share threshold multi-sig attestations
   events [options]             Subscribe to real-time events from permabrain serve
+  subscribe <remote-url> [options]  Forward local events to a remote PermaBrain peer
 
 Common examples:
   permabrain init

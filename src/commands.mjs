@@ -129,7 +129,8 @@ export async function runCommand(command, args) {
   if (command === 'client') return clientCommand(args);
   if (command === 'completion') return completionCommand(args);
   if (command === 'validate') return validateCommand(args);
-  if (command === 'events' || command === 'subscribe') return eventsCommand(args);
+  if (command === 'events') return eventsCommand(args);
+  if (command === 'subscribe') return subscribeRemoteCommand(args);
   if (command === 'threshold-attest' || command === 'threshold') return thresholdAttestCommand(args);
   if (command === 'peer') return peerCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
@@ -2250,6 +2251,43 @@ Examples:
   const maxMs = args.duration ? Number(args.duration) : undefined;
   const maxEvents = args.count ? Number(args.count) : undefined;
   return runEventsSubscriber({ baseUrl: url, transport, events, format, maxMs, maxEvents });
+}
+
+async function subscribeRemoteCommand(args) {
+  if (args.help || args._[0] === '--help' || args._[0] === 'help' || !args._[0]) {
+    console.log(`Usage: permabrain subscribe <remote-url> [options]
+
+Publish local events to a remote PermaBrain peer. This is the mirror of
+'permabrain events': it listens to the local event bus and forwards audit
+events to the remote POST /api/v1/events/publish endpoint.
+
+Arguments:
+  <remote-url>           Remote permabrain serve base URL
+
+Options:
+  --events <names>       Comma-separated event filter (default: all events)
+  --batch-ms <ms>        Forwarding debounce (default 50)
+  --auth-header <value>  Optional Authorization header value
+  --count <n>            Stop after forwarding N events
+  --verbose              Print forward/error events
+
+Examples:
+  permabrain subscribe http://localhost:9000
+  permabrain subscribe http://peer.example.com --events publish,attest --count 10
+`);
+    return { ok: true, help: true };
+  }
+  const baseUrl = args._[0] || args.url;
+  const events = args.events || args.e;
+  const batchMs = args['batch-ms'] ? Number(args['batch-ms']) : undefined;
+  const authHeader = args['auth-header'];
+  const maxEvents = args.count ? Number(args.count) : undefined;
+  const verbose = args.verbose || args.v;
+  const { runEventPublisher } = await import('./subscribe.mjs');
+  const result = await runEventPublisher({ baseUrl, events, batchMs, authHeader, maxEvents, verbose });
+  if (args.json) printJson(result);
+  else console.log(`Forwarded ${result.forwarded} events (${result.errors} errors) to ${baseUrl}`);
+  return result;
 }
 
 async function peerCommand(args) {

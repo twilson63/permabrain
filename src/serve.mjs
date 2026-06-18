@@ -41,7 +41,7 @@ import { WebSocketServer } from 'ws';
 import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
 import { ensureIdentity, loadIdentity, publicIdentity } from './keys.mjs';
 import { api } from './agent-api.mjs';
-import { getEventBus, subscribeEvents, broadcastToWebSockets, writeSseEvent } from './events.mjs';
+import { getEventBus, subscribeEvents, emitEvent, broadcastToWebSockets, writeSseEvent } from './events.mjs';
 
 const DEFAULT_PORT = 8765;
 const DEFAULT_SSE_HEARTBEAT_MS = 30000;
@@ -250,6 +250,19 @@ async function handleRequest(req, res, home) {
         if (sseClients.size === 0 && wsClients.size === 0) stopEventSubscription();
       });
       return;
+    }
+
+    if (method === 'POST' && route === '/api/v1/events/publish') {
+      const body = await readBody(req);
+      if (!Array.isArray(body.events)) return sendError(res, 400, 'events array is required');
+      const forwarded = [];
+      for (const event of body.events) {
+        const name = event?.name || event?.type;
+        if (!name) continue;
+        emitEvent(name, event);
+        forwarded.push(event);
+      }
+      return sendJson(res, 200, { forwarded: forwarded.length });
     }
 
     if (method === 'POST' && route === '/api/v1/init') {

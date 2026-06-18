@@ -1385,6 +1385,26 @@ const api = {
   },
 
   /**
+   * Forward local real-time events to a remote PermaBrain peer.
+   *
+   * This is the publisher mirror of `subscribeEventsRemote()`: it listens
+   * to the local event bus and POSTs matching audit events to the remote
+   * `POST /api/v1/events/publish` endpoint.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.baseUrl='http://localhost:8765']
+   * @param {string|string[]} [opts.events]
+   * @param {number} [opts.batchMs=50]
+   * @param {string|Object} [opts.authHeader]
+   * @param {AbortSignal} [opts.signal]
+   * @returns {{[Symbol.asyncIterator]: function, cancel: function, push: function, flush: function}}
+   */
+  subscribe(opts = {}) {
+    requireInit(this._home);
+    return import('./subscribe.mjs').then(({ forwardEvents }) => forwardEvents(opts));
+  },
+
+  /**
    * Validate and optionally repair the local PermaBrain state.
    *
    * @param {Object} [opts]

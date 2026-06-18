@@ -128,6 +128,9 @@ export { getEventBus, emitEvent, subscribeEvents } from './events.mjs';
 // Remote event subscriber (connect to permabrain serve)
 export { subscribeEventsRemote, subscribeEventsOverSse, subscribeEventsOverWebSocket, formatEvent, runEventsSubscriber } from './events-client.mjs';
 
+// Remote event publisher (forward local events to a remote peer)
+export { forwardEvents, runEventPublisher } from './subscribe.mjs';
+
 // Peer sync (gossip-style article exchange)
 export {
   peerInfo,

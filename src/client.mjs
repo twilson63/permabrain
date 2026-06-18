@@ -274,6 +274,12 @@ export function createClient(options = {}) {
     peerPull: (requests, opts = {}) => request('POST', '/api/v1/peer/pull', { requests, includeAttestations: opts.includeAttestations !== false }),
 
     /** @returns {Promise<Object>} */
+    publishEvents: (events) => request('POST', '/api/v1/events/publish', { events }),
+
+    /** @returns {Promise<Object>} */
+    subscribe: (opts = {}) => request('GET', `/api/v1/events${toQuery(opts)}`),
+
+    /** @returns {Promise<Object>} */
     getThresholdEnvelope: (envelopeId) => request('GET', `/api/v1/threshold/envelope/${encodeURIComponent(envelopeId)}`),
 
     /** @returns {Promise<Object>} */

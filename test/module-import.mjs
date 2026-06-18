@@ -317,7 +317,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'events', 'subscribeEventsRemote', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
+  'events', 'subscribeEventsRemote', 'subscribe', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
   'validateMetadata', 'validateDataItem',
   'peerInfo', 'buildPeerPullBundle', 'pullFromPeer', 'pullFromPeerAsBundle', 'peerStatus',
   'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
@@ -332,7 +332,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 88 API methods present');
+console.log('   ✓ All 89 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -403,6 +403,11 @@ assert.equal(typeof subscribeEventsOverSse, 'function', 'subscribeEventsOverSse'
 assert.equal(typeof subscribeEventsOverWebSocket, 'function', 'subscribeEventsOverWebSocket');
 assert.equal(typeof formatEvent, 'function', 'formatEvent');
 assert.equal(typeof runEventsSubscriber, 'function', 'runEventsSubscriber');
+
+// Remote event publisher exports
+import { forwardEvents, runEventPublisher } from '../src/index.mjs';
+assert.equal(typeof forwardEvents, 'function', 'forwardEvents');
+assert.equal(typeof runEventPublisher, 'function', 'runEventPublisher');
 
 console.log('   OK Events + schema exports present');
 
