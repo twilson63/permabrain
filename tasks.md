@@ -4,11 +4,15 @@
 - [ ] (none)
 
 ## Next
-- [ ] (none — time to review backlog or seed a new chunk)
+- [ ] (none)
 
-## Backlog
-- [ ] JSON Schema validation for article metadata (already implemented in src/schema.mjs; verify and close).
-- [ ] Web viewer backlog items already implemented: dark mode, topic filters, sort controls, version history, stats dashboard, refresh button, ANS-104 raw fallback, IndexedDB v2, Viewblock + source links, mobile sidebar toggle, PWA manifest + service worker. Verify and close.
+## Done (backlog verified)
+- [x] Implement `permabrain subscribe` / `api.subscribeRemote()` command: remote event subscription that pushes local node events to a remote PermaBrain peer (mirror of the `events` consumer path). Added `src/subscribe.mjs` publisher (`forwardEvents()`, `runEventPublisher()`), CLI wiring (`permabrain subscribe <remote-url>`), HTTP `POST /api/v1/events/publish` route in `src/serve.mjs`, SDK `client.publishEvents()`/`client.subscribe()` methods, `api.subscribe()` wrapper, barrel exports from `src/index.mjs`, and `test/subscribe.mjs` coverage. Wired into `npm test`. Full test suite passes; committed and pushed to `origin/main` on 2026-06-18 02:45 UTC.
+
+## Done (backlog verified)
+- [x] Implement `permabrain peer` / `api.peer()` command: gossip-style peer sync with key-set diff + pull. Added `src/peer.mjs`, CLI wiring (`permabrain peer info/status/diff/pull/bundle`), `GET /api/v1/peer/info` and `POST /api/v1/peer/pull` routes, SDK `client.peerInfo()`/`client.peerPull()`, `api.peerInfo()`/`api.buildPeerPullBundle()`/`api.pullFromPeer()`/`api.pullFromPeerAsBundle()`/`api.peerStatus()`; added `test/peer.mjs`. Full target test suite passes; committed and pushed to `origin/main` on 2026-06-18 02:17 UTC.
+- [x] JSON Schema validation for article metadata verified: `src/schema.mjs` exports `ARTICLE_METADATA_SCHEMA`, `ATTESTATION_METADATA_SCHEMA`, `validateMetadata`, `validateArticleMetadata`, `validateAttestationMetadata`, `validateDataItemTags`, and `formatValidationErrors`; covered by `test/schema.mjs` and reused by CLI validate, HTTP `/api/v1/validate`, and SDK client. Marked complete on 2026-06-18 01:07 UTC.
+- [x] Web viewer backlog items verified: `viewer/index.html` includes dark mode, topic filters, sort controls, version history tab, stats dashboard, refresh button, ANS-104 raw fallback, IndexedDB v2, Viewblock + source links, mobile sidebar toggle; `viewer/manifest.json` and `viewer/service-worker.mjs` provide PWA support; covered by `test/viewer-*.mjs` suites. Marked complete on 2026-06-18 01:07 UTC.
 
 ## Done
 - [x] Cron build loop checkpoint (2026-06-18 00:34 UTC): added `POST /api/v1/validate` HTTP route to `permabrain serve`. Route reuses `api.validateMetadata()` and `api.validateDataItem()` for flat tags and ANS-104 DataItem tag arrays; supports `article`/`attestation` types via `?type=` query/body. Added `GET /api/v1/validate` info endpoint, `GET /api/v1/schema` schema endpoint, and deduplicated existing schema route. Added `client.validate()`, `client.schema()`, `client.validateExample()` SDK methods in `src/client.mjs`. Added `test/serve-validate.mjs` (8 tests) and wired into `npm test` plus `test:serve-validate` script. Full `npm test` suite passes; committed and pushed to `origin/main`.
