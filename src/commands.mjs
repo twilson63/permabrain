@@ -2563,13 +2563,19 @@ async function serveCommand(args) {
   const port = args.port ? Number(args.port) : (args.p ? Number(args.p) : undefined);
   const streamTransport = args['stream-transport'] || args.streamTransport || undefined;
   const apiKey = args['api-key'] || process.env.PERMABRAIN_API_KEY || undefined;
+  const corsOrigin = args['cors-origin'] || process.env.PERMABRAIN_CORS_ORIGIN || undefined;
   const home = getHome();
-  const result = await startServer({ home, port, streamTransport, apiKey });
+  const result = await startServer({ home, port, streamTransport, apiKey, corsOrigin });
   console.log(`PermaBrain HTTP API serving at http://localhost:${result.port}`);
   console.log(`Home: ${result.home}`);
   console.log(`Agent: ${result.agentId || 'unknown'}`);
   if (result.streamTransport) {
     console.log(`Default live stream transport: ${result.streamTransport.toUpperCase()}`);
+  }
+  if (corsOrigin && corsOrigin !== '*') {
+    console.log(`CORS restricted to origin: ${corsOrigin}`);
+  } else {
+    console.log('CORS: open to all origins (*)');
   }
 
 

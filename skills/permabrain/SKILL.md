@@ -473,6 +473,42 @@ CLI:
 permabrain history subject/artificial-intelligence --json
 ```
 
+## HTTP API and Authentication
+
+PermaBrain can expose the agent API over HTTP via `permabrain serve`. The preferred way for another agent to talk to a running node is the HTTP client SDK.
+
+```javascript
+import { createClient } from '/home/node/.openclaw/workspace/permabrain/src/index.mjs';
+
+const client = createClient({
+  baseUrl: 'http://localhost:8765',
+  apiKey: process.env.PERMABRAIN_API_KEY // optional
+});
+
+const { ok, transport, agentId } = await client.health();
+const { routes } = await client.routes();
+const spec = await client.openapi();
+```
+
+When the server is started with `--api-key` or `PERMABRAIN_API_KEY`, protected endpoints require the key. Pass it as:
+
+- `Authorization: Bearer <key>` header
+- `X-Api-Key: <key>` header
+- `?api-key=<key>` query parameter
+- `apiKey` field in a JSON POST body
+
+Public endpoints (no key required) are `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, and `/api/v1/articles/stream`. CORS is open by default; restrict it with `--cors-origin <origin>` or `PERMABRAIN_CORS_ORIGIN`.
+
+Useful REST endpoints beyond the basics:
+
+- `GET /api/v1/bundles?key=...` / `POST /api/v1/bundles` — export/import article bundles
+- `GET /api/v1/export-all` — export all indexed articles as a bundle
+- `GET /api/v1/history-export?key=...` / `POST /api/v1/history-import` — export/import version history
+- `POST /api/v1/completion` — generate a shell completion script (`{ shell: 'bash' }`)
+- `GET /api/v1/routes` / `GET /api/v1/openapi.json` — route catalog and OpenAPI document
+
+Bundle and history import bodies accept `{ bundle, verify?, skipDuplicates? }`. Completion returns `{ script }`.
+
 ## Architecture Notes
 
 1. **Three transports:** `local` (filesystem), `hyperbeam` (HyperBEAM node), `arweave` (public Arweave via `up.arweave.net`)
