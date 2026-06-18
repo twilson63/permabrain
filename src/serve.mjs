@@ -42,6 +42,7 @@ import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
 import { ensureIdentity, loadIdentity, publicIdentity } from './keys.mjs';
 import { api } from './agent-api.mjs';
 import { getEventBus, subscribeEvents, emitEvent, broadcastToWebSockets, writeSseEvent } from './events.mjs';
+import { createApiKeyAuth, generateApiKey } from './auth.mjs';
 
 const DEFAULT_PORT = 8765;
 const DEFAULT_SSE_HEARTBEAT_MS = 30000;
@@ -228,6 +229,20 @@ async function handleRequest(req, res, home, options = {}) {
   const route = pathname.replace(/\/$/, '') || '/';
 
   try {
+    let body = null;
+    const auth = options.apiKeyAuth;
+    const needsAuth = auth && auth.apiKeys.length > 0;
+    const isPublic = route === '/health' || route === '/api/v1/events/stream' || route === '/api/v1/events/ws' || route === '/api/v1/articles/stream' || route.startsWith('/api/v1/articles/stream');
+    if (needsAuth && !isPublic) {
+      body = await readBody(req);
+      const authResult = auth.check({ headers: req.headers, url: req.url }, body);
+      if (!authResult.ok) {
+        return sendError(res, authResult.status, authResult.error);
+      }
+    }
+
+    const bodyOrRead = body ?? (method === 'POST' || method === 'PUT' || method === 'PATCH' ? await readBody(req) : null);
+    body = bodyOrRead;
     if (method === 'GET' && route === '/health') {
       const transport = api._config?.transport || process.env.PERMABRAIN_TRANSPORT || 'local';
       const streamTransport = options.streamTransport || process.env.PERMABRAIN_STREAM_TRANSPORT || 'sse';
@@ -300,7 +315,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/events/publish') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!Array.isArray(body.events)) return sendError(res, 400, 'events array is required');
       const forwarded = [];
       for (const event of body.events) {
@@ -313,7 +328,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/init') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       const initHome = body.home || home;
       const result = await api.init({
         ...body,
@@ -332,7 +347,7 @@ async function handleRequest(req, res, home, options = {}) {
         return sendJson(res, 200, { articles: result, count: result.length });
       }
       if (method === 'POST') {
-        const body = await readBody(req);
+        const body = bodyOrRead || await readBody(req);
         if (!body.content) return sendError(res, 400, 'content is required');
         if (!body.kind) return sendError(res, 400, 'kind is required');
         if (!body.topic) return sendError(res, 400, 'topic is required');
@@ -356,7 +371,7 @@ async function handleRequest(req, res, home, options = {}) {
       }
 
       if (method === 'POST' && subAction === 'attest') {
-        const body = await readBody(req);
+        const body = bodyOrRead || await readBody(req);
         if (!body.opinion) return sendError(res, 400, 'opinion is required');
         if (body.confidence === undefined) return sendError(res, 400, 'confidence is required');
         if (!body.reason) return sendError(res, 400, 'reason is required');
@@ -377,7 +392,7 @@ async function handleRequest(req, res, home, options = {}) {
       }
 
       if (method === 'POST' && subAction === 'fork') {
-        const body = await readBody(req);
+        const body = bodyOrRead || await readBody(req);
         const result = await api.fork(articleKey, body, body);
         return sendJson(res, 201, result);
       }
@@ -391,7 +406,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/merge') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.targetKey) return sendError(res, 400, 'targetKey is required');
       if (!body.sourceKey) return sendError(res, 400, 'sourceKey is required');
       const result = await api.merge(body.targetKey, body.sourceKey, body);
@@ -399,7 +414,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/sync') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       const result = await api.sync(body || {});
       return sendJson(res, 200, result);
     }
@@ -476,21 +491,21 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/batch-attest') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.attestations?.length) return sendError(res, 400, 'attestations array is required');
       const result = await api.batchAttest(body);
       return sendJson(res, 200, result);
     }
 
     if (method === 'POST' && route === '/api/v1/auto-import') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.articles?.length) return sendError(res, 400, 'articles array is required');
       const result = await api.autoImport(body);
       return sendJson(res, 200, result);
     }
 
     if (method === 'POST' && route === '/api/v1/verify') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.idOrKey) return sendError(res, 400, 'idOrKey is required');
       const result = await api.verify(body.idOrKey, body);
       return sendJson(res, 200, result);
@@ -502,7 +517,7 @@ async function handleRequest(req, res, home, options = {}) {
         return sendJson(res, 200, result);
       }
       if (method === 'POST') {
-        const body = await readBody(req);
+        const body = bodyOrRead || await readBody(req);
         if (!body.action) return sendError(res, 400, 'action is required');
         const result = await api.remote(body.action, body.params || {});
         return sendJson(res, 200, result);
@@ -515,7 +530,7 @@ async function handleRequest(req, res, home, options = {}) {
         return sendJson(res, 200, { backups: result, count: result.length });
       }
       if (method === 'POST') {
-        const body = await readBody(req);
+        const body = bodyOrRead || await readBody(req);
         const action = body.action || 'create';
         if (action === 'create') {
           if (!body.passphrase) return sendError(res, 400, 'passphrase is required');
@@ -536,12 +551,12 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/archive') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       const result = await api.archive(body || {});
       return sendJson(res, 201, result);
     }
     if (method === 'POST' && route === '/api/v1/restore') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.archive) return sendError(res, 400, 'archive is required');
       const result = await api.restore(body.archive, body.options || {});
       return sendJson(res, 200, result);
@@ -562,7 +577,7 @@ async function handleRequest(req, res, home, options = {}) {
         return sendJson(res, 200, result);
       }
       if (method === 'POST') {
-        const body = await readBody(req);
+        const body = bodyOrRead || await readBody(req);
         if (!body.bundle) return sendError(res, 400, 'bundle is required');
         const result = await api.importBundle(body.bundle, body.options || {});
         return sendJson(res, 200, result);
@@ -582,14 +597,14 @@ async function handleRequest(req, res, home, options = {}) {
       return sendJson(res, 200, result);
     }
     if (method === 'POST' && route === '/api/v1/history-import') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.bundle) return sendError(res, 400, 'bundle is required');
       const result = await api.importHistory(body.bundle, body.options || {});
       return sendJson(res, 200, result);
     }
 
     if (method === 'POST' && route === '/api/v1/import-wikipedia') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.title) return sendError(res, 400, 'title is required');
       const result = await api.importWikipedia(body);
       return sendJson(res, 201, result);
@@ -616,7 +631,7 @@ async function handleRequest(req, res, home, options = {}) {
         return sendJson(res, 200, result);
       }
       if (method === 'POST') {
-        const body = await readBody(req);
+        const body = bodyOrRead || await readBody(req);
         const result = await api.config(body || { action: 'get' });
         return sendJson(res, 200, result);
       }
@@ -644,7 +659,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/log') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.action) return sendError(res, 400, 'action is required');
       const result = await api.auditLog(body);
       return sendJson(res, 201, result);
@@ -661,7 +676,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/log/import') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       const bundle = body.bundle || body;
       const result = await api.importLog(bundle, { ...(body.options || {}), home });
       return sendJson(res, 200, result);
@@ -688,7 +703,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/goal') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.text && !body.filePath) return sendError(res, 400, 'text or filePath is required');
       let parsed;
       if (body.filePath) parsed = await api.goalFromFile(body.filePath, body.options || {});
@@ -697,7 +712,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/template') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.file && !body.source) return sendError(res, 400, 'file or source is required');
       const result = await api.template({
         file: body.file,
@@ -756,7 +771,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/dashboard/publish') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       const dashboardOpts = {
         kind: body.kind,
         topic: body.topic,
@@ -786,7 +801,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/threshold-attest') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.key) return sendError(res, 400, 'key is required');
       if (!body.opinion) return sendError(res, 400, 'opinion is required');
       if (body.confidence === undefined) return sendError(res, 400, 'confidence is required');
@@ -798,7 +813,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/threshold-attest/sign') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.envelopeId) return sendError(res, 400, 'envelopeId is required');
       if (!body.signer?.agentId || !body.signer?.signature) return sendError(res, 400, 'signer.agentId and signer.signature are required');
       const updated = api.addThresholdSigner(body.envelopeId, body.signer);
@@ -806,14 +821,14 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/threshold-attest/finalize') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.envelopeId) return sendError(res, 400, 'envelopeId is required');
       const result = await api.finalizeThresholdAttestation(body.envelopeId, { useHyperbeam: parseBool(body.useHyperbeam) });
       return sendJson(res, 201, result);
     }
 
     if (method === 'POST' && route === '/api/v1/threshold-attest/verify') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.envelope) return sendError(res, 400, 'envelope is required');
       const result = await api.verifyThresholdEnvelope(body.envelope);
       return sendJson(res, 200, result);
@@ -821,7 +836,7 @@ async function handleRequest(req, res, home, options = {}) {
 
     if (route === '/api/v1/validate') {
       if (method === 'POST') {
-        const body = await readBody(req);
+        const body = bodyOrRead || await readBody(req);
         if (!body.tags && !body.dataItem) return sendError(res, 400, 'tags or dataItem is required');
         const type = body.type === 'attestation' ? 'attestation' : 'article';
         let result;
@@ -861,7 +876,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/threshold-attest/import') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.envelope) return sendError(res, 400, 'envelope is required');
       const stored = await api.importThresholdEnvelope(body.envelope);
       return sendJson(res, 200, stored);
@@ -875,7 +890,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/threshold/envelope') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.envelope) return sendError(res, 400, 'envelope is required');
       const stored = await api.importThresholdEnvelope(body.envelope);
       return sendJson(res, 200, stored);
@@ -888,7 +903,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/peer/pull') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!Array.isArray(body.requests)) return sendError(res, 400, 'requests array is required');
       const includeAttestations = body.includeAttestations !== false;
       const { buildPeerPullBundle } = await import('./peer.mjs');
@@ -897,7 +912,7 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'POST' && route === '/api/v1/peer/push') {
-      const body = await readBody(req);
+      const body = bodyOrRead || await readBody(req);
       if (!body.bundle && !Array.isArray(body.entries)) return sendError(res, 400, 'bundle object with entries is required');
       const bundle = body.bundle || body;
       const result = await api.importBundle(bundle, { home: currentHome, verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false });
@@ -914,12 +929,23 @@ async function handleRequest(req, res, home, options = {}) {
 export function createServer(options = {}) {
   const home = options.home || process.env.PERMABRAIN_HOME || getHome();
   const streamTransport = normalizeStreamTransport(options.streamTransport || process.env.PERMABRAIN_STREAM_TRANSPORT);
-  const server = http.createServer((req, res) => handleRequest(req, res, home, options));
+  const apiKey = options.apiKey || process.env.PERMABRAIN_API_KEY || undefined;
+  const apiKeyAuth = apiKey ? createApiKeyAuth({ apiKey }) : null;
+  const serverOptions = { ...options, home, streamTransport, apiKeyAuth };
+  const server = http.createServer((req, res) => handleRequest(req, res, home, serverOptions));
 
   const wss = new WebSocketServer({ noServer: true });
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url, `http://localhost`);
     const pathname = url.pathname.replace(/\/$/, '');
+    if (apiKeyAuth && apiKeyAuth.apiKeys.length > 0) {
+      const authResult = apiKeyAuth.check({ headers: request.headers, url: request.url });
+      if (!authResult.ok) {
+        socket.write(`HTTP/1.1 ${authResult.status} ${authResult.error}\r\n\r\n`);
+        socket.destroy();
+        return;
+      }
+    }
     if (pathname === '/api/v1/events/ws') {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wsClients.add(ws);

@@ -2533,8 +2533,9 @@ Examples:
 async function serveCommand(args) {
   const port = args.port ? Number(args.port) : (args.p ? Number(args.p) : undefined);
   const streamTransport = args['stream-transport'] || args.streamTransport || undefined;
+  const apiKey = args['api-key'] || process.env.PERMABRAIN_API_KEY || undefined;
   const home = getHome();
-  const result = await startServer({ home, port, streamTransport });
+  const result = await startServer({ home, port, streamTransport, apiKey });
   console.log(`PermaBrain HTTP API serving at http://localhost:${result.port}`);
   console.log(`Home: ${result.home}`);
   console.log(`Agent: ${result.agentId || 'unknown'}`);

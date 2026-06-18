@@ -29,7 +29,9 @@
 export function createClient(options = {}) {
   const baseUrl = (options.baseUrl || 'http://localhost:8765').replace(/\/$/, '');
   const timeoutMs = options.timeoutMs ?? 30000;
-  const defaultHeaders = { 'content-type': 'application/json', ...(options.headers || {}) };
+  const apiKey = options.apiKey || undefined;
+  const authHeaders = apiKey ? { 'authorization': `Bearer ${apiKey}` } : {};
+  const defaultHeaders = { 'content-type': 'application/json', ...authHeaders, ...(options.headers || {}) };
   const fetchFn = options.fetch || globalThis.fetch;
 
   async function request(method, path, body, extraHeaders = {}) {

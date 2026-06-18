@@ -62,8 +62,11 @@ export function subscribeEventsOverSse(opts = {}) {
   const url = new URL(urlPath.startsWith('http') ? urlPath : `${baseUrl}${urlPath}`);
   if (events.length > 0) url.searchParams.set('events', events.join(','));
 
-  let reader = null;
+  const headers = { Accept: 'text/event-stream' };
+  if (opts.apiKey) headers.authorization = `Bearer ${opts.apiKey}`;
+  else if (opts.apiKeyHeader) headers.authorization = opts.apiKeyHeader;
   let response = null;
+  let reader = null;
   let running = true;
   let buffer = '';
   const queue = [];
@@ -108,7 +111,7 @@ export function subscribeEventsOverSse(opts = {}) {
   async function start() {
     try {
       response = await fetch(url.toString(), {
-        headers: { Accept: 'text/event-stream' },
+        headers,
         signal
       });
       if (!response.ok) {
@@ -199,7 +202,9 @@ export function subscribeEventsOverWebSocket(opts = {}) {
   async function start() {
     try {
       const { WebSocket } = await import('ws');
-      ws = new WebSocket(wsUrl);
+      ws = new WebSocket(wsUrl, {
+        headers: opts.apiKey ? { authorization: `Bearer ${opts.apiKey}` } : {}
+      });
       ws.on('open', () => {
         if (events.length > 0) {
           ws.send(JSON.stringify({ type: 'subscribe', events }));

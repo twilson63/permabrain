@@ -101,6 +101,9 @@ export { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdo
 // Local HTTP API server
 export { createServer, startServer, stopServer } from './serve.mjs';
 
+// HTTP API key authentication helpers
+export { createApiKeyAuth, generateApiKey, hashApiKey } from './auth.mjs';
+
 // HTTP client SDK for permabrain serve
 export { createClient } from './client.mjs';
 
