@@ -1,6 +1,7 @@
 # PermaBrain Build Tasks
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-18 16:34 UTC): queue empty at start; seeded and implemented CORS support for `permabrain serve`. Added configurable `--cors-origin` / `PERMABRAIN_CORS_ORIGIN` with open default (`*`), automatic `OPTIONS` preflight responses, and `Access-Control-Allow-Methods/Headers` on all responses. Wired the flag through `scripts/cli.mjs` and `src/commands.mjs`; added `test/serve-cors.mjs` covering default headers, preflight, actual requests, matching restricted origins, and non-matching origin blocking. Included the new suite in `npm test` and added `test:serve-cors`. Documented CORS in `README.md` and both skill docs. Full `npm test` suite passes; committed and pushed to `origin/main` as `40a4875`.
 - [x] Cron build loop checkpoint (2026-06-18 15:04 UTC): added `test/serve-advanced.mjs` covering remaining HTTP routes with API-key auth — bundles/export-all, history export/import, diff, completion, and config. Wired missing `POST /api/v1/completion` route into `src/serve.mjs` and fixed `client.importBundle()`/`client.importHistory()` to wrap the bundle in `{ bundle, ...opts }`. Fixed `src/auth.mjs` so generic `?key=` query parameters are not mistaken for API keys, preventing 403s on routes like `/api/v1/bundles?key=`. Also fixed `test/client-sdk-advanced.mjs` event-stream consumer so it resolves on the published custom event instead of waiting for three events. Wired `test/serve-advanced.mjs` and `test:serve-advanced` script into `package.json` and `npm test`. Full `npm test` suite passes.
 - [x] Cron build loop checkpoint (2026-06-18 14:04 UTC): completed advanced HTTP client SDK coverage. Added `test/client-sdk-advanced.mjs` (8 sections) covering threshold attestations, threshold envelope import/export, peer sync/push, log export/import, event publish/stream, and query-stream. Added `streamEvents()` and `streamQuery()` async-iterator helpers to `src/client.mjs`, importing `events-client.mjs` directly. Fixed threshold-attestation `addThresholdSigner` request format in the SDK and server return shape. Fixed bundle export for `LocalTransport` by implementing `queryByKey()` and `getItem()` methods and hardening `exportBundle` fallback paths. Fixed `startServer` to bind API `home`/`config` to the requested server directory so multi-peer tests use the correct transport. Wired `test/client-sdk-advanced` into `package.json` and included it in `npm test`. Full `npm test` suite passes.
 - [x] Cron build loop checkpoint (2026-06-18 13:34 UTC): picked Next task — expanded HTTP API client SDK test coverage. Added `client.article()` and `client.articles()` aliases plus `client.createArticle()` alias in `src/client.mjs`; improved 404 mapping for missing articles/attestations in `src/serve.mjs`; added `test/client-sdk.mjs` (10 tests) covering `client.publish()`, `client.createArticle()`, `client.article()`, `client.articles()`, `client.attest()`, and `client.search()` with filters, auth, and error handling; wired `test:client-sdk` script and included suite in `npm test`. Full `npm test` suite passes; committed and pushed to `origin/main` as `63f314d`.
@@ -16,8 +17,11 @@
 ## In Progress
 - [ ] (none)
 
+## Done
+- [x] Document API-key auth, `POST /api/v1/completion`, and bundle/history import endpoints in README and skill docs. Updated README.md with API-key auth section, public endpoints, key delivery methods, and new HTTP routes; expanded the SDK snippet to cover `createClient({ apiKey })`, bundle/history import/export, and `client.completion()`. Updated `skills/permabrain/SKILL.md` with an HTTP API and Authentication section and `skills/permabrain-pi/SKILL.md` with an HTTP Client SDK section. Synced package-internal skill docs under `permabrain/skills/`. Full `npm test` suite passes; committed to `main` as `9ea6bbf` and pushed to `origin/main` on 2026-06-18 15:34 UTC.
+
 ## Next
-- [ ] Document API-key auth, `POST /api/v1/completion`, and bundle/history import endpoints in README and skill docs.
+- [ ] (none — queue empty; seed next feature chunk on next heartbeat)
 
 
 ## Done
@@ -181,6 +185,7 @@
 ## Notes
 - Consolidated tasks.md on 2026-06-17 14:04 UTC: moved all completed items into a single Done section, deduplicated entries, and refreshed Next/Backlog.
 - Push historically blocked when GH_TOKEN was not set; remote URL now embeds the PAT, so recent pushes succeeded.
+- Cron build loop checkpoint (2026-06-18 16:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `9ea6bbf`. No implementation work picked. Queue is empty; seed next feature chunk on the next heartbeat.
 - Recent focus: dashboard, ZenBin publish, template, log tail/follow/export/import, stats, backup, doctor, archive, remote, bundle, history, search, metrics, activity, sync/merge/fork, diff, list, topic feed, status, export-articles, import-history, config, remotes, HTTP API server, version flag, README/packaging refresh.
 - Cron build loop checkpoint (2026-06-17 12:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main`. The npm packaging prep task was already completed in the previous commit. Seeded next: `permabrain --version` / `-v` CLI flag with test.
 - Cron build loop checkpoint (2026-06-17 13:34 UTC): implemented live web dashboard route in `permabrain serve` with dedicated `test/serve-dashboard.mjs`. Full `npm test` suite passes; committed and pushed to `origin/main`. Seeded next: consolidate `tasks.md` by moving completed items to a single Done section and refresh the Next/Backlog structure.
