@@ -26,6 +26,9 @@
  *   POST /api/v1/verify                → verify id or key
  *   GET  /api/v1/config                → get config
  *   POST /api/v1/config                → set/validate/reset config
+ *   POST /api/v1/validate            → validate article/attestation metadata or DataItem tags
+ *   GET  /api/v1/validate?type=...     → validation info
+ *   GET  /api/v1/schema              → JSON schemas for article/attestation metadata
  *   GET  /api/v1/events/stream       → Server-Sent Events real-time stream
  *   GET  /api/v1/events/ws           → WebSocket upgrade for real-time events
  *
@@ -738,21 +741,32 @@ async function handleRequest(req, res, home) {
       return sendJson(res, 200, result);
     }
 
-    if (method === 'POST' && route === '/api/v1/validate') {
-      const body = await readBody(req);
-      if (!body.tags && !body.dataItem) return sendError(res, 400, 'tags or dataItem is required');
-      const type = body.type === 'attestation' ? 'attestation' : 'article';
-      let result;
-      try {
-        if (body.dataItem) {
-          result = api.validateDataItem(body.dataItem, { type });
-        } else {
-          result = api.validateMetadata(body.tags, { type });
+    if (route === '/api/v1/validate') {
+      if (method === 'POST') {
+        const body = await readBody(req);
+        if (!body.tags && !body.dataItem) return sendError(res, 400, 'tags or dataItem is required');
+        const type = body.type === 'attestation' ? 'attestation' : 'article';
+        let result;
+        try {
+          if (body.dataItem) {
+            result = api.validateDataItem(body.dataItem, { type });
+          } else {
+            result = api.validateMetadata(body.tags, { type });
+          }
+        } catch (err) {
+          return sendError(res, 400, err.message);
         }
-      } catch (err) {
-        return sendError(res, 400, err.message);
+        return sendJson(res, result.valid ? 200 : 422, result);
       }
-      return sendJson(res, result.valid ? 200 : 422, result);
+      if (method === 'GET') {
+        const type = url.searchParams.get('type') === 'attestation' ? 'attestation' : 'article';
+        const schema = type === 'attestation' ? 'ATTESTATION_METADATA_SCHEMA' : 'ARTICLE_METADATA_SCHEMA';
+        return sendJson(res, 200, {
+          type,
+          note: 'POST to /api/v1/validate with tags or dataItem',
+          schema: `/api/v1/schema#${type}`
+        });
+      }
     }
 
     if (method === 'GET' && route === '/api/v1/validate/example') {
