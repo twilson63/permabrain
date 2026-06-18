@@ -1,10 +1,14 @@
 # PermaBrain Build Tasks
 
 ## In Progress
-- [ ] Integrate WebSocket live query-stream updates into the web viewer (`viewer/index.html`): use `/api/v1/articles/stream` WebSocket endpoint as a failover/replacement for SSE, with visible transport indicator and shared reconnect logic.
+- [ ] (none)
 
 ## Next
-- [ ] (none — seed next feature chunk when convenient)
+- [ ] (none)
+
+## Done (backlog verified)
+- [x] Add CLI/viewer diagnostics for live stream transport: expose `permabrain serve --stream-transport=ws|sse` default flag and surface transport choice in viewer settings/URL param. Threaded `--stream-transport` from `scripts/cli.mjs` → `commands.serve` → `createServer/startServer`; advertised `streamTransport` and `streams.articles.default` in `/health`; updated viewer to fetch server-preferred transport and use as default unless URL/localStorage overrides; added `cycleLiveTransportIndicator` and kept failover. Extended `test/serve.mjs`, `test/serve-events.mjs`, `test/viewer-live.mjs`, `test/client.mjs`, and verified `test/module-import.mjs`. Full `npm test` suite passes; committed and pushed to `origin/main` on 2026-06-18 07:14 UTC.
+- [x] Integrate WebSocket live query-stream updates into the web viewer (`viewer/index.html`): use `/api/v1/articles/stream` WebSocket endpoint as a failover/replacement for SSE, with visible transport indicator and shared reconnect logic. Updated `src/serve.mjs` WebSocket upgrade handler to accept query-stream filters on `/api/v1/articles/stream`; updated `/health` to advertise both SSE and WebSocket article stream URLs; updated `viewer/index.html` to support SSE/WS transports, shared reconnect logic, transport failover, clickable live indicator, and localStorage preference. Extended `test/viewer-live.mjs` with WebSocket connectivity, publish/attest event, and topic filtering tests. Full `npm test` suite passes; committed and pushed to `origin/main` on 2026-06-18 06:43 UTC.
 
 ## Done (backlog verified)
 - [x] Integrate live query-stream updates into the web viewer (`viewer/index.html`): subscribe to `/api/v1/articles/stream` SSE, update article list, filters, counts, dashboard, and modal in real time, with reconnection and visible connection status. Added `test/viewer-live.mjs` and wired into `npm test`. Full `npm test` suite passes; completed 2026-06-18 05:38 UTC.
