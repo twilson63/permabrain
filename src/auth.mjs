@@ -65,7 +65,7 @@ export function createApiKeyAuth(options = {}) {
     const queryIndex = url.indexOf('?');
     if (queryIndex !== -1) {
       const params = new URLSearchParams(url.slice(queryIndex + 1));
-      const fromQuery = params.get('api-key') || params.get('apiKey') || params.get('api_key') || params.get('key');
+      const fromQuery = params.get('api-key') || params.get('apiKey') || params.get('api_key');
       if (fromQuery) return fromQuery;
     }
 

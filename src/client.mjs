@@ -245,7 +245,7 @@ export function createClient(options = {}) {
     exportBundle: (opts = {}) => request('GET', `/api/v1/bundles${toQuery(opts)}`),
 
     /** @returns {Promise<Object>} */
-    importBundle: (body) => request('POST', '/api/v1/bundles', body),
+    importBundle: (bundle, opts = {}) => request('POST', '/api/v1/bundles', { bundle, ...opts }),
 
     /** @returns {Promise<Object>} */
     exportAll: (opts = {}) => request('GET', `/api/v1/export-all${toQuery(opts)}`),
@@ -254,7 +254,7 @@ export function createClient(options = {}) {
     exportHistory: (key, opts = {}) => request('GET', `/api/v1/history-export${toQuery({ key, ...opts })}`),
 
     /** @returns {Promise<Object>} */
-    importHistory: (body) => request('POST', '/api/v1/history-import', body),
+    importHistory: (bundle, opts = {}) => request('POST', '/api/v1/history-import', { bundle, ...opts }),
 
     /** @returns {Promise<Object>} */
     diff: (opts = {}) => request('GET', `/api/v1/diff${toQuery(opts)}`),

@@ -204,7 +204,7 @@ const received = [];
 const consumer = (async () => {
   for await (const event of stream) {
     received.push(event);
-    if (received.length >= 3) break;
+    if (event.name === 'sdk-custom-event' || event.type === 'sdk-custom-event') break;
   }
 })();
 

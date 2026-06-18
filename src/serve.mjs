@@ -26,6 +26,7 @@
  *   POST /api/v1/verify                → verify id or key
  *   GET  /api/v1/config                → get config
  *   POST /api/v1/config                → set/validate/reset config
+ *   POST /api/v1/completion            → generate shell completion script
  *   POST /api/v1/validate            → validate article/attestation metadata or DataItem tags
  *   GET  /api/v1/validate?type=...     → validation info
  *   GET  /api/v1/schema              → JSON schemas for article/attestation metadata
@@ -583,9 +584,19 @@ async function handleRequest(req, res, home, options = {}) {
       }
       if (method === 'POST') {
         const body = bodyOrRead || await readBody(req);
-        if (!body.bundle) return sendError(res, 400, 'bundle is required');
-        const result = await api.importBundle(body.bundle, body.options || {});
-        return sendJson(res, 200, result);
+        const isDirectBundle = body && Array.isArray(body.entries);
+        const bundle = isDirectBundle ? body : body?.bundle;
+        if (!bundle) return sendError(res, 400, 'bundle is required');
+        const options = isDirectBundle
+          ? { home: currentHome, verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false }
+          : { home: currentHome, ...(body.options || {}), verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false };
+        const result = await api.importBundle(bundle, options);
+        return sendJson(res, 200, {
+          imported: result.filter((r) => r.ok && r.imported).length,
+          skipped: result.filter((r) => r.ok && !r.imported).length,
+          failed: result.filter((r) => !r.ok).length,
+          results: result
+        });
       }
     }
 
@@ -603,8 +614,13 @@ async function handleRequest(req, res, home, options = {}) {
     }
     if (method === 'POST' && route === '/api/v1/history-import') {
       const body = bodyOrRead || await readBody(req);
-      if (!body.bundle) return sendError(res, 400, 'bundle is required');
-      const result = await api.importHistory(body.bundle, body.options || {});
+      const isDirectBundle = body && Array.isArray(body.entries);
+      const bundle = isDirectBundle ? body : body?.bundle;
+      if (!bundle) return sendError(res, 400, 'bundle is required');
+      const options = isDirectBundle
+        ? { home: currentHome, verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false }
+        : { home: currentHome, ...(body.options || {}), verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false };
+      const result = await api.importHistory(bundle, options);
       return sendJson(res, 200, result);
     }
 
@@ -640,6 +656,13 @@ async function handleRequest(req, res, home, options = {}) {
         const result = await api.config(body || { action: 'get' });
         return sendJson(res, 200, result);
       }
+    }
+
+    if (method === 'POST' && route === '/api/v1/completion') {
+      const body = bodyOrRead || await readBody(req);
+      const shell = body?.shell || 'bash';
+      const result = await api.completion({ shell });
+      return sendJson(res, 200, result);
     }
 
     if (method === 'GET' && route === '/api/v1/probe') {
