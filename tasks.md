@@ -1,6 +1,8 @@
 # PermaBrain Build Tasks
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-18 15:04 UTC): added `test/serve-advanced.mjs` covering remaining HTTP routes with API-key auth — bundles/export-all, history export/import, diff, completion, and config. Wired missing `POST /api/v1/completion` route into `src/serve.mjs` and fixed `client.importBundle()`/`client.importHistory()` to wrap the bundle in `{ bundle, ...opts }`. Fixed `src/auth.mjs` so generic `?key=` query parameters are not mistaken for API keys, preventing 403s on routes like `/api/v1/bundles?key=`. Also fixed `test/client-sdk-advanced.mjs` event-stream consumer so it resolves on the published custom event instead of waiting for three events. Wired `test/serve-advanced.mjs` and `test:serve-advanced` script into `package.json` and `npm test`. Full `npm test` suite passes.
+- [x] Cron build loop checkpoint (2026-06-18 14:04 UTC): completed advanced HTTP client SDK coverage. Added `test/client-sdk-advanced.mjs` (8 sections) covering threshold attestations, threshold envelope import/export, peer sync/push, log export/import, event publish/stream, and query-stream. Added `streamEvents()` and `streamQuery()` async-iterator helpers to `src/client.mjs`, importing `events-client.mjs` directly. Fixed threshold-attestation `addThresholdSigner` request format in the SDK and server return shape. Fixed bundle export for `LocalTransport` by implementing `queryByKey()` and `getItem()` methods and hardening `exportBundle` fallback paths. Fixed `startServer` to bind API `home`/`config` to the requested server directory so multi-peer tests use the correct transport. Wired `test/client-sdk-advanced` into `package.json` and included it in `npm test`. Full `npm test` suite passes.
 - [x] Cron build loop checkpoint (2026-06-18 13:34 UTC): picked Next task — expanded HTTP API client SDK test coverage. Added `client.article()` and `client.articles()` aliases plus `client.createArticle()` alias in `src/client.mjs`; improved 404 mapping for missing articles/attestations in `src/serve.mjs`; added `test/client-sdk.mjs` (10 tests) covering `client.publish()`, `client.createArticle()`, `client.article()`, `client.articles()`, `client.attest()`, and `client.search()` with filters, auth, and error handling; wired `test:client-sdk` script and included suite in `npm test`. Full `npm test` suite passes; committed and pushed to `origin/main` as `63f314d`.
 - [x] Cron build loop checkpoint (2026-06-18 11:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `05c55e2`. No implementation work picked. Seeded next chunk: HTTP API route discovery / OpenAPI JSON endpoint for `permabrain serve`.
 - [x] Add HTTP API key-based auth middleware for `permabrain serve` endpoints, CLI `--api-key`/env var, and SDK `apiKey` option. Implemented `src/auth.mjs`, wired `--api-key`/`PERMABRAIN_API_KEY` into `serveCommand`, applied middleware in `createServer/startServer` for protected routes (public `/health`, event/stream routes exempted), and added SDK `createClient({ apiKey })` support. Added `test/auth.mjs` and `test/serve-auth.mjs` coverage and included them in `npm test`. Also fixed a pre-existing body double-read bug in `src/serve.mjs` route handlers and the undeclared `reader` variable in `src/events-client.mjs`. Full `npm test` suite passes; committed to `main` as `85583a1` on 2026-06-18 11:15 UTC.
@@ -11,8 +13,11 @@
 ## Done
 - [x] Wire HTTP API route discovery into `permabrain client` CLI and README: added `permabrain client routes` and `permabrain client openapi` actions in `src/commands.mjs`, updated `scripts/cli.mjs` help, documented `/api/v1/routes` + `/api/v1/openapi.json` in README, added `test/client-routes.mjs`, and wired it into `npm test` + `test:client-routes`. Full `npm test` suite passes; committed to `main` as `0cbfd55` on 2026-06-18 12:34 UTC.
 
+## In Progress
+- [ ] (none)
+
 ## Next
-- [ ] (none — seed next feature chunk in next build loop)
+- [ ] Document API-key auth, `POST /api/v1/completion`, and bundle/history import endpoints in README and skill docs.
 
 
 ## Done
