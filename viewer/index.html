@@ -268,12 +268,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <h1>&#x1F9E0; <span>PermaBrain</span></h1>
   <div class="subtitle">Public signed knowledge graph</div>
   <div class="header-actions">
+    <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
   </div>
-  <input type="text" class="search" id="search" placeholder="Search articles..." oninput="renderList()">
+  <input type="text" class="search" id="search" placeholder="Search articles..." oninput="window.onSearchInput()">
   <div class="filters" id="filters"></div>
 </div>
 <div class="filter-panel" id="filterPanel">
@@ -1109,7 +1110,116 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       '\u003c/div\u003e';
   }
 
+  // --- URL permalink state (filters, sort, view, article, tab, transport) ---
+  var urlUpdateTimer = null;
+
+  function buildUrlState() {
+    var params = new URLSearchParams();
+    var q = (document.getElementById('search').value || '').trim();
+    if (q) params.set('q', q);
+    var topic = document.getElementById('topicSelect')?.value || '';
+    if (topic && topic !== 'all') params.set('topic', topic);
+    var after = document.getElementById('filterAfter')?.value || '';
+    if (after) params.set('after', after);
+    var before = document.getElementById('filterBefore')?.value || '';
+    if (before) params.set('before', before);
+    var author = (document.getElementById('filterAuthor')?.value || '').trim();
+    if (author) params.set('author', author);
+    if (activeSort && activeSort !== 'date') params.set('sort', activeSort);
+    if (liveTransport && liveTransport !== 'sse' && isLocalServer()) params.set('transport', liveTransport);
+    if (viewMode && viewMode !== 'home') params.set('view', viewMode);
+    if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
+    if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
+    if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
+    if (document.getElementById('articleModal')?.classList.contains('show')) params.set('modal', '1');
+    return params;
+  }
+
+  function readUrlState() {
+    var params = new URLSearchParams(window.location.search);
+    return {
+      q: params.get('q') || '',
+      topic: params.get('topic') || '',
+      after: params.get('after') || '',
+      before: params.get('before') || '',
+      author: params.get('author') || '',
+      sort: params.get('sort') || 'date',
+      transport: params.get('transport') || '',
+      view: params.get('view') || 'home',
+      key: params.get('key') || '',
+      tab: params.get('tab') || 'content',
+      modal: params.get('modal') === '1'
+    };
+  }
+
+  function applyUrlState() {
+    if (!window.history.replaceState) return;
+    var state = readUrlState();
+    if (state.q) document.getElementById('search').value = state.q;
+    if (state.topic) {
+      var topicSel = document.getElementById('topicSelect');
+      if (topicSel) topicSel.value = state.topic;
+      activeFilter = state.topic;
+    }
+    if (state.after) document.getElementById('filterAfter').value = state.after;
+    if (state.before) document.getElementById('filterBefore').value = state.before;
+    if (state.author) document.getElementById('filterAuthor').value = state.author;
+    if (state.sort) {
+      activeSort = state.sort;
+      document.querySelectorAll('.sort-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.sort === activeSort);
+      });
+    }
+    if (state.transport && ['sse','ws'].includes(state.transport)) {
+      liveTransport = state.transport;
+      localStorage.setItem('permabrain-live-transport', state.transport);
+    }
+    if (state.view && ['home','article','dashboard','stats'].includes(state.view)) {
+      viewMode = state.view;
+    }
+    if (state.tab) activeTab = state.tab;
+    return state;
+  }
+
+  function updateUrlState() {
+    if (!window.history.replaceState) return;
+    if (urlUpdateTimer) clearTimeout(urlUpdateTimer);
+    urlUpdateTimer = setTimeout(function() {
+      urlUpdateTimer = null;
+      var params = buildUrlState();
+      var qs = params.toString();
+      var url = window.location.pathname + (qs ? '?' + qs : '');
+      window.history.replaceState({}, '', url);
+    }, 150);
+  }
+
+  window.copyPermalink = function() {
+    var params = buildUrlState();
+    var qs = params.toString();
+    var url = window.location.origin + window.location.pathname + (qs ? '?' + qs : '');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function() {
+        var btn = document.getElementById('copyLinkBtn');
+        if (btn) {
+          var original = btn.innerHTML;
+          btn.innerHTML = '&#10003;';
+          setTimeout(function() { btn.innerHTML = original; }, 1200);
+        }
+      }).catch(function() {});
+    }
+    return url;
+  };
+
+  window.buildUrlState = buildUrlState;
+  window.applyUrlState = applyUrlState;
+  window.updateUrlState = updateUrlState;
+
   // --- Public API ---
+  window.onSearchInput = function() {
+    renderList();
+    updateUrlState();
+  };
+
   window.selectArticle = function(key) {
     if (isLocalListMode()) {
       var idx = localList.articles.findIndex(function(a) { return a.key === key; });
@@ -1120,6 +1230,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     viewMode = 'article';
     stopDashboardRefresh();
     renderArticle(key);
+    updateUrlState();
   };
 
   window.showHome = function() {
@@ -1128,6 +1239,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     selectedKey = null;
     renderList();
     renderHome();
+    updateUrlState();
     if (isLocalListMode()) fetchLocalList();
   };
 
@@ -1138,6 +1250,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     stopDashboardRefresh();
     await fetchDashboard();
     startDashboardRefresh();
+    updateUrlState();
   };
 
   window.showStats = async function() {
@@ -1147,6 +1260,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     stopDashboardRefresh();
     await fetchLocalStats();
     renderStatsDashboard();
+    updateUrlState();
   };
 
   function startDashboardRefresh() {
@@ -1300,6 +1414,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     cycleLiveTransportIndicator();
     stopLiveStream();
     startLiveStream();
+    updateUrlState();
   };
 
   function scheduleListRefresh() {
@@ -1518,6 +1633,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     document.getElementById('articleModal').classList.add('show');
     document.getElementById('modalTitle').textContent = summary.title || summary.key || 'Article';
     document.getElementById('modalBody').innerHTML = '<div class="modal-loading"><div class="spinner"></div> Loading article...</div>';
+    updateUrlState();
     try {
       var [articleRes, historyRes, consensusRes] = await Promise.all([
         fetch('/api/v1/articles/' + encodeURIComponent(summary.key)),
@@ -1543,6 +1659,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     modalConsensus = null;
     modalIndex = -1;
     renderList();
+    updateUrlState();
   };
 
   window.modalNext = function() {
@@ -1627,12 +1744,12 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (isLocalListMode()) {
       // Re-subscribe with the new topic filter so live updates match.
       stopLiveStream();
-      fetchLocalList().then(startLiveStream);
+      fetchLocalList().then(startLiveStream).then(updateUrlState);
     }
   };
 
   window.applyFilters = function() {
-    if (isLocalListMode()) fetchLocalList();
+    if (isLocalListMode()) fetchLocalList().then(updateUrlState);
   };
 
   window.resetFilters = function() {
@@ -1642,8 +1759,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     document.getElementById('filterAuthor').value = '';
     document.getElementById('search').value = '';
     activeFilter = 'all';
-    if (isLocalListMode()) fetchLocalList();
-    else { renderFilters(); renderList(); }
+    if (isLocalListMode()) fetchLocalList().then(updateUrlState);
+    else { renderFilters(); renderList(); updateUrlState(); }
   };
 
   function renderHistoryTab(key) {
@@ -1884,6 +2001,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   window.setTab = function(tab) {
     activeTab = tab;
     if (selectedKey) renderArticle(selectedKey);
+    updateUrlState();
   };
 
   window.setFilter = function(topic) {
@@ -1891,10 +2009,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (isLocalListMode()) {
       document.getElementById('topicSelect').value = topic === 'all' ? '' : topic;
       stopLiveStream();
-      fetchLocalList().then(startLiveStream);
+      fetchLocalList().then(startLiveStream).then(updateUrlState);
     } else {
       renderFilters();
       renderList();
+      updateUrlState();
     }
   };
 
@@ -1903,8 +2022,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     document.querySelectorAll('.sort-btn').forEach(function(b) {
       b.classList.toggle('active', b.dataset.sort === sort);
     });
-    if (isLocalListMode()) fetchLocalList();
-    else renderList();
+    if (isLocalListMode()) fetchLocalList().then(updateUrlState);
+    else { renderList(); updateUrlState(); }
   };
 
   window.toggleSidebar = function() {
@@ -1936,11 +2055,20 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   // --- Boot ---
   if (isLocalServer()) fetchServerPreferredTransport();
+  var bootState = isLocalServer() ? applyUrlState() : null;
   renderFilters();
   if (isLocalServer()) {
     renderHome();
     fetchLocalList().then(function() {
       startLiveStream();
+      if (bootState) {
+        if (bootState.view === 'dashboard') window.showDashboard();
+        else if (bootState.view === 'stats') window.showStats();
+        else if (bootState.key) {
+          var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
+          if (idx >= 0) window.openArticleModal(idx);
+        }
+      }
     });
   } else {
     renderList();
