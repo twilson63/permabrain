@@ -38,6 +38,7 @@ import { startServer, stopServer } from './serve.mjs';
 import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { runDoctor, doctorReportToMarkdown } from './doctor.mjs';
 import { queryLog, logToMarkdown, logAction, tailLog, followLog, exportLog, importLog } from './log.mjs';
+import { requestLogger, accessLogResultToMarkdown } from './request-log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
 import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
 import { subscribeEventsRemote, runEventsSubscriber } from './events-client.mjs';
@@ -68,6 +69,7 @@ import {
 } from './peer.mjs';
 
 import fs from 'node:fs';
+import path from 'node:path';
 
 function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
@@ -128,6 +130,7 @@ export async function runCommand(command, args) {
   if (command === 'serve') return serveCommand(args);
   if (command === 'doctor') return doctorCommand(args);
   if (command === 'log') return logCommand(args);
+  if (command === 'access-log') return accessLogCommand(args);
   if (command === 'template') return templateCommand(args);
   if (command === 'dashboard') return dashboardCommand(args);
   if (command === 'client') return clientCommand(args);
@@ -2017,6 +2020,147 @@ async function clientCommand(args) {
   }
 
   throw new Error(`Unknown client action: ${action}. Try: health, status, routes, openapi, get, query, publish`);
+}
+
+async function accessLogCommand(args = {}) {
+  args._ = args._ || [];
+  if (args.help || args._[0] === '--help' || args._[0] === 'help') {
+    console.log(`Usage: permabrain access-log [filters] [--tail [N]] [--follow] [--url <url>] [--source disk] [--method <method>] [--status <n>] [--path <substring>] [--after <date>] [--before <date>] [--limit N] [--offset N] [--count N] [--duration <ms>] [--markdown] [--json]
+
+Query or follow the HTTP request/access log produced by 'permabrain serve'.
+By default reads from the local home directory disk log (logs/access-log.jsonl).
+Use --url to query a running server instead; use --follow to stream live entries
+via the server's SSE endpoint.
+
+Filters:
+  --method <method>    Filter by HTTP method (GET, POST, ...)
+  --status <n>         Filter by response status code
+  --path <substring>   Filter by path substring
+  --after <date>       Only entries on or after this ISO date
+  --before <date>      Only entries on or before this ISO date
+  --source disk        Query persisted disk log on the server (default memory)
+
+Pagination/streaming:
+  --limit N            Maximum results (default 100 on disk; server default otherwise)
+  --offset N           Pagination offset
+  --tail [N]           Show the N most recent entries (default 10)
+  --follow             Stream new entries until interrupted (uses server SSE)
+  --count N            Stop following after N entries
+  --duration <ms>      Stop following after N milliseconds
+
+Connection (when not using local disk):
+  --url <url>          Server base URL (default http://localhost:8765)
+  --api-key <key>      API key for protected endpoints
+
+Output:
+  --markdown           Render results as markdown
+  --json               Output structured JSON
+
+Examples:
+  permabrain access-log --tail 20
+  permabrain access-log --method GET --status 200 --path /api/v1/articles
+  permabrain access-log --url http://localhost:8765 --source disk --limit 50
+  permabrain access-log --follow --count 5
+`);
+    return { ok: true, help: true };
+  }
+
+  const home = getHome();
+  const baseUrl = args.url || args.u || process.env.PERMABRAIN_URL || 'http://localhost:8765';
+  const apiKey = args['api-key'] || process.env.PERMABRAIN_API_KEY || undefined;
+  const filters = {
+    method: args.method,
+    status: args.status !== undefined ? Number(args.status) : undefined,
+    path: args.path,
+    after: args.after,
+    before: args.before,
+    limit: args.limit ? Number(args.limit) : undefined,
+    offset: args.offset ? Number(args.offset) : undefined
+  };
+  const tailLimit = args.tail === true ? 10 : (args.tail ? Number(args.tail) : undefined);
+
+  // Local disk query mode when no --url is explicitly provided and a home arg exists.
+  const homeForAccessLog = args.home || home;
+  const hasExplicitUrl = !!args.url || !!args.u || !!process.env.PERMABRAIN_URL;
+  const hasLocalDisk = fs.existsSync(path.join(homeForAccessLog, 'logs', 'access-log.jsonl'));
+  if (!args.follow && !hasExplicitUrl && hasLocalDisk) {
+    const logger = requestLogger({ format: 'none', home: homeForAccessLog });
+    const queryOptions = { ...filters };
+    if (tailLimit !== undefined) {
+      queryOptions.limit = tailLimit;
+      queryOptions.offset = 0;
+    }
+    const result = await logger.queryDisk(queryOptions);
+    if (args.json) printJson(result);
+    else if (args.markdown) console.log(accessLogResultToMarkdown(result));
+    else {
+      console.log(`Access log entries: ${result.total} matching, ${result.entries.length} shown`);
+      for (const e of result.entries) {
+        console.log(`${e.timestamp} [${e.requestId}] ${e.method} ${e.path} ${e.statusCode} ${e.durationMs}ms`);
+      }
+    }
+    return result;
+  }
+
+  if (args.follow) {
+    const { createClient } = await import('./client.mjs');
+    const client = createClient({ baseUrl, apiKey });
+    const controller = new AbortController();
+    function stop() { controller.abort(); }
+    process.on('SIGINT', stop);
+    process.on('SIGTERM', stop);
+    let count = 0;
+    const maxEvents = args.count ? Number(args.count) : Infinity;
+    const maxMs = args.duration ? Number(args.duration) : Infinity;
+    const startTime = Date.now();
+    try {
+      const stream = client.requestsStream({ signal: controller.signal });
+      for await (const event of stream) {
+        if (event.type === 'error') {
+          if (args.json) console.log(JSON.stringify(event));
+          else console.error(`Error: ${event.message}`);
+          continue;
+        }
+        if (args.json) console.log(JSON.stringify(event));
+        else {
+          const ts = event.timestamp || 'unknown';
+          console.log(`${ts} [${event.requestId}] ${event.method} ${event.path} ${event.statusCode} ${event.durationMs}ms`);
+        }
+        count++;
+        if (count >= maxEvents || (maxMs && Date.now() - startTime >= maxMs)) {
+          stop();
+          break;
+        }
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) throw err;
+    } finally {
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
+    }
+    return { count, baseUrl };
+  }
+
+  // Remote query mode via HTTP API.
+  const { createClient } = await import('./client.mjs');
+  const client = createClient({ baseUrl, apiKey });
+  const remoteFilters = { ...filters };
+  if (tailLimit !== undefined) {
+    remoteFilters.limit = tailLimit;
+    remoteFilters.offset = 0;
+  }
+  if (args.source === 'disk' || args.disk) remoteFilters.source = 'disk';
+  const result = args.markdown ? await client.requestsMarkdown(remoteFilters) : await client.requests(remoteFilters);
+  if (args.json && !args.markdown) printJson(result);
+  else if (args.markdown) console.log(result);
+  else {
+    const entries = result.entries || [];
+    console.log(`Access log entries: ${result.total ?? entries.length} matching, ${entries.length} shown`);
+    for (const e of entries) {
+      console.log(`${e.timestamp} [${e.requestId}] ${e.method} ${e.path} ${e.statusCode} ${e.durationMs}ms`);
+    }
+  }
+  return result;
 }
 
 async function validateCommand(args) {

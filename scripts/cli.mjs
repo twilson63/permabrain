@@ -63,6 +63,7 @@ const COMMANDS = [
   'serve',
   'doctor',
   'log',
+  'access-log',
   'template',
   'dashboard',
   'client',
@@ -161,6 +162,7 @@ Commands:
                              PERMABRAIN_ACCESS_LOG_RETENTION_DAYS drops entries older than this when querying disk
   doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
   log [filters]                Query the local audit log
+  access-log [filters]         Query HTTP access/request logs from disk or a running server
   template <file>              Publish an article from a markdown template
   dashboard                    Build a self-contained web dashboard snapshot
   client [action] [args]         HTTP client SDK for a permabrain serve instance
@@ -181,6 +183,7 @@ Common examples:
   permabrain consensus person/ada-lovelace
   permabrain dashboard --output dashboard.html --publish
   permabrain log --tail 10
+  permabrain access-log --tail 20 --method GET --status 200
   permabrain serve --port 8765 --stream-transport ws
   permabrain serve --stream-transport sse
   permabrain events --events publish,attest --duration 30000
@@ -810,6 +813,42 @@ Query/tail/follow options:
   --interval N         Follow polling interval in seconds (default 1)
   --markdown           Render results as markdown
   --json               Output structured JSON`,
+    'access-log': `Usage: permabrain access-log [filters] [--tail [N]] [--follow] [--url <url>] [--source disk] [--method <method>] [--status <n>] [--path <substring>] [--after <date>] [--before <date>] [--limit N] [--offset N] [--count N] [--duration <ms>] [--markdown] [--json]
+
+Query or follow the HTTP request/access log produced by 'permabrain serve'.
+By default reads from the local home directory disk log (logs/access-log.jsonl).
+Use --url to query a running server instead; use --follow to stream live entries
+via the server's SSE endpoint.
+
+Filters:
+  --method <method>    Filter by HTTP method (GET, POST, ...)
+  --status <n>         Filter by response status code
+  --path <substring>   Filter by path substring
+  --after <date>       Only entries on or after this ISO date
+  --before <date>      Only entries on or before this ISO date
+  --source disk        Query persisted disk log on the server (default memory)
+
+Pagination/streaming:
+  --limit N            Maximum results (default 100 on disk; server default otherwise)
+  --offset N           Pagination offset
+  --tail [N]           Show the N most recent entries (default 10)
+  --follow             Stream new entries until interrupted (uses server SSE)
+  --count N            Stop following after N entries
+  --duration <ms>      Stop following after N milliseconds
+
+Connection (when not using local disk):
+  --url <url>          Server base URL (default http://localhost:8765)
+  --api-key <key>      API key for protected endpoints
+
+Output:
+  --markdown           Render results as markdown
+  --json               Output structured JSON
+
+Examples:
+  permabrain access-log --tail 20
+  permabrain access-log --method GET --status 200 --path /api/v1/articles
+  permabrain access-log --url http://localhost:8765 --source disk --limit 50
+  permabrain access-log --follow --count 5`,
     'template': `Usage: permabrain template <file> [--source <source>] [--topic <topic>] [--kind <kind>] [--title <title>] [--key <key>] [--app <app>] [--source-url <url>] [--variables <json>] [--encrypt] [--recipient <key>]... [--use-hyperbeam] [--use-hyperbeam-reference] [--json]
 
 Publish an article from a markdown template with optional YAML frontmatter.

@@ -325,27 +325,44 @@ export class RequestLogger {
    * Async generator that yields every new request entry as it is recorded.
    * Used by the live tail SSE endpoint.
    */
-  async *tailStream() {
+  async *tailStream(signal) {
     const queue = [];
-    const controller = new AbortController();
+    let pendingResolve = null;
     const listener = (entry) => {
       queue.push(entry);
-      controller.signal.dispatchEvent?.({ type: 'push' });
+      if (pendingResolve) {
+        pendingResolve();
+        pendingResolve = null;
+      }
     };
-    this._diskTailClients.add({ write: (text) => listener(JSON.parse(text.replace(/^data: /, '').trim())) });
-    // Simpler: push directly into queue from broadcast hook.
-    this._onTail = (entry) => queue.push(entry);
+    this._onTail = listener;
     try {
-      while (true) {
-        if (queue.length) {
+      while (!signal || !signal.aborted) {
+        while (queue.length) {
           yield queue.shift();
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 100));
         }
+        if (signal?.aborted) break;
+        await new Promise(resolve => {
+          pendingResolve = resolve;
+          const t = setTimeout(resolve, 100);
+          const onAbort = () => {
+            clearTimeout(t);
+            pendingResolve = null;
+            resolve();
+          };
+          if (signal) signal.addEventListener('abort', onAbort, { once: true });
+        });
       }
     } finally {
       this._onTail = null;
     }
+  }
+
+  /**
+   * Return disk query results as a markdown table.
+   */
+  diskToMarkdown(options = {}) {
+    return accessLogResultToMarkdown(this.entries, options);
   }
 
   /**
@@ -373,6 +390,12 @@ export function getRecentRequests(logger, options = {}) {
 export function requestsToMarkdown(logger, options = {}) {
   if (!logger) return 'No request log available.';
   const { total, entries } = logger.getRecentRequests(options);
+  return accessLogResultToMarkdown(entries, { total });
+}
+
+export function accessLogResultToMarkdown(result, options = {}) {
+  const total = options.total ?? (Array.isArray(result) ? result.length : result?.total ?? 0);
+  const entries = Array.isArray(result) ? result : result?.entries ?? [];
   const lines = [
     '# Recent PermaBrain HTTP requests',
     `Total matching: ${total}`,

@@ -41,6 +41,7 @@ import { archive, restore } from './archive.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups } from './backup.mjs';
 import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } from './log.mjs';
+import { accessLogResultToMarkdown } from './request-log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
@@ -1448,6 +1449,52 @@ const api = {
   auditLog(opts = {}) {
     requireInit(this._home);
     return logAction({ ...opts, home: this._home });
+  },
+
+  /**
+   * Query the local HTTP access/request log persisted by `permabrain serve`.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.method] - Filter by HTTP method
+   * @param {number} [opts.status] - Filter by response status code
+   * @param {string} [opts.path] - Path substring filter
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {number} [opts.limit=100]
+   * @param {number} [opts.offset=0]
+   * @returns {Promise<{total, offset, limit, entries}>}
+   */
+  async accessLog(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { requestLogger } = await import('./request-log.mjs');
+    const logger = requestLogger({ format: 'none', home: this._home });
+    return logger.queryDisk(opts);
+  },
+
+  /**
+   * Render access-log query results as markdown.
+   *
+   * @param {Object} result - Result from `api.accessLog()`.
+   * @returns {string}
+   */
+  accessLogToMarkdown(result) {
+    return accessLogResultToMarkdown(result);
+  },
+
+  /**
+   * Tail the local HTTP access/request log.
+   *
+   * @param {Object} [opts]
+   * @param {number} [opts.limit=10]
+   * @returns {Promise<{total, offset, limit, entries}>}
+   */
+  async tailAccessLog(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { requestLogger } = await import('./request-log.mjs');
+    const logger = requestLogger({ format: 'none', home: this._home });
+    return logger.queryDisk({ limit: opts.limit || 10, offset: 0, ...opts });
   },
 
   /**

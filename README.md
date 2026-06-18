@@ -348,6 +348,20 @@ curl 'http://localhost:8765/api/v1/log/requests?source=disk&method=GET&status=20
 curl -H "Accept: text/event-stream" http://localhost:8765/api/v1/log/requests/stream
 ```
 
+You can also query the local disk log from the CLI without a running server:
+
+```sh
+permabrain access-log --tail 20
+permabrain access-log --method GET --status 200 --path /api/v1/articles
+permabrain access-log --after 2026-06-18T00:00:00Z --limit 100 --json
+```
+
+Or stream live entries from a running server:
+
+```sh
+permabrain access-log --follow --url http://localhost:8765 --count 10
+```
+
 When the server has a home directory, successful requests are also appended to `logs/access-log.jsonl` as JSON lines. Rotated files are named `access-log.1.jsonl`, `access-log.2.jsonl`, etc. Control persistence with:
 
 ```sh

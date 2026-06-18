@@ -184,7 +184,7 @@ export {
 export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest, ZENBIN_BASE_URL, ZENBIN_PUBLISH_PATH } from './zenbin.mjs';
 
 // HTTP request logging / access-log ring buffer + disk persistence
-export { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown, defaultLogPath } from './request-log.mjs';
+export { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown, accessLogResultToMarkdown, defaultLogPath } from './request-log.mjs';
 
 
 export {

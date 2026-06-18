@@ -320,7 +320,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'events', 'subscribeEventsRemote', 'subscribe', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
+  'accessLog', 'tailAccessLog', 'accessLogToMarkdown', 'events', 'subscribeEventsRemote', 'subscribe', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
   'validateMetadata', 'validateDataItem',
   'peerInfo', 'buildPeerPullBundle', 'pullFromPeer', 'pullFromPeerAsBundle', 'peerStatus',
   'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
@@ -335,7 +335,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 89 API methods present');
+console.log('   ✓ All 92 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -345,6 +345,9 @@ assert.equal(typeof api.logToMarkdown, 'function', 'api.logToMarkdown is a funct
 assert.equal(typeof api.tailLog, 'function', 'api.tailLog is a function');
 assert.equal(typeof api.exportLog, 'function', 'api.exportLog is a function');
 assert.equal(typeof api.importLog, 'function', 'api.importLog is a function');
+assert.equal(typeof api.accessLog, 'function', 'api.accessLog is a function');
+assert.equal(typeof api.tailAccessLog, 'function', 'api.tailAccessLog is a function');
+assert.equal(typeof api.accessLogToMarkdown, 'function', 'api.accessLogToMarkdown is a function');
 console.log('   ✓ Log API methods present');
 
 // --- 13. Template API methods ---
@@ -415,10 +418,11 @@ assert.equal(typeof runEventPublisher, 'function', 'runEventPublisher');
 console.log('   OK Events + schema exports present');
 
 // Request-log exports
-import { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown } from '../src/index.mjs';
+import { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown, accessLogResultToMarkdown } from '../src/index.mjs';
 assert.equal(typeof requestLogger, 'function', 'requestLogger');
 assert.equal(typeof RequestLogger, 'function', 'RequestLogger');
 assert.equal(typeof getRecentRequests, 'function', 'getRecentRequests');
 assert.equal(typeof requestsToMarkdown, 'function', 'requestsToMarkdown');
+assert.equal(typeof accessLogResultToMarkdown, 'function', 'accessLogResultToMarkdown');
 
 console.log('   OK Request-log exports present');
