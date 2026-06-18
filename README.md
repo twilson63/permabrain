@@ -334,13 +334,32 @@ PERMABRAIN_ACCESS_LOG=short
 PERMABRAIN_REQUEST_LOG_MAX_ENTRIES=5000
 ```
 
-Inspect recent requests via the API:
+Inspect recent requests via the API. By default the endpoint returns the in-memory ring buffer. Add `?source=disk` to query persisted logs, and stream live entries with the SSE endpoint:
 
 ```sh
 curl http://localhost:8765/api/v1/log/requests
 # or markdown table
 curl -H "Accept: text/markdown" http://localhost:8765/api/v1/log/requests?limit=20
+
+# Query persisted disk log with filters and pagination
+curl 'http://localhost:8765/api/v1/log/requests?source=disk&method=GET&status=200&limit=50'
+
+# Live tail of new requests (SSE)
+curl -H "Accept: text/event-stream" http://localhost:8765/api/v1/log/requests/stream
 ```
+
+When the server has a home directory, successful requests are also appended to `logs/access-log.jsonl` as JSON lines. Rotated files are named `access-log.1.jsonl`, `access-log.2.jsonl`, etc. Control persistence with:
+
+```sh
+# Custom log directory and retention
+PERMABRAIN_ACCESS_LOG_DIR=/var/log/permabrain \
+PERMABRAIN_ACCESS_LOG_MAX_SIZE=10485760 \
+PERMABRAIN_ACCESS_LOG_MAX_FILES=5 \
+PERMABRAIN_ACCESS_LOG_RETENTION_DAYS=30 \
+  permabrain serve
+```
+
+The web viewer has an **Audit** (👁) tab that renders the persisted access log with filters and an optional live tail.
 
 Every response includes an `X-Request-ID` header. Pass `X-Request-ID` in a request to correlate server logs with client traces.
 
@@ -390,7 +409,8 @@ const client = createClient({ baseUrl: 'http://localhost:8765', apiKey: 'pb_xxx'
 - `GET /api/v1/dashboard` and `/api/v1/dashboard.html`
 - `GET /api/v1/log` / `POST /api/v1/log`
 - `GET /api/v1/log/export` / `POST /api/v1/log/import`
-- `GET /api/v1/log/requests` — recent HTTP request ring buffer with `X-Request-ID` tracing
+- `GET /api/v1/log/requests` — recent HTTP request ring buffer (memory); add `?source=disk` to query persisted logs
+- `GET /api/v1/log/requests/stream` — live Server-Sent Events tail of the access log
 - `GET /api/v1/bundles` — export a single article bundle
 - `POST /api/v1/bundles` — import an article bundle
 - `GET /api/v1/export-all` — export all indexed articles as a bundle

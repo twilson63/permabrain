@@ -205,4 +205,59 @@ async function readLog(base, headers = {}) {
   }
 }
 
+{
+  const home = tmpHome();
+  const result = await startServer({ home, port: 0, accessLog: 'short' });
+  const base = `http://localhost:${result.port}`;
+
+  try {
+    // Use Node's http module to read the SSE stream manually.
+    const events = [];
+    const streamPromise = new Promise((resolve, reject) => {
+      const req = http.get(`${base}/api/v1/log/requests/stream`, { headers: { accept: 'text/event-stream' } }, (res) => {
+        assert.strictEqual(res.statusCode, 200);
+        assert.ok(res.headers['content-type'].includes('text/event-stream'));
+        let buffer = '';
+        res.on('data', (chunk) => {
+          buffer += chunk.toString('utf8');
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          let current = null;
+          for (const line of lines) {
+            if (line.startsWith('data: ')) current = line.slice(6);
+            else if (line.trim() === '' && current !== null) {
+              try { events.push(JSON.parse(current)); } catch {}
+              current = null;
+              if (events.length >= 2) {
+                res.destroy();
+                resolve();
+              }
+            }
+          }
+        });
+        res.on('end', () => resolve());
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+      req.setTimeout(5000, () => { req.destroy(); reject(new Error('SSE timeout')); });
+    });
+
+    // Give the stream a moment to open, then make a request that should appear.
+    await new Promise(r => setTimeout(r, 50));
+    await httpGet(`${base}/health`);
+    await streamPromise;
+
+    assert.ok(events.length >= 1, 'received at least one streamed event');
+    const healthEvent = events.find(e => e.path === '/health');
+    assert.ok(healthEvent, 'stream includes the health request entry');
+    assert.strictEqual(healthEvent.method, 'GET');
+    assert.strictEqual(healthEvent.statusCode, 200);
+
+    console.log('✓ live request-log SSE stream');
+  } finally {
+    await stopServer(result.server);
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 console.log('All serve-request-log tests passed');

@@ -271,6 +271,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
+    <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
   </div>
@@ -377,6 +378,12 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var statsLoading = false;
   var statsError = null;
   var localStatsData = null;  // live /api/v1/stats per key for selected article
+  var auditData = null;
+  var auditLoading = false;
+  var auditError = null;
+  var auditFilters = { method: '', status: '', path: '', after: '', before: '' };
+  var auditEventSource = null; // EventSource for live request log tail
+  var auditTotal = 0;
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -1128,6 +1135,13 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (activeSort && activeSort !== 'date') params.set('sort', activeSort);
     if (liveTransport && liveTransport !== 'sse' && isLocalServer()) params.set('transport', liveTransport);
     if (viewMode && viewMode !== 'home') params.set('view', viewMode);
+    if (viewMode === 'audit') {
+      if (auditFilters.method) params.set('auditMethod', auditFilters.method);
+      if (auditFilters.status) params.set('auditStatus', auditFilters.status);
+      if (auditFilters.path) params.set('auditPath', auditFilters.path);
+      if (auditFilters.after) params.set('auditAfter', auditFilters.after);
+      if (auditFilters.before) params.set('auditBefore', auditFilters.before);
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -1148,7 +1162,12 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       view: params.get('view') || 'home',
       key: params.get('key') || '',
       tab: params.get('tab') || 'content',
-      modal: params.get('modal') === '1'
+      modal: params.get('modal') === '1',
+      auditMethod: params.get('auditMethod') || '',
+      auditStatus: params.get('auditStatus') || '',
+      auditPath: params.get('auditPath') || '',
+      auditAfter: params.get('auditAfter') || '',
+      auditBefore: params.get('auditBefore') || ''
     };
   }
 
@@ -1174,9 +1193,14 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       liveTransport = state.transport;
       localStorage.setItem('permabrain-live-transport', state.transport);
     }
-    if (state.view && ['home','article','dashboard','stats'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit'].includes(state.view)) {
       viewMode = state.view;
     }
+    if (state.auditMethod) auditFilters.method = state.auditMethod;
+    if (state.auditStatus) auditFilters.status = state.auditStatus;
+    if (state.auditPath) auditFilters.path = state.auditPath;
+    if (state.auditAfter) auditFilters.after = state.auditAfter;
+    if (state.auditBefore) auditFilters.before = state.auditBefore;
     if (state.tab) activeTab = state.tab;
     return state;
   }
@@ -1236,6 +1260,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   window.showHome = function() {
     viewMode = 'home';
     stopDashboardRefresh();
+    stopAuditStream();
     selectedKey = null;
     renderList();
     renderHome();
@@ -1248,6 +1273,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
+    stopAuditStream();
     await fetchDashboard();
     startDashboardRefresh();
     updateUrlState();
@@ -1258,10 +1284,143 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
+    stopAuditStream();
     await fetchLocalStats();
     renderStatsDashboard();
     updateUrlState();
   };
+
+  window.showAudit = async function() {
+    viewMode = 'audit';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    await fetchAudit();
+    startAuditStream();
+    updateUrlState();
+  };
+
+  function stopAuditStream() {
+    if (auditEventSource) {
+      try { auditEventSource.close(); } catch(e) {}
+      auditEventSource = null;
+    }
+  }
+
+  async function fetchAudit() {
+    if (!isLocalServer()) return;
+    auditLoading = true;
+    auditError = null;
+    if (viewMode === 'audit') renderAudit();
+    try {
+      var params = new URLSearchParams();
+      params.set('source', 'disk');
+      params.set('limit', '100');
+      if (auditFilters.method) params.set('method', auditFilters.method);
+      if (auditFilters.status) params.set('status', auditFilters.status);
+      if (auditFilters.path) params.set('path', auditFilters.path);
+      if (auditFilters.after) params.set('after', auditFilters.after + 'T00:00:00.000Z');
+      if (auditFilters.before) params.set('before', auditFilters.before + 'T23:59:59.999Z');
+      var r = await fetch('/api/v1/log/requests?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      auditData = data.entries || [];
+      auditTotal = data.total || 0;
+      auditLoading = false;
+    } catch(e) {
+      auditError = e.message;
+      auditLoading = false;
+    }
+    if (viewMode === 'audit') renderAudit();
+  }
+
+  function statusColor(status) {
+    if (status >= 500) return 'var(--red)';
+    if (status >= 400) return 'var(--orange)';
+    if (status >= 200 && status < 300) return 'var(--green)';
+    return 'var(--muted)';
+  }
+
+  function renderAudit() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Audit log unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see the live request audit log.</p></div>';
+      return;
+    }
+    if (auditLoading && !auditData) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading request audit log...</div>';
+      return;
+    }
+    if (auditError && !auditData) {
+      main.innerHTML = '<div class="empty-state"><h2>Audit log error</h2><p>' + esc(auditError) + '</p><button class="btn-icon" onclick="window.showAudit()">Retry</button></div>';
+      return;
+    }
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.fetchAudit()">&#x21BB; Refresh</button>' +
+      '<label>Method <input type="text" id="auditMethod" value="' + esc(auditFilters.method) + '" placeholder="GET" style="width:4.5rem" onchange="window.setAuditFilter(\'method\',this.value)"></label>' +
+      '<label>Status <input type="text" id="auditStatus" value="' + esc(auditFilters.status) + '" placeholder="200" style="width:4rem" onchange="window.setAuditFilter(\'status\',this.value)"></label>' +
+      '<label>Path <input type="text" id="auditPath" value="' + esc(auditFilters.path) + '" placeholder="/api" onchange="window.setAuditFilter(\'path\',this.value)"></label>' +
+      '<label>After <input type="date" id="auditAfter" value="' + esc(auditFilters.after) + '" onchange="window.setAuditFilter(\'after\',this.value)"></label>' +
+      '<label>Before <input type="date" id="auditBefore" value="' + esc(auditFilters.before) + '" onchange="window.setAuditFilter(\'before\',this.value)"></label>' +
+      '<button class="btn-icon" onclick="window.resetAuditFilters()">Reset</button>' +
+      '<span class="last-updated">' + (auditTotal || 0) + ' entries · live tail ' + (auditEventSource ? 'on' : 'off') + '</span>' +
+      '</div>';
+
+    var rows = (auditData || []).map(function(e) {
+      return '<div class="audit-row">' +
+        '<span class="ts">' + fmtTs(e.timestamp) + '</span>' +
+        '<span class="badge" style="background:' + statusColor(e.statusCode) + ';color:#fff;border:none">' + (e.statusCode || 0) + '</span>' +
+        '<span style="font-family:monospace;font-size:0.78rem">' + esc(e.method) + '</span>' +
+        '<span style="font-family:monospace;font-size:0.78rem;word-break:break-all">' + esc(e.path) + '</span>' +
+        '<span style="color:var(--muted);font-size:0.78rem">' + (e.durationMs || 0) + 'ms · ' + esc(e.requestId || '') + '</span>' +
+        '</div>';
+    }).join('');
+
+    main.innerHTML = '<div class="home">' +
+      '<h1>&#128065; <span>Request Audit</span></h1>' +
+      '<p class="home-subtitle">HTTP request log with live tail from permabrain serve</p>' +
+      toolbar +
+      (rows || '<p class="dashboard-empty">No requests match the current filters.</p>') +
+      '</div>';
+  }
+
+  window.setAuditFilter = function(key, value) {
+    auditFilters[key] = value;
+    fetchAudit().then(updateUrlState);
+  };
+
+  window.resetAuditFilters = function() {
+    auditFilters = { method: '', status: '', path: '', after: '', before: '' };
+    fetchAudit().then(updateUrlState);
+  };
+
+  function startAuditStream() {
+    if (!isLocalServer() || auditEventSource || typeof EventSource === 'undefined') return;
+    var params = new URLSearchParams();
+    if (auditFilters.method) params.set('method', auditFilters.method);
+    if (auditFilters.status) params.set('status', auditFilters.status);
+    if (auditFilters.path) params.set('path', auditFilters.path);
+    var url = '/api/v1/log/requests/stream' + (params.toString() ? '?' + params.toString() : '');
+    try {
+      var es = new EventSource(url);
+      auditEventSource = es;
+      es.onmessage = function(event) {
+        try {
+          var e = JSON.parse(event.data);
+          if (e.type === 'open') return;
+          if (!auditData) auditData = [];
+          auditData.unshift(e);
+          if (auditData.length > 200) auditData.pop();
+          auditTotal++;
+          if (viewMode === 'audit') renderAudit();
+        } catch(err) {}
+      };
+      es.onerror = function() { stopAuditStream(); };
+    } catch(e) {}
+  }
+
+  window.fetchAudit = fetchAudit;
 
   function startDashboardRefresh() {
     stopDashboardRefresh();
@@ -2064,6 +2223,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       if (bootState) {
         if (bootState.view === 'dashboard') window.showDashboard();
         else if (bootState.view === 'stats') window.showStats();
+        else if (bootState.view === 'audit') window.showAudit();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -2073,8 +2233,9 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   } else {
     renderList();
   }
-  // Pre-render dashboard if already in dashboard mode (e.g., page reload)
+  // Pre-render dashboard/audit if already in that mode (e.g., page reload)
   if (viewMode === 'dashboard') window.showDashboard();
+  else if (viewMode === 'audit') window.showAudit();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {

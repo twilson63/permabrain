@@ -363,7 +363,17 @@ export function createClient(options = {}) {
     shareThresholdEnvelope: (body) => request('POST', '/api/v1/threshold/envelope', body),
 
     /** @returns {Promise<Object>} */
-    doctor: (body = {}) => request('GET', `/api/v1/doctor${toQuery(body)}`)
+    doctor: (body = {}) => request('GET', `/api/v1/doctor${toQuery(body)}`),
+
+    /**
+     * Stream live request-log entries from /api/v1/log/requests/stream.
+     *
+     * @param {Object} [opts]
+     * @param {AbortSignal} [opts.signal]
+     * @returns {{[Symbol.asyncIterator]: function, cancel: function}}
+     */
+    requestsStream: (opts = {}) => subscribeEventsOverSse({ baseUrl, apiKey: options.apiKey, url: '/api/v1/log/requests/stream', signal: opts.signal })
+
   };
 
   return client;

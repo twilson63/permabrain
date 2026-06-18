@@ -289,7 +289,7 @@ async function handleRequest(req, res, home, options = {}) {
   // Rate limiting applies to all HTTP routes except stream upgrade endpoints
   // (SSE/WebSocket) which maintain long-lived connections.
   const rateLimiter = options.rateLimiter;
-  const isStreamRoute = route === '/api/v1/events/stream' || route === '/api/v1/articles/stream' || route === '/api/v1/events/ws';
+  const isStreamRoute = route === '/api/v1/events/stream' || route === '/api/v1/articles/stream' || route === '/api/v1/events/ws' || route === '/api/v1/log/requests/stream' || route.startsWith('/api/v1/articles/stream');
   if (rateLimiter && !isStreamRoute) {
     const limitResult = rateLimiter.check(req);
     const rlHeaders = rateLimitHeaders(limitResult);
@@ -307,7 +307,7 @@ async function handleRequest(req, res, home, options = {}) {
     let body = null;
     const auth = options.apiKeyAuth;
     const needsAuth = auth && auth.apiKeys.length > 0;
-    const isPublic = route === '/health' || route === '/api/v1/events/stream' || route === '/api/v1/events/ws' || route === '/api/v1/articles/stream' || route.startsWith('/api/v1/articles/stream');
+    const isPublic = route === '/health' || route === '/api/v1/events/stream' || route === '/api/v1/events/ws' || route === '/api/v1/articles/stream' || route.startsWith('/api/v1/articles/stream') || route === '/api/v1/log/requests/stream';
     if (needsAuth && !isPublic) {
       body = await readBody(req);
       const authResult = auth.check({ headers: req.headers, url: req.url }, body);
@@ -342,20 +342,39 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     if (method === 'GET' && route === '/api/v1/log/requests') {
-      const logger = options.requestLogger || requestLogger({ format: 'none' });
+      const logger = options.requestLogger || requestLogger({ format: 'none', home });
       const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined;
       const offset = url.searchParams.get('offset') ? Number(url.searchParams.get('offset')) : undefined;
       const methodFilter = url.searchParams.get('method') || undefined;
       const statusFilter = url.searchParams.get('status') !== null ? Number(url.searchParams.get('status')) : undefined;
       const pathFilter = url.searchParams.get('path') || undefined;
+      const after = url.searchParams.get('after') || undefined;
+      const before = url.searchParams.get('before') || undefined;
       const accept = req.headers.accept || '';
-      const result = logger.getRecentRequests({ limit, offset, method: methodFilter, status: statusFilter, path: pathFilter });
+      const useDisk = logger.diskEnabled && url.searchParams.get('source') === 'disk';
+      const result = useDisk
+        ? await logger.queryDisk({ limit, offset, method: methodFilter, status: statusFilter, path: pathFilter, after, before })
+        : logger.getRecentRequests({ limit, offset, method: methodFilter, status: statusFilter, path: pathFilter });
       if (accept.includes('text/markdown')) {
-        const markdown = (await import('./request-log.mjs')).requestsToMarkdown(logger, { limit, offset, method: methodFilter, status: statusFilter, path: pathFilter });
+        const { requestsToMarkdown } = await import('./request-log.mjs');
+        const markdown = requestsToMarkdown(logger, { limit, offset, method: methodFilter, status: statusFilter, path: pathFilter });
         res.setHeader('content-type', 'text/markdown');
         return res.end(markdown);
       }
       return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/log/requests/stream') {
+      const logger = options.requestLogger || requestLogger({ format: 'none', home });
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        'connection': 'keep-alive'
+      });
+      res.write(`data: ${JSON.stringify({ type: 'open', timestamp: new Date().toISOString() })}\n\n`);
+      logger.subscribeTail(res);
+      req.on('close', () => logger.unsubscribeTail(res));
+      return;
     }
 
     if (method === 'GET' && route === '/api/v1/events/stream') {
@@ -1086,10 +1105,19 @@ export function createServer(options = {}) {
 
   const accessLogFormat = options.accessLog || process.env.PERMABRAIN_ACCESS_LOG || 'none';
   const requestLoggerMaxEntries = options.requestLogMaxEntries || process.env.PERMABRAIN_REQUEST_LOG_MAX_ENTRIES;
+  const accessLogDir = options.accessLogDir || process.env.PERMABRAIN_ACCESS_LOG_DIR || undefined;
+  const accessLogMaxSize = options.accessLogMaxSize || process.env.PERMABRAIN_ACCESS_LOG_MAX_SIZE || undefined;
+  const accessLogMaxFiles = options.accessLogMaxFiles || process.env.PERMABRAIN_ACCESS_LOG_MAX_FILES || undefined;
+  const accessLogRetentionDays = options.accessLogRetentionDays || process.env.PERMABRAIN_ACCESS_LOG_RETENTION_DAYS || undefined;
   const reqLogger = requestLogger({
     format: accessLogFormat,
     maxEntries: requestLoggerMaxEntries,
-    trustProxy
+    trustProxy,
+    home,
+    logDir: accessLogDir,
+    maxSize: accessLogMaxSize,
+    maxFiles: accessLogMaxFiles,
+    retentionDays: accessLogRetentionDays
   });
 
   const runtimeMetrics = createRuntimeMetrics();

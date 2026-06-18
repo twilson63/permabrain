@@ -183,8 +183,8 @@ export {
 // ZenBin client helpers
 export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest, ZENBIN_BASE_URL, ZENBIN_PUBLISH_PATH } from './zenbin.mjs';
 
-// HTTP request logging / access-log ring buffer
-export { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown } from './request-log.mjs';
+// HTTP request logging / access-log ring buffer + disk persistence
+export { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown, defaultLogPath } from './request-log.mjs';
 
 
 export {

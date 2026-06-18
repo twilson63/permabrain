@@ -1,19 +1,32 @@
 /**
- * PermaBrain request logging / access-log ring buffer.
+ * PermaBrain request logging / access-log ring buffer + optional disk persistence.
  *
  * Keeps a bounded in-memory history of recent HTTP requests handled by
  * `permabrain serve` so operators can inspect traffic without configuring an
  * external reverse proxy. It also propagates `X-Request-ID` for tracing across
  * SDK, CLI and server logs.
  *
+ * When `home` is provided, every request entry is also appended as JSON lines
+ * to `logs/access-log.jsonl` inside the home directory. The file is rotated
+ * when it reaches `--access-log-max-size` and older files are pruned to keep
+ * `--access-log-max-files`. A retention window (`--access-log-retention-days`)
+ * can also be applied at query time. The disk log enables live tail endpoints
+ * and long-term audit pages in the web viewer.
+ *
  * Usage:
  *   import { requestLogger, getRecentRequests, requestsToMarkdown } from './src/request-log.mjs';
- *   const log = requestLogger({ format: 'short', maxEntries: 1000 });
+ *   const log = requestLogger({ format: 'short', maxEntries: 1000, home: '/tmp/.permabrain' });
  *   const middleware = log.middleware();
  *   middleware(req, res, () => {});
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { statePaths } from './config.mjs';
+
 const DEFAULT_MAX_ENTRIES = 1000;
+const DEFAULT_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MiB
+const DEFAULT_MAX_FILES = 5;
 const SENSITIVE_HEADERS = new Set([
   'authorization',
   'cookie',
@@ -66,12 +79,29 @@ function formatShortLog(req, res, startTime, requestId) {
   return `[${requestId}] ${method} ${path} ${res.statusCode || 0} ${ms}ms`;
 }
 
+function resolveLogDir(home, logDir) {
+  if (logDir) return path.resolve(logDir);
+  if (home) return statePaths(home).logsDir;
+  return null;
+}
+
 export class RequestLogger {
   constructor(options = {}) {
     this.format = options.format || 'short';
     this.maxEntries = Math.max(1, Number(options.maxEntries) || DEFAULT_MAX_ENTRIES);
     this.trustProxy = !!options.trustProxy;
     this.entries = [];
+    this.home = options.home || null;
+    this.logDir = resolveLogDir(this.home, options.logDir);
+    this.maxSize = Math.max(1024, Number(options.maxSize) || DEFAULT_MAX_SIZE_BYTES);
+    this.maxFiles = Math.max(1, Number(options.maxFiles) || DEFAULT_MAX_FILES);
+    this.retentionDays = options.retentionDays !== undefined ? Number(options.retentionDays) : null;
+    this.diskEnabled = this.logDir !== null;
+    if (this.diskEnabled) {
+      fs.mkdirSync(this.logDir, { recursive: true });
+      this.currentLogPath = path.join(this.logDir, 'access-log.jsonl');
+    }
+    this._diskTailClients = new Set();
   }
 
   middleware() {
@@ -129,8 +159,80 @@ export class RequestLogger {
       this.entries.shift();
     }
 
+    if (this.diskEnabled) {
+      this._appendToDisk(entry);
+    }
+
+    this._broadcastTail(entry);
+
     if (line) {
       console.log(line);
+    }
+  }
+
+  _appendToDisk(entry) {
+    try {
+      const jsonl = JSON.stringify(entry) + '\n';
+      fs.appendFileSync(this.currentLogPath, jsonl);
+      this._maybeRotate();
+    } catch (err) {
+      // Do not crash the server if the log disk is full; keep in-memory buffer.
+      console.error('PermaBrain access log write failed:', err.message);
+    }
+  }
+
+  _maybeRotate() {
+    try {
+      const stats = fs.statSync(this.currentLogPath);
+      if (stats.size < this.maxSize) return;
+      // Rename existing rotated files up by one.
+      for (let i = this.maxFiles - 1; i >= 1; i--) {
+        const src = path.join(this.logDir, `access-log.${i}.jsonl`);
+        const dst = path.join(this.logDir, `access-log.${i + 1}.jsonl`);
+        if (fs.existsSync(src)) {
+          fs.renameSync(src, dst);
+        }
+      }
+      fs.renameSync(this.currentLogPath, path.join(this.logDir, 'access-log.1.jsonl'));
+      this._pruneRotatedFiles();
+    } catch (err) {
+      console.error('PermaBrain access log rotation failed:', err.message);
+    }
+  }
+
+  _pruneRotatedFiles() {
+    try {
+      const files = fs.readdirSync(this.logDir)
+        .filter(name => name.startsWith('access-log') && name.endsWith('.jsonl'))
+        .map(name => ({ name, path: path.join(this.logDir, name), stat: fs.statSync(path.join(this.logDir, name)) }))
+        .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
+      // Keep current + maxFiles - 1 rotated copies. Current file is recreated on next write.
+      const keep = new Set(['access-log.jsonl']);
+      for (let i = 1; i < this.maxFiles && i - 1 < files.length; i++) {
+        const candidate = files.find(f => f.name === `access-log.${i}.jsonl`);
+        if (candidate) keep.add(candidate.name);
+      }
+      for (const file of files) {
+        if (!keep.has(file.name)) {
+          fs.unlinkSync(file.path);
+        }
+      }
+    } catch (err) {
+      console.error('PermaBrain access log pruning failed:', err.message);
+    }
+  }
+
+  _broadcastTail(entry) {
+    if (this._onTail) {
+      try { this._onTail(entry); } catch { /* ignore */ }
+    }
+    const text = `data: ${JSON.stringify(entry)}\n\n`;
+    for (const res of this._diskTailClients) {
+      try {
+        if (!res.writableEnded) res.write(text);
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -153,6 +255,109 @@ export class RequestLogger {
 
   clear() {
     this.entries = [];
+  }
+
+  /**
+   * Return all log files (current + rotated) ordered newest first.
+   */
+  logFiles() {
+    if (!this.diskEnabled) return [];
+    try {
+      const current = path.join(this.logDir, 'access-log.jsonl');
+      const files = [];
+      if (fs.existsSync(current)) files.push(current);
+      for (let i = 1; ; i++) {
+        const p = path.join(this.logDir, `access-log.${i}.jsonl`);
+        if (!fs.existsSync(p)) break;
+        files.push(p);
+      }
+      return files;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Query persisted JSONL access logs with filters, pagination, and retention.
+   * Results are returned newest-first (reverse chronological).
+   */
+  async queryDisk(options = {}) {
+    if (!this.diskEnabled) return { total: 0, offset: 0, limit: 0, entries: [] };
+    const files = this.logFiles();
+    const limit = Math.max(0, Number(options.limit) || 100);
+    const offset = Math.max(0, Number(options.offset) || 0);
+    const method = options.method ? String(options.method).toUpperCase() : null;
+    const status = options.status !== undefined ? Number(options.status) : null;
+    const pathFilter = options.path ? String(options.path) : null;
+    const after = options.after ? new Date(options.after).getTime() : null;
+    const before = options.before ? new Date(options.before).getTime() : null;
+    const retentionCutoff = this.retentionDays !== null && this.retentionDays > 0
+      ? Date.now() - this.retentionDays * 24 * 60 * 60 * 1000
+      : null;
+
+    const matches = [];
+    for (const file of files) {
+      const text = await fs.promises.readFile(file, 'utf8');
+      if (!text.trim()) continue;
+      const lines = text.split('\n');
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        let entry;
+        try { entry = JSON.parse(line); } catch { continue; }
+        const ts = new Date(entry.timestamp).getTime();
+        if (Number.isNaN(ts)) continue;
+        if (retentionCutoff !== null && ts < retentionCutoff) continue;
+        if (after !== null && ts < after) continue;
+        if (before !== null && ts > before) continue;
+        if (method && entry.method !== method) continue;
+        if (status !== null && !Number.isNaN(status) && entry.statusCode !== status) continue;
+        if (pathFilter && !entry.path.includes(pathFilter)) continue;
+        matches.push(entry);
+      }
+    }
+    const total = matches.length;
+    const slice = matches.slice(offset, offset + limit);
+    return { total, offset, limit, entries: slice };
+  }
+
+  /**
+   * Async generator that yields every new request entry as it is recorded.
+   * Used by the live tail SSE endpoint.
+   */
+  async *tailStream() {
+    const queue = [];
+    const controller = new AbortController();
+    const listener = (entry) => {
+      queue.push(entry);
+      controller.signal.dispatchEvent?.({ type: 'push' });
+    };
+    this._diskTailClients.add({ write: (text) => listener(JSON.parse(text.replace(/^data: /, '').trim())) });
+    // Simpler: push directly into queue from broadcast hook.
+    this._onTail = (entry) => queue.push(entry);
+    try {
+      while (true) {
+        if (queue.length) {
+          yield queue.shift();
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    } finally {
+      this._onTail = null;
+    }
+  }
+
+  /**
+   * Subscribe a Server-Sent Events response to live tail updates.
+   */
+  subscribeTail(res) {
+    this._diskTailClients.add(res);
+    res.on('close', () => this._diskTailClients.delete(res));
+  }
+
+  unsubscribeTail(res) {
+    this._diskTailClients.delete(res);
   }
 }
 
@@ -187,4 +392,9 @@ export function requestsToMarkdown(logger, options = {}) {
 
 export function defaultRequestLogger() {
   return requestLogger();
+}
+
+export function defaultLogPath(home) {
+  if (!home) return null;
+  return path.join(statePaths(home).logsDir, 'access-log.jsonl');
 }

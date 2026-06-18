@@ -124,7 +124,9 @@ permabrain serve --access-log short
 PERMABRAIN_ACCESS_LOG=json permabrain serve
 ```
 
-Inspect recent requests at `GET /api/v1/log/requests` (JSON) or with `Accept: text/markdown`. All responses include `X-Request-ID`; pass it in a request header to trace client calls through server logs.
+When a home directory is available, requests are also persisted to `logs/access-log.jsonl` as JSON lines. Control persistence with `PERMABRAIN_ACCESS_LOG_DIR`, `PERMABRAIN_ACCESS_LOG_MAX_SIZE`, `PERMABRAIN_ACCESS_LOG_MAX_FILES`, and `PERMABRAIN_ACCESS_LOG_RETENTION_DAYS`.
+
+Inspect recent requests at `GET /api/v1/log/requests` (JSON, in-memory ring buffer) or with `Accept: text/markdown`. Add `?source=disk` to query persisted logs with filters and pagination. Stream new requests live via `GET /api/v1/log/requests/stream` (SSE). The web viewer has an **Audit** tab that renders the access log with filters and live tail. All responses include `X-Request-ID`; pass it in a request header to trace client calls through server logs.
 
 Runtime + aggregate metrics are exposed at `GET /api/v1/metrics`:
 

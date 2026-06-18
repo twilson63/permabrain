@@ -1,5 +1,8 @@
 import assert from 'node:assert';
-import { requestLogger, getRecentRequests, requestsToMarkdown } from '../src/request-log.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { requestLogger, getRecentRequests, requestsToMarkdown, defaultLogPath } from '../src/request-log.mjs';
 
 function makeReq(overrides = {}) {
   return {
@@ -149,6 +152,89 @@ function runMiddleware(logger, req, res) {
   assert.deepStrictEqual(result, { total: 0, offset: 0, limit: 0, entries: [] });
   assert.strictEqual(requestsToMarkdown(null), 'No request log available.');
   console.log('✓ null logger safe fallbacks');
+}
+
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pb-reqlog-disk-'));
+  try {
+    const logger = requestLogger({ format: 'short', maxEntries: 10, logDir: tmp });
+    runMiddleware(logger, makeReq({ url: '/disk-test' }), makeRes({ statusCode: 200 }));
+    assert.strictEqual(logger.diskEnabled, true);
+    assert.ok(fs.existsSync(path.join(tmp, 'access-log.jsonl')), 'writes access-log.jsonl');
+    const content = fs.readFileSync(path.join(tmp, 'access-log.jsonl'), 'utf8').trim();
+    const parsed = JSON.parse(content);
+    assert.strictEqual(parsed.path, '/disk-test');
+    assert.strictEqual(parsed.statusCode, 200);
+    console.log('✓ disk persistence writes JSONL entry');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pb-reqlog-rotate-'));
+  try {
+    const logger = requestLogger({ format: 'short', maxEntries: 10, logDir: tmp, maxSize: 300, maxFiles: 5 });
+    // Each entry is a JSON line; write enough to exceed maxSize multiple times.
+    for (let i = 0; i < 20; i++) {
+      runMiddleware(logger, makeReq({ url: `/rotate/${i}` }), makeRes({ statusCode: 200 }));
+    }
+    const files = fs.readdirSync(tmp).filter(n => n.endsWith('.jsonl')).sort();
+    assert.ok(files.length > 1, 'rotation created multiple files');
+    assert.ok(files.length <= 5, 'maxFiles bounds rotated copies');
+    const disk = await logger.queryDisk({ limit: 100 });
+    assert.ok(disk.total >= 10, 'disk query returns retained entries after rotation');
+    console.log('✓ rotation and maxFiles pruning');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pb-reqlog-retention-'));
+  try {
+    const logger = requestLogger({ format: 'short', maxEntries: 10, logDir: tmp, retentionDays: 7 });
+    runMiddleware(logger, makeReq({ url: '/fresh' }), makeRes({ statusCode: 200 }));
+    const disk = await logger.queryDisk({ limit: 10 });
+    assert.strictEqual(disk.total, 1);
+    assert.strictEqual(disk.entries[0].path, '/fresh');
+    console.log('✓ disk query with retention window');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pb-reqlog-filter-'));
+  try {
+    const logger = requestLogger({ format: 'short', maxEntries: 10, logDir: tmp });
+    runMiddleware(logger, makeReq({ method: 'GET', url: '/alpha' }), makeRes({ statusCode: 200 }));
+    runMiddleware(logger, makeReq({ method: 'POST', url: '/beta' }), makeRes({ statusCode: 201 }));
+    runMiddleware(logger, makeReq({ method: 'GET', url: '/gamma' }), makeRes({ statusCode: 500 }));
+    const get200 = await logger.queryDisk({ method: 'GET', status: 200, limit: 10 });
+    assert.strictEqual(get200.total, 1);
+    assert.strictEqual(get200.entries[0].path, '/alpha');
+    const post = await logger.queryDisk({ method: 'POST', limit: 10 });
+    assert.strictEqual(post.total, 1);
+    assert.strictEqual(post.entries[0].statusCode, 201);
+    const pathFilter = await logger.queryDisk({ path: '/gamma', limit: 10 });
+    assert.strictEqual(pathFilter.total, 1);
+    assert.strictEqual(pathFilter.entries[0].statusCode, 500);
+    console.log('✓ disk query filtering');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+{
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'pb-reqlog-path-'));
+  try {
+    const expected = path.join(home, 'logs', 'access-log.jsonl');
+    assert.strictEqual(defaultLogPath(home), expected);
+    console.log('✓ default log path resolves under home/logs');
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 }
 
 console.log('All request-log tests passed');

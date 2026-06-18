@@ -180,14 +180,24 @@ Useful flags:
 - `--trust-proxy` / `PERMABRAIN_TRUST_PROXY` — honor `X-Forwarded-For` behind reverse proxies
 - `--access-log` / `PERMABRAIN_ACCESS_LOG` — console access-log format: `none`, `short`, `combined`, or `json`
 - `--request-log-max-entries` / `PERMABRAIN_REQUEST_LOG_MAX_ENTRIES` — size of the in-memory recent-request ring buffer
+- `--access-log-dir` / `PERMABRAIN_ACCESS_LOG_DIR` — optional directory for persisted JSON-lines access log (defaults to `<home>/logs/`)
+- `--access-log-max-size` / `PERMABRAIN_ACCESS_LOG_MAX_SIZE` — max bytes per log file before rotation
+- `--access-log-max-files` / `PERMABRAIN_ACCESS_LOG_MAX_FILES` — number of rotated files to keep
+- `--access-log-retention-days` / `PERMABRAIN_ACCESS_LOG_RETENTION_DAYS` — only read disk entries newer than this many days
 
 Public endpoints: `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`. Event/stream routes are exempt from HTTP rate limiting.
 
-Inspect recent HTTP requests (and trace them with `X-Request-ID`):
+Inspect recent HTTP requests. The endpoint returns the in-memory ring buffer by default; add `?source=disk` to query persisted logs. Live tail via SSE at `/api/v1/log/requests/stream`. All responses include `X-Request-ID`; pass it in a request header to trace client calls through server logs.
 
 ```sh
 curl http://localhost:8765/api/v1/log/requests
 curl -H "Accept: text/markdown" "http://localhost:8765/api/v1/log/requests?limit=20&status=500"
+
+# Persisted disk log with filters
+curl "http://localhost:8765/api/v1/log/requests?source=disk&method=GET&status=200&limit=50"
+
+# Live SSE tail
+curl -H "Accept: text/event-stream" http://localhost:8765/api/v1/log/requests/stream
 ```
 
 Runtime + aggregate metrics are available at `/api/v1/metrics`:

@@ -2570,8 +2570,12 @@ async function serveCommand(args) {
   const trustProxy = args['trust-proxy'] === true || args['trust-proxy'] === 'true' || process.env.PERMABRAIN_TRUST_PROXY === 'true' || undefined;
   const accessLog = args['access-log'] || process.env.PERMABRAIN_ACCESS_LOG || undefined;
   const requestLogMaxEntries = args['request-log-max-entries'] || process.env.PERMABRAIN_REQUEST_LOG_MAX_ENTRIES || undefined;
+  const accessLogDir = args['access-log-dir'] || process.env.PERMABRAIN_ACCESS_LOG_DIR || undefined;
+  const accessLogMaxSize = args['access-log-max-size'] || process.env.PERMABRAIN_ACCESS_LOG_MAX_SIZE || undefined;
+  const accessLogMaxFiles = args['access-log-max-files'] || process.env.PERMABRAIN_ACCESS_LOG_MAX_FILES || undefined;
+  const accessLogRetentionDays = args['access-log-retention-days'] || process.env.PERMABRAIN_ACCESS_LOG_RETENTION_DAYS || undefined;
   const home = getHome();
-  const result = await startServer({ home, port, streamTransport, apiKey, corsOrigin, rateLimit, rateWindow, rateBurst, trustProxy, accessLog, requestLogMaxEntries });
+  const result = await startServer({ home, port, streamTransport, apiKey, corsOrigin, rateLimit, rateWindow, rateBurst, trustProxy, accessLog, requestLogMaxEntries, accessLogDir, accessLogMaxSize, accessLogMaxFiles, accessLogRetentionDays });
   console.log(`PermaBrain HTTP API serving at http://localhost:${result.port}`);
   console.log(`Home: ${result.home}`);
   console.log(`Agent: ${result.agentId || 'unknown'}`);

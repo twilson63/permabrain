@@ -733,16 +733,27 @@ export const ROUTES = [
   {
     route: '/api/v1/log/requests',
     method: 'GET',
-    description: 'Recent HTTP request ring buffer for the running server.',
+    description: 'Recent HTTP request ring buffer (memory). Add ?source=disk to query persisted logs with filters, retention, and pagination.',
     public: false,
     params: [
       { name: 'limit', in: 'query', type: 'integer', required: false },
       { name: 'offset', in: 'query', type: 'integer', required: false },
       { name: 'method', in: 'query', type: 'string', required: false },
       { name: 'status', in: 'query', type: 'integer', required: false },
-      { name: 'path', in: 'query', type: 'string', required: false }
+      { name: 'path', in: 'query', type: 'string', required: false },
+      { name: 'after', in: 'query', type: 'string', required: false },
+      { name: 'before', in: 'query', type: 'string', required: false },
+      { name: 'source', in: 'query', type: 'string', required: false }
     ],
     response: { total: 'number', offset: 'number', limit: 'number', entries: 'array' }
+  },
+  {
+    route: '/api/v1/log/requests/stream',
+    method: 'GET',
+    description: 'Server-Sent Events live stream of new HTTP request log entries.',
+    public: true,
+    params: [],
+    response: { stream: 'text/event-stream' }
   },
   {
     route: '/api/v1/events/stream',

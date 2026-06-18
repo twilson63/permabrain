@@ -145,7 +145,7 @@ Commands:
   archive                      Create an encrypted snapshot of the local PermaBrain home
   backup                       Manage timestamped backups (create/list/restore/prune)
   restore                      Restore a PermaBrain home from an encrypted snapshot
-  serve [ --port N ] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>] [--rate-limit <n>] [--rate-window <ms>] [--rate-burst <n>] [--trust-proxy] [--access-log none|short|combined|json] [--request-log-max-entries <n>]
+  serve [ --port N ] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>] [--rate-limit <n>] [--rate-window <ms>] [--rate-burst <n>] [--trust-proxy] [--access-log none|short|combined|json] [--request-log-max-entries <n>] [--access-log-dir <path>] [--access-log-max-size <bytes>] [--access-log-max-files <n>] [--access-log-retention-days <n>]
                              Start the local HTTP API server (default port 8765)
                              PERMABRAIN_API_KEY can also be set to require API-key auth
                              PERMABRAIN_CORS_ORIGIN restricts cross-origin requests
@@ -155,6 +155,10 @@ Commands:
                              PERMABRAIN_TRUST_PROXY=true uses X-Forwarded-For for client identity
                              PERMABRAIN_ACCESS_LOG sets console access-log format (none|short|combined|json)
                              PERMABRAIN_REQUEST_LOG_MAX_ENTRIES caps the in-memory request ring buffer
+                             PERMABRAIN_ACCESS_LOG_DIR overrides logs/access-log.jsonl location
+                             PERMABRAIN_ACCESS_LOG_MAX_SIZE rotates the JSONL log at this size (default 10 MiB)
+                             PERMABRAIN_ACCESS_LOG_MAX_FILES keeps this many rotated JSONL files (default 5)
+                             PERMABRAIN_ACCESS_LOG_RETENTION_DAYS drops entries older than this when querying disk
   doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
   log [filters]                Query the local audit log
   template <file>              Publish an article from a markdown template
@@ -745,12 +749,24 @@ Access / request logging:
                            Console access-log format (default none)
   --request-log-max-entries <n>
                            Max in-memory recent requests retained (default 1000)
+  --access-log-dir <path>  Override the logs directory (default <home>/logs)
+  --access-log-max-size <bytes>
+                           Rotate JSONL log when it reaches this size (default 10 MiB)
+  --access-log-max-files <n>
+                           Keep this many rotated JSONL files (default 5)
+  --access-log-retention-days <n>
+                           Drop disk entries older than this when querying
   PERMABRAIN_ACCESS_LOG    Environment equivalent for --access-log
   PERMABRAIN_REQUEST_LOG_MAX_ENTRIES
                            Environment equivalent for --request-log-max-entries
+  PERMABRAIN_ACCESS_LOG_DIR / PERMABRAIN_ACCESS_LOG_MAX_SIZE /
+  PERMABRAIN_ACCESS_LOG_MAX_FILES / PERMABRAIN_ACCESS_LOG_RETENTION_DAYS
+                           Environment equivalents for the disk-log flags
 
-Inspect recent requests via GET /api/v1/log/requests (JSON) or with
-Accept: text/markdown for a readable table.
+Inspect recent requests via GET /api/v1/log/requests (memory, JSON or markdown), or
+query persisted entries with ?source=disk. Stream live updates via
+GET /api/v1/log/requests/stream. When a home directory is available, request
+entries are also persisted to logs/access-log.jsonl with rotation and retention.
 
 Metrics and monitoring:
   GET /api/v1/metrics         Runtime counters + aggregate data metrics (JSON)
