@@ -25,11 +25,13 @@
 ## Done
 - [x] Cron build loop checkpoint (2026-06-18 17:34 UTC): implemented structured request logging / access logs + request-ID tracing for `permabrain serve`. Added `src/request-log.mjs` with a bounded in-memory ring buffer, `X-Request-ID` propagation (header assigned or preserved, returned on every response), sensitive header/query redaction, optional trust-proxy client-IP extraction, and `short`/`combined`/`json`/`none` access-log formats. Wired the logger into `src/serve.mjs` (middleware + `GET /api/v1/log/requests` endpoint with JSON/markdown responses + auth), `src/commands.mjs`, `scripts/cli.mjs` (`--access-log`, `--request-log-max-entries`, env vars), `src/route-registry.mjs` (endpoint metadata), and `src/index.mjs` (barrel exports). Added `src/client.mjs` SDK methods `client.requests()` and `client.requestsMarkdown()`. Added `test/request-log.mjs` (unit) and `test/serve-request-log.mjs` (integration) coverage, wired into `npm test` and focused scripts. Documented request logging in `README.md` and both skill docs. Full `npm test` suite passes; committed and pushed to `origin/main` as `8f726f7`.
 
+- [x] Cron build loop checkpoint (2026-06-18 18:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start. Found pre-existing unstaged doc changes in `tasks.md`, `skills/permabrain/SKILL.md`, and `skills/permabrain-pi/SKILL.md` from prior checkpoints. Ran full `npm test` suite — all tests pass. Resolved a diverged remote (origin/main already contained the rate-limit and request-log feature commits and their skill-doc updates); rebased local doc changes onto origin/main, keeping the more complete upstream versions. Committed the remaining `tasks.md` sync as `docs: sync tasks.md with recent checkpoints and skill doc updates` and pushed to `origin/main` as `f514073`. Queue remains empty; no implementation task picked.
+
 ## In Progress
 - [ ] (none)
 
 ## Next
-- [ ] (none)
+- [ ] (none — queue empty; seed next feature chunk on next heartbeat)
 
 
 ## Done
