@@ -4,11 +4,12 @@
 - [ ] (none)
 
 ## Next
-- [ ] (none)
+- [ ] Implement interactive web dashboard filters in `permabrain serve` HTML: live topic dropdown, sort controls, date/agent filters, and article detail modal using the existing `/api/v1/*` routes. Add `test/viewer-interactive.mjs` and wire into `npm test`.
 
 ## Done (backlog verified)
 - [x] Implement `permabrain peer push` / `api.pushToPeer()` command: gossip-style push of local articles/attestations to a remote PermaBrain peer. Added `diffKeysForPush()`, `buildPeerPushBundle()`, `pushToPeerClient()`, and `pushToPeer()` in `src/peer.mjs`; HTTP `POST /api/v1/peer/push` route in `src/serve.mjs`; SDK `client.peerPush()` method in `src/client.mjs`; `api.pushToPeer()` and `api.buildPeerPushBundle()` wrappers in `src/agent-api.mjs`; CLI `peer push` subcommand wiring in `src/commands.mjs` and `scripts/cli.mjs`; barrel exports from `src/index.mjs`; and `test/peer-push.mjs` coverage. Wired into `npm test`. Full `npm test` suite passes; committed on 2026-06-18 03:15 UTC.
 - [x] Implement `permabrain subscribe` / `api.subscribeRemote()` command: remote event subscription that pushes local node events to a remote PermaBrain peer (mirror of the `events` consumer path). Added `src/subscribe.mjs` publisher (`forwardEvents()`, `runEventPublisher()`), CLI wiring (`permabrain subscribe <remote-url>`), HTTP `POST /api/v1/events/publish` route in `src/serve.mjs`, SDK `client.publishEvents()`/`client.subscribe()` methods, `api.subscribe()` wrapper, barrel exports from `src/index.mjs`, and `test/subscribe.mjs` coverage. Wired into `npm test`. Full test suite passes; committed and pushed to `origin/main` on 2026-06-18 02:45 UTC.
+- [x] Cron build loop checkpoint (2026-06-18 03:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main`. Seeded next: interactive web dashboard filters in `permabrain serve` HTML with `test/viewer-interactive.mjs`.
 
 ## Done (backlog verified)
 - [x] Implement `permabrain peer` / `api.peer()` command: gossip-style peer sync with key-set diff + pull. Added `src/peer.mjs`, CLI wiring (`permabrain peer info/status/diff/pull/bundle`), `GET /api/v1/peer/info` and `POST /api/v1/peer/pull` routes, SDK `client.peerInfo()`/`client.peerPull()`, `api.peerInfo()`/`api.buildPeerPullBundle()`/`api.pullFromPeer()`/`api.pullFromPeerAsBundle()`/`api.peerStatus()`; added `test/peer.mjs`. Full target test suite passes; committed and pushed to `origin/main` on 2026-06-18 02:17 UTC.
