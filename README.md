@@ -253,20 +253,50 @@ const { score } = await client.consensus('person/ada-lovelace');
 ### Local HTTP API
 
 ```sh
-permabrain serve [--port 8765]
+permabrain serve [--port 8765] [--stream-transport ws|sse] [--api-key <key>]
 ```
 
-Exposes the agent API over REST. Useful endpoints:
+Exposes the agent API over REST. Key endpoints:
 
+- `GET /health` — server health, transport, agent id, live-stream advertisement
 - `GET /api/v1/status`
 - `GET /api/v1/articles` — query articles
 - `GET /api/v1/articles/:key` — get article
 - `POST /api/v1/articles` — publish article
-- `POST /api/v1/attestations` — attest
-- `GET /api/v1/consensus/:key`
+- `POST /api/v1/articles/:key/attest` — attest
+- `GET /api/v1/articles/:key/consensus`
+- `GET /api/v1/articles/:key/history`
 - `GET /api/v1/search?q=...`
 - `GET /api/v1/dashboard` and `/api/v1/dashboard.html`
 - `GET /api/v1/log` / `POST /api/v1/log`
+- `GET /api/v1/events/stream` — Server-Sent Events real-time stream
+- `GET /api/v1/events/ws` — WebSocket real-time event stream
+- `GET /api/v1/articles/stream` — live filtered article/attestation SSE stream
+
+#### Route discovery and OpenAPI
+
+The server advertises its full route catalog and an OpenAPI 3.0 JSON document:
+
+- `GET /api/v1/routes` — list every registered route with method, auth requirements, parameter shapes, and descriptions
+- `GET /api/v1/openapi.json` — OpenAPI 3.0.3 document with paths, security schemes, and operation summaries
+
+Use the client CLI to inspect them:
+
+```sh
+permabrain client routes
+permabrain client openapi
+permabrain client routes --url http://peer.example.com:8765 --json
+```
+
+Or from code:
+
+```javascript
+const client = createClient({ baseUrl: 'http://localhost:8765' });
+const { routes } = await client.routes();
+const spec = await client.openapi();
+```
+
+When `--api-key` is set on the server, discovery endpoints require the same key. Pass it with `--api-key` or `PERMABRAIN_API_KEY`.
 
 Run `permabrain serve --help` for details.
 

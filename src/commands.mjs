@@ -1927,8 +1927,9 @@ async function logCommand(args = {}) {
 async function clientCommand(args) {
   const baseUrl = args.url || args['base-url'] || 'http://localhost:8765';
   const action = args._[0] || 'health';
+  const apiKey = args['api-key'] || process.env.PERMABRAIN_API_KEY || undefined;
   const { createClient } = await import('./client.mjs');
-  const client = createClient({ baseUrl });
+  const client = createClient({ baseUrl, apiKey });
 
   if (action === 'health') {
     const result = await client.health();
@@ -1941,6 +1942,34 @@ async function clientCommand(args) {
     const result = await client.status();
     if (args.json) printJson(result);
     else console.log(`PermaBrain client status → ${baseUrl}: ${result.home} (${result.transport})`);
+    return result;
+  }
+
+  if (action === 'routes') {
+    const result = await client.routes();
+    if (args.json) printJson(result);
+    else {
+      console.log(`PermaBrain client routes → ${baseUrl}: ${result.routes.length} routes`);
+      for (const r of result.routes) {
+        const auth = r.public ? 'public' : (apiKey ? 'auth' : 'auth optional');
+        console.log(`  ${r.method.padEnd(6)} ${r.route.padEnd(40)} ${auth} — ${r.description}`);
+      }
+    }
+    return result;
+  }
+
+  if (action === 'openapi') {
+    const result = await client.openapi();
+    if (args.json) printJson(result);
+    else {
+      console.log(`PermaBrain client openapi → ${baseUrl}`);
+      console.log(`  version: ${result.info?.version}`);
+      console.log(`  title: ${result.info?.title}`);
+      console.log(`  paths: ${Object.keys(result.paths || {}).length}`);
+      if (result.components?.securitySchemes) {
+        console.log(`  security: ${Object.keys(result.components.securitySchemes).join(', ')}`);
+      }
+    }
     return result;
   }
 
@@ -1987,7 +2016,7 @@ async function clientCommand(args) {
     return result;
   }
 
-  throw new Error(`Unknown client action: ${action}. Try: health, status, get, query, publish`);
+  throw new Error(`Unknown client action: ${action}. Try: health, status, routes, openapi, get, query, publish`);
 }
 
 async function validateCommand(args) {

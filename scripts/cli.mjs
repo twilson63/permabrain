@@ -819,7 +819,7 @@ Options:
   --markdown              Output markdown instead of the default summary
   --json                  Output structured JSON dashboard data
   --use-hyperbeam         Query via HyperBEAM transport`,
-    'client': `Usage: permabrain client [health|status|get|query|publish] [args] [--url <base-url>] [--json]
+    'client': `Usage: permabrain client [health|status|routes|openapi|get|query|publish] [args] [--url <base-url>] [--api-key <key>] [--json]
 
 HTTP client SDK command for interacting with a running permabrain serve instance.
 This is a thin convenience wrapper over the typed SDK in src/client.mjs; it is
@@ -828,12 +828,16 @@ useful for quick remote checks and shell scripts.
 Actions:
   client health                       GET /health
   client status                       GET /api/v1/status
+  client routes                       GET /api/v1/routes
+  client openapi                      GET /api/v1/openapi.json
   client get <key>                    GET /api/v1/articles/:key
   client query [--topic <topic>] [--kind <kind>] [--key <key>]
   client publish <file> --kind <kind> --topic <topic> --source-url <url>
 
 Options:
   --url <base-url>    Server base URL (default http://localhost:8765)
+  --api-key <key>     API key when the server requires authentication
+                      (also reads PERMABRAIN_API_KEY)
   --use-hyperbeam     Pass useHyperbeam=true to the server
   --json              Output structured JSON`,
     'completion': `Usage: permabrain completion <shell>
