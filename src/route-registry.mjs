@@ -730,6 +730,20 @@ export const ROUTES = [
     response: { article: 'object', attestation: 'object' }
   },
   {
+    route: '/api/v1/log/requests',
+    method: 'GET',
+    description: 'Recent HTTP request ring buffer for the running server.',
+    public: false,
+    params: [
+      { name: 'limit', in: 'query', type: 'integer', required: false },
+      { name: 'offset', in: 'query', type: 'integer', required: false },
+      { name: 'method', in: 'query', type: 'string', required: false },
+      { name: 'status', in: 'query', type: 'integer', required: false },
+      { name: 'path', in: 'query', type: 'string', required: false }
+    ],
+    response: { total: 'number', offset: 'number', limit: 'number', entries: 'array' }
+  },
+  {
     route: '/api/v1/events/stream',
     method: 'GET',
     description: 'Server-Sent Events real-time event stream.',

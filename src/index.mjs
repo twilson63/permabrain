@@ -170,6 +170,9 @@ export {
 // ZenBin client helpers
 export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRequest, ZENBIN_BASE_URL, ZENBIN_PUBLISH_PATH } from './zenbin.mjs';
 
+// HTTP request logging / access-log ring buffer
+export { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown } from './request-log.mjs';
+
 // Threshold / multi-sig attestations
 export {
   createThresholdEnvelope,

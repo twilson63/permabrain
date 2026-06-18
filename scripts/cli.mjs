@@ -145,7 +145,7 @@ Commands:
   archive                      Create an encrypted snapshot of the local PermaBrain home
   backup                       Manage timestamped backups (create/list/restore/prune)
   restore                      Restore a PermaBrain home from an encrypted snapshot
-  serve [ --port N ] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>] [--rate-limit <n>] [--rate-window <ms>] [--rate-burst <n>] [--trust-proxy]
+  serve [ --port N ] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>] [--rate-limit <n>] [--rate-window <ms>] [--rate-burst <n>] [--trust-proxy] [--access-log none|short|combined|json] [--request-log-max-entries <n>]
                              Start the local HTTP API server (default port 8765)
                              PERMABRAIN_API_KEY can also be set to require API-key auth
                              PERMABRAIN_CORS_ORIGIN restricts cross-origin requests
@@ -153,6 +153,8 @@ Commands:
                              PERMABRAIN_RATE_WINDOW sets the rate-limit window in ms (default 60000)
                              PERMABRAIN_RATE_BURST sets the burst allowance (default 10)
                              PERMABRAIN_TRUST_PROXY=true uses X-Forwarded-For for client identity
+                             PERMABRAIN_ACCESS_LOG sets console access-log format (none|short|combined|json)
+                             PERMABRAIN_REQUEST_LOG_MAX_ENTRIES caps the in-memory request ring buffer
   doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
   log [filters]                Query the local audit log
   template <file>              Publish an article from a markdown template
@@ -737,6 +739,18 @@ Rate limiting:
   PERMABRAIN_RATE_LIMIT / PERMABRAIN_RATE_WINDOW / PERMABRAIN_RATE_BURST
                            Environment equivalents for the flags above
   PERMABRAIN_TRUST_PROXY   Set true to trust X-Forwarded-For
+
+Access / request logging:
+  --access-log none|short|combined|json
+                           Console access-log format (default none)
+  --request-log-max-entries <n>
+                           Max in-memory recent requests retained (default 1000)
+  PERMABRAIN_ACCESS_LOG    Environment equivalent for --access-log
+  PERMABRAIN_REQUEST_LOG_MAX_ENTRIES
+                           Environment equivalent for --request-log-max-entries
+
+Inspect recent requests via GET /api/v1/log/requests (JSON) or with
+Accept: text/markdown for a readable table.
 
 Press Ctrl+C to stop.`,
     'doctor': `Usage: permabrain doctor [--fix] [--json]

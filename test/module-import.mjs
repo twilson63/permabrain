@@ -414,4 +414,11 @@ assert.equal(typeof runEventPublisher, 'function', 'runEventPublisher');
 
 console.log('   OK Events + schema exports present');
 
-console.log('\nOK All importable module tests passed');
+// Request-log exports
+import { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown } from '../src/index.mjs';
+assert.equal(typeof requestLogger, 'function', 'requestLogger');
+assert.equal(typeof RequestLogger, 'function', 'RequestLogger');
+assert.equal(typeof getRecentRequests, 'function', 'getRecentRequests');
+assert.equal(typeof requestsToMarkdown, 'function', 'requestsToMarkdown');
+
+console.log('   OK Request-log exports present');

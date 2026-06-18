@@ -178,8 +178,17 @@ Useful flags:
 - `--rate-window` / `PERMABRAIN_RATE_WINDOW` — window length in milliseconds
 - `--rate-burst` / `PERMABRAIN_RATE_BURST` — extra burst allowance
 - `--trust-proxy` / `PERMABRAIN_TRUST_PROXY` — honor `X-Forwarded-For` behind reverse proxies
+- `--access-log` / `PERMABRAIN_ACCESS_LOG` — console access-log format: `none`, `short`, `combined`, or `json`
+- `--request-log-max-entries` / `PERMABRAIN_REQUEST_LOG_MAX_ENTRIES` — size of the in-memory recent-request ring buffer
 
 Public endpoints: `/health`, `/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`. Event/stream routes are exempt from HTTP rate limiting.
+
+Inspect recent HTTP requests (and trace them with `X-Request-ID`):
+
+```sh
+curl http://localhost:8765/api/v1/log/requests
+curl -H "Accept: text/markdown" "http://localhost:8765/api/v1/log/requests?limit=20&status=500"
+```
 
 ## CLI Commands (Fallback)
 

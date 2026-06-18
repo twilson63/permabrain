@@ -32,6 +32,7 @@
  *   GET  /api/v1/schema              → JSON schemas for article/attestation metadata
  *   GET  /api/v1/routes              → registered HTTP route catalog
  *   GET  /api/v1/openapi.json        → OpenAPI 3.0 JSON document
+ *   GET  /api/v1/log/requests         → recent HTTP requests ring buffer
  *   GET  /api/v1/events/stream       → Server-Sent Events real-time stream
  *   GET  /api/v1/events/ws           → WebSocket upgrade for real-time events
  *
@@ -50,6 +51,7 @@ import { getEventBus, subscribeEvents, emitEvent, broadcastToWebSockets, writeSs
 import { createApiKeyAuth, generateApiKey } from './auth.mjs';
 import { buildOpenApiDocument, listRoutes } from './route-registry.mjs';
 import { createRateLimiter, DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS, DEFAULT_RATE_LIMIT_BURST } from './rate-limit.mjs';
+import { requestLogger } from './request-log.mjs';
 
 const DEFAULT_PORT = 8765;
 const DEFAULT_SSE_HEARTBEAT_MS = 30000;
@@ -325,6 +327,23 @@ async function handleRequest(req, res, home, options = {}) {
           }
         }
       });
+    }
+
+    if (method === 'GET' && route === '/api/v1/log/requests') {
+      const logger = options.requestLogger || requestLogger({ format: 'none' });
+      const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined;
+      const offset = url.searchParams.get('offset') ? Number(url.searchParams.get('offset')) : undefined;
+      const methodFilter = url.searchParams.get('method') || undefined;
+      const statusFilter = url.searchParams.get('status') !== null ? Number(url.searchParams.get('status')) : undefined;
+      const pathFilter = url.searchParams.get('path') || undefined;
+      const accept = req.headers.accept || '';
+      const result = logger.getRecentRequests({ limit, offset, method: methodFilter, status: statusFilter, path: pathFilter });
+      if (accept.includes('text/markdown')) {
+        const markdown = (await import('./request-log.mjs')).requestsToMarkdown(logger, { limit, offset, method: methodFilter, status: statusFilter, path: pathFilter });
+        res.setHeader('content-type', 'text/markdown');
+        return res.end(markdown);
+      }
+      return sendJson(res, 200, result);
     }
 
     if (method === 'GET' && route === '/api/v1/events/stream') {
@@ -1044,17 +1063,28 @@ export function createServer(options = {}) {
         trustProxy
       });
 
-  const serverOptions = { ...options, home, streamTransport, apiKeyAuth, corsOrigin, rateLimiter };
-  const server = http.createServer((req, res) => handleRequest(req, res, home, serverOptions));
+  const accessLogFormat = options.accessLog || process.env.PERMABRAIN_ACCESS_LOG || 'none';
+  const requestLoggerMaxEntries = options.requestLogMaxEntries || process.env.PERMABRAIN_REQUEST_LOG_MAX_ENTRIES;
+  const reqLogger = requestLogger({
+    format: accessLogFormat,
+    maxEntries: requestLoggerMaxEntries,
+    trustProxy
+  });
+
+  const serverOptions = { ...options, home, streamTransport, apiKeyAuth, corsOrigin, rateLimiter, requestLogger: reqLogger };
+  const server = http.createServer((req, res) => {
+    reqLogger.middleware()(req, res, () => handleRequest(req, res, home, serverOptions));
+  });
 
   const wss = new WebSocketServer({ noServer: true });
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url, `http://localhost`);
     const pathname = url.pathname.replace(/\/$/, '');
+    const requestId = request.headers['x-request-id'] || `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     if (apiKeyAuth && apiKeyAuth.apiKeys.length > 0) {
       const authResult = apiKeyAuth.check({ headers: request.headers, url: request.url });
       if (!authResult.ok) {
-        socket.write(`HTTP/1.1 ${authResult.status} ${authResult.error}\r\n\r\n`);
+        socket.write(`HTTP/1.1 ${authResult.status} ${authResult.error}\r\nX-Request-ID: ${requestId}\r\n\r\n`);
         socket.destroy();
         return;
       }
@@ -1106,11 +1136,11 @@ export function createServer(options = {}) {
     }
   });
 
-  return { server, home, wss, streamTransport };
+  return { server, home, wss, streamTransport, requestLogger: reqLogger };
 }
 
 export async function startServer(options = {}) {
-  const { server, home, wss, streamTransport } = createServer(options);
+  const { server, home, wss, streamTransport, requestLogger } = createServer(options);
   const requestedPort = options.port ?? (process.env.PERMABRAIN_PORT || DEFAULT_PORT);
   await new Promise((resolve, reject) => {
     server.listen(requestedPort, (err) => (err ? reject(err) : resolve()));
@@ -1128,7 +1158,7 @@ export async function startServer(options = {}) {
   }
   api._home = home;
   const identity = api._identity;
-  return { server, home, port: actualPort, agentId: identity?.agentId || null, wss, streamTransport };
+  return { server, home, port: actualPort, agentId: identity?.agentId || null, wss, streamTransport, requestLogger };
 }
 
 export function stopServer(server) {

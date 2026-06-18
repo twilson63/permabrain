@@ -253,7 +253,7 @@ const { score } = await client.consensus('person/ada-lovelace');
 ### Local HTTP API
 
 ```sh
-permabrain serve [--port 8765] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>]
+permabrain serve [--port 8765] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>] [--access-log none|short|combined|json]
 ```
 
 Exposes the agent API over REST.
@@ -309,6 +309,41 @@ PERMABRAIN_RATE_BURST=10
 
 When the limit is exceeded the server returns `429 Too Many Requests` with a `Retry-After` header. Rate-limit state is keyed by client IP; use `--trust-proxy` (or `PERMABRAIN_TRUST_PROXY=true`) when the server sits behind a reverse proxy so the `X-Forwarded-For` header is honored. Live event/stream routes (`/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`) are exempt from HTTP rate limiting so long-lived connections are not disrupted.
 
+#### Request logging / access logs
+
+`permabrain serve` keeps a bounded in-memory ring buffer of recent HTTP requests and can optionally print structured access logs to the console:
+
+```sh
+# Print short access logs to the console
+permabrain serve --access-log short
+
+# Print combined (Common Log Format) access logs
+permabrain serve --access-log combined
+
+# Record full headers in the ring buffer (no console output)
+permabrain serve --access-log json
+
+# Disable recording entirely
+permabrain serve --access-log none
+```
+
+Environment equivalents:
+
+```sh
+PERMABRAIN_ACCESS_LOG=short
+PERMABRAIN_REQUEST_LOG_MAX_ENTRIES=5000
+```
+
+Inspect recent requests via the API:
+
+```sh
+curl http://localhost:8765/api/v1/log/requests
+# or markdown table
+curl -H "Accept: text/markdown" http://localhost:8765/api/v1/log/requests?limit=20
+```
+
+Every response includes an `X-Request-ID` header. Pass `X-Request-ID` in a request to correlate server logs with client traces.
+
 ```sh
 # Start the server with an API key
 PERMABRAIN_API_KEY=pb_xxx permabrain serve
@@ -341,6 +376,7 @@ const client = createClient({ baseUrl: 'http://localhost:8765', apiKey: 'pb_xxx'
 - `GET /api/v1/dashboard` and `/api/v1/dashboard.html`
 - `GET /api/v1/log` / `POST /api/v1/log`
 - `GET /api/v1/log/export` / `POST /api/v1/log/import`
+- `GET /api/v1/log/requests` — recent HTTP request ring buffer with `X-Request-ID` tracing
 - `GET /api/v1/bundles` — export a single article bundle
 - `POST /api/v1/bundles` — import an article bundle
 - `GET /api/v1/export-all` — export all indexed articles as a bundle
@@ -377,6 +413,8 @@ const spec = await client.openapi();
 const bundle = await client.exportBundle({ key: 'person/ada-lovelace' });
 const all = await client.exportAll();
 const history = await client.exportHistory('person/ada-lovelace');
+const recentRequests = await client.requests({ limit: 20, status: 500 });
+const mdTable = await client.requestsMarkdown({ limit: 50 });
 const importResult = await client.importBundle(bundle);
 const historyResult = await client.importHistory(history);
 

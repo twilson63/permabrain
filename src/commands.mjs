@@ -2568,8 +2568,10 @@ async function serveCommand(args) {
   const rateWindow = args['rate-window'] || process.env.PERMABRAIN_RATE_WINDOW || undefined;
   const rateBurst = args['rate-burst'] || process.env.PERMABRAIN_RATE_BURST || undefined;
   const trustProxy = args['trust-proxy'] === true || args['trust-proxy'] === 'true' || process.env.PERMABRAIN_TRUST_PROXY === 'true' || undefined;
+  const accessLog = args['access-log'] || process.env.PERMABRAIN_ACCESS_LOG || undefined;
+  const requestLogMaxEntries = args['request-log-max-entries'] || process.env.PERMABRAIN_REQUEST_LOG_MAX_ENTRIES || undefined;
   const home = getHome();
-  const result = await startServer({ home, port, streamTransport, apiKey, corsOrigin, rateLimit, rateWindow, rateBurst, trustProxy });
+  const result = await startServer({ home, port, streamTransport, apiKey, corsOrigin, rateLimit, rateWindow, rateBurst, trustProxy, accessLog, requestLogMaxEntries });
   console.log(`PermaBrain HTTP API serving at http://localhost:${result.port}`);
   console.log(`Home: ${result.home}`);
   console.log(`Agent: ${result.agentId || 'unknown'}`);
@@ -2589,6 +2591,11 @@ async function serveCommand(args) {
     }
   } else {
     console.log('Rate limiting: disabled by default');
+  }
+  if (accessLog) {
+    console.log(`Access log: ${accessLog}`);
+  } else {
+    console.log('Access log: none (request history kept in memory only)');
   }
 
 

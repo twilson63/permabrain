@@ -96,6 +96,8 @@ const { script } = await client.completion({ shell: 'bash' });
 // Discover routes and OpenAPI spec
 const { routes } = await client.routes();
 const spec = await client.openapi();
+const recent = await client.requests({ limit: 20, status: 500 });
+const table = await client.requestsMarkdown({ limit: 50 });
 ```
 
 Authentication methods supported by the server:
@@ -114,6 +116,15 @@ permabrain serve --rate-limit 60 --rate-window 60000 --rate-burst 10
 ```
 
 Environment equivalents: `PERMABRAIN_RATE_LIMIT`, `PERMABRAIN_RATE_WINDOW`, `PERMABRAIN_RATE_BURST`. Use `PERMABRAIN_TRUST_PROXY=true` (or `--trust-proxy`) behind a reverse proxy so `X-Forwarded-For` is used as the client identifier. Event/stream routes are exempt from HTTP rate limiting.
+
+Request logging is disabled by default. Enable console access logs or full JSON request capture:
+
+```sh
+permabrain serve --access-log short
+PERMABRAIN_ACCESS_LOG=json permabrain serve
+```
+
+Inspect recent requests at `GET /api/v1/log/requests` (JSON) or with `Accept: text/markdown`. All responses include `X-Request-ID`; pass it in a request header to trace client calls through server logs.
 
 ## Batch Operations
 

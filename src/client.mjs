@@ -99,6 +99,12 @@ export function createClient(options = {}) {
     /** @returns {Promise<{ok: boolean, transport: string, agentId: string|null, home: string, streamTransport?: string, streams?: object}>} */
     health: () => request('GET', '/health'),
 
+    /** @returns {Promise<{total: number, offset: number, limit: number, entries: Array}>} */
+    requests: (filters = {}) => request('GET', `/api/v1/log/requests${toQuery(filters)}`),
+
+    /** @returns {Promise<string>} Markdown table of recent requests. */
+    requestsMarkdown: (filters = {}) => request('GET', `/api/v1/log/requests${toQuery(filters)}`, undefined, { accept: 'text/markdown' }),
+
     /** @returns {Promise<{home: string, agentId: string, keyType: string, config: Object}>} */
     init: (body = {}) => request('POST', '/api/v1/init', body),
 
