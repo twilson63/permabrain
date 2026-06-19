@@ -68,6 +68,7 @@ import {
   peerStatusToMarkdown
 } from './peer.mjs';
 
+import { importBundleAutoDetect, importReportToMarkdown, BUNDLE_TYPES, detectBundleType } from './import-unified.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -107,6 +108,7 @@ export async function runCommand(command, args) {
   if (command === 'export-all') return exportAllCommand(args);
   if (command === 'import-bundle') return importBundleCommand(args);
   if (command === 'import-history') return importHistoryCommand(args);
+  if (command === 'import') return importUnifiedCommand(args);
   if (command === 'transport-status') return transportStatusCommand(args);
   if (command === 'watch') return watchCommand(args);
   if (command === 'history') return historyCommand(args);
@@ -1131,6 +1133,48 @@ async function importHistoryCommand(args) {
         console.log(`  - ${r.type} ${r.key || r.targetKey || ''}: already present`);
       } else {
         console.log(`  ✓ ${r.type} ${r.key || r.targetKey || ''}: ${r.id}`);
+      }
+    }
+  }
+  return result;
+}
+
+async function importUnifiedCommand(args) {
+  const file = args._[0] || args.file;
+  if (!file) throw new Error('import requires <file>');
+  const raw = fs.readFileSync(file, 'utf8');
+  const bundle = JSON.parse(raw);
+  const type = detectBundleType(bundle);
+  const opts = {
+    home: getHome(),
+    dryRun: args['dry-run'] === true,
+    verify: args['no-verify'] !== true,
+    skipDuplicates: args['skip-duplicates'] !== false,
+    finalize: args['finalize'] === true,
+    seed: args.seed,
+    publish: args['no-publish'] !== true,
+    useHyperbeam: args['use-hyperbeam'] ?? false
+  };
+  const result = await importBundleAutoDetect(bundle, opts);
+  if (args.json) printJson(result);
+  else if (args.markdown) console.log(importReportToMarkdown(result));
+  else {
+    if (result.dryRun) console.log(`Dry-run import (${type}): ${result.imported || 0} to import, ${result.skipped || 0} to skip, ${result.failed || 0} to fail`);
+    else {
+      if (result.type === BUNDLE_TYPES.ARTICLE) console.log(`Import bundle: ${result.imported} imported, ${result.skipped} skipped, ${result.failed} failed`);
+      else if (result.type === BUNDLE_TYPES.HISTORY) console.log(`Import history: ${result.importedArticles} articles, ${result.importedAttestations} attestations imported`);
+      else if (result.type === BUNDLE_TYPES.THRESHOLD) console.log(`Import threshold: ${result.envelopeId} imported, finalized=${result.finalized}`);
+      else if (result.type === BUNDLE_TYPES.ENCRYPTED_SHARE) console.log(`Import encrypted share: ${result.key} decrypted, published=${result.published}`);
+      else console.log('Import complete');
+    }
+    if (result.items?.length) {
+      for (const item of result.items) {
+        if (!item.error && item.action !== 'error') {
+          if (item.action === 'skip') console.log(`  - ${item.type} ${item.key || ''}: already present`);
+          else console.log(`  ✓ ${item.type} ${item.key || ''}: ${item.id || 'new'}`);
+        } else {
+          console.log(`  ✗ ${item.type || ''} ${item.key || ''}: ${item.error}`);
+        }
       }
     }
   }

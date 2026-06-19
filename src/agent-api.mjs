@@ -25,6 +25,7 @@ import { consensusForArticle } from './consensus.mjs';
 import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { exportHistory } from './export-history.mjs';
 import { importHistory } from './import-history.mjs';
+import { importBundleAutoDetect, importReportToMarkdown, BUNDLE_TYPES } from './import-unified.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
@@ -935,6 +936,48 @@ const api = {
     requireInit(this._home);
     return importHistory(bundle, { ...opts, home: this._home });
   },
+
+  /**
+   * Import a bundle/envelope/share, auto-detecting its type and routing to the
+   * correct importer. Detects article bundle, history bundle, threshold envelope,
+   * and encrypted share formats. Supports dry-run previews, conflict/skip
+   * reporting, and optional threshold finalization / encrypted-share publish.
+   *
+   * @param {Object|string} input - Bundle object or JSON file path.
+   * @param {Object} [opts]
+   * @param {boolean} [opts.dryRun=false]
+   * @param {boolean} [opts.verify=true]
+   * @param {boolean} [opts.skipDuplicates=true]
+   * @param {boolean} [opts.finalize=false] - Finalize threshold envelopes that meet threshold.
+   * @param {string|Uint8Array} [opts.seed] - X25519 seed for encrypted shares.
+   * @param {boolean} [opts.publish=true] - Publish decrypted encrypted-share content as local article.
+   * @param {boolean} [opts.useHyperbeam]
+   * @returns {Promise<Object>} Import report.
+   */
+  async importBundleAutoDetect(input, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return importBundleAutoDetect(input, { ...opts, home: this._home });
+  },
+
+  /**
+   * Alias for importBundleAutoDetect.
+   */
+  async importBundle(input, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return importBundleAutoDetect(input, { ...opts, home: this._home });
+  },
+
+  /**
+   * Render an import report as markdown.
+   */
+  importReportToMarkdown(report) {
+    return importReportToMarkdown(report);
+  },
+
+  /** Threshold attestation constants. */
+  BUNDLE_TYPES,
 
   /**
    * Fork an existing article into a new canonical key.

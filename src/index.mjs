@@ -91,6 +91,7 @@ export { computeStats, statsToMarkdown } from './stats.mjs';
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';
 export { exportHistory } from './export-history.mjs';
 export { importHistory } from './import-history.mjs';
+export { importBundleAutoDetect, importReportToMarkdown, detectBundleType, BUNDLE_TYPES } from './import-unified.mjs';
 
 // Archive / restore snapshots
 export { archive, restore } from './archive.mjs';

@@ -31,6 +31,7 @@ import { verifyDataItemById, verifyByKey, verifyItem } from '../src/index.mjs';
 import { exportBundle, exportAllArticles, importBundle, buildBundle } from '../src/index.mjs';
 import { exportHistory } from '../src/index.mjs';
 import { importHistory } from '../src/index.mjs';
+import { importBundleAutoDetect, importReportToMarkdown, detectBundleType, BUNDLE_TYPES } from '../src/index.mjs';
 import { historyForKey, buildVersionChain, summarizeVersion } from '../src/index.mjs';
 import { forkArticle, listForks, deriveForkKey } from '../src/index.mjs';
 import { mergeArticles, threeWayMerge } from '../src/index.mjs';
@@ -123,6 +124,9 @@ assert.equal(typeof verifyItem, 'function', 'verifyItem');
 assert.equal(typeof exportBundle, 'function', 'exportBundle');
 assert.equal(typeof exportAllArticles, 'function', 'exportAllArticles');
 assert.equal(typeof importBundle, 'function', 'importBundle');
+assert.equal(typeof importBundleAutoDetect, 'function', 'importBundleAutoDetect');
+assert.equal(typeof importReportToMarkdown, 'function', 'importReportToMarkdown');
+assert.equal(typeof detectBundleType, 'function', 'detectBundleType');
 assert.equal(typeof exportHistory, 'function', 'exportHistory');
 assert.equal(typeof importHistory, 'function', 'importHistory');
 assert.equal(typeof buildArticleTags, 'function', 'buildArticleTags');
@@ -329,14 +333,14 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'importBundleAutoDetect', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
   'createThresholdAttestation', 'addThresholdSigner', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope', 'shareEncrypted',
   'adminPanel', 'adminPanelHTML', 'adminPanelMarkdown'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 96 API methods present');
+console.log('   ✓ All 97 API methods present');
 
 // --- 11a. Admin panel API methods ---
 console.log('11a. Admin panel API methods');

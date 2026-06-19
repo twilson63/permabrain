@@ -102,7 +102,8 @@ export async function signThresholdDigest(identity, digest) {
   return {
     agentId: identity.agentId,
     signatureType,
-    signature
+    signature,
+    publicKey: identity.publicKey
   };
 }
 
