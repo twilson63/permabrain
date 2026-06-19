@@ -1,6 +1,7 @@
 # PermaBrain Build Tasks
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-19 20:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `b568c53`. No implementation work picked. Queue remains empty.
 - [x] Cron build loop checkpoint (2026-06-19 17:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `ecb4cf3`. No implementation work picked. Queue remains empty; seeded next chunk: web viewer Notifications/Activity panel.
 - [x] Cron build loop checkpoint (2026-06-19 17:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `ecb4cf3`. No implementation work picked. Seeded next chunk: web viewer Notifications/Activity panel.
 - [x] Cron build loop checkpoint (2026-06-19 11:04 UTC): picked the seeded Next task and implemented the web viewer Compose article-editor panel. Added a `compose` view in `viewer/index.html` with a sidebar button, markdown textarea, metadata inputs (topic, kind, language, source URL/name, visibility), derived-key hint, live markdown preview, API-key auth header, and publish via `POST /api/v1/articles`. Added localStorage draft save/restore under `permabrain-compose-draft`, deep-link support via `?view=compose`, and boot-time view restoration. Added `test/viewer-compose.mjs` (static HTML wiring checks and HTTP publish/auth round-trip) and wired it into `npm test` plus `test:viewer-compose`. Full `npm test` suite passes; committed to `main` as `5011254`.
@@ -65,9 +66,10 @@
 - [ ] (none)
 
 ## Next
-- [x] Web viewer dedicated "History" panel with visual timeline, version selection, and diff against prior versions, deep-linked via `?view=history`/`key`. — Already implemented and committed in `f51e695` with `test/viewer-history.mjs` wired into `npm test`; full suite passes.
+- [ ] (none)
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-19 20:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `b568c53`. No implementation work picked. Queue remains empty; no new chunk seeded (no obvious next feature in backlog).
 - [x] Cron build loop checkpoint (2026-06-19 19:34 UTC): picked first unchecked Next task (History panel). Verified the implementation already exists in `viewer/index.html` and `test/viewer-history.mjs`, and the full `npm test` suite passes on clean `main` at `b568c53`. Marked task complete; queue is empty.
 - [x] Cron build loop checkpoint (2026-06-19 18:04 UTC): picked the in-progress task and implemented the web viewer Notifications/Activity panel. Added an `activity` view in `viewer/index.html` with a toolbar button, `window.showActivity()`, `refreshActivity()`, `fetchActivity()`, `renderActivity()`, `setActivityFilter()`, and `resetActivityFilters()`; fetches `/api/v1/activity` with auth and filters (event kind, topic, key, agent, after/before) and renders a live activity feed of publish/attest/fork/merge events. Added toast notifications for stream lifecycle events (`publish`, `attest`, `fork`, `merge`). Wired `viewMode === 'activity'` into URL state (`?view=activity` plus activity filter query params), boot-time restoration, local-list-mode guard, and view dispatch. Added `test/viewer-activity.mjs` covering HTML wiring and HTTP round-trip tests for the activity endpoint, and wired it into `npm test` plus `test:viewer-activity`. Also fixed a pre-existing undefined `params` reference in `applyUrlState` when applying the liveTail URL parameter. Full `npm test` suite passes; committed to `main` as `b738e3a`.
 
