@@ -298,6 +298,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .settings-footer .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .settings-footer .btn-primary:hover{opacity:0.9;color:#fff}
 
+/* Publish batch panel */
+.publish-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+.publish-dropzone{border:2px dashed var(--border);border-radius:var(--radius);padding:2rem;text-align:center;color:var(--muted);cursor:pointer;transition:border-color .15s,background .15s}
+.publish-dropzone.dragover{border-color:var(--accent);background:rgba(9,105,218,0.05)}
+.publish-dropzone:hover{border-color:var(--accent)}
+.publish-toolbar{display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.publish-toolbar label{font-size:0.72rem;color:var(--muted);white-space:nowrap}
+.publish-toolbar input,.publish-toolbar select{padding:0.35rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text);min-width:8rem}
+.publish-toolbar input[type="checkbox"]{width:1.1rem;height:1.1rem;accent-color:var(--accent);min-width:auto}
+.publish-file-list{list-style:none;padding:0;margin:0.75rem 0}
+.publish-file-list li{display:flex;justify-content:space-between;align-items:center;padding:0.35rem 0.5rem;border-bottom:1px solid var(--border);font-size:0.85rem}
+.publish-file-list li:last-child{border-bottom:none}
+.publish-report{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-top:1rem;max-height:60vh;overflow:auto}
+.publish-report h3{margin:0 0 0.5rem;font-size:1rem}
+.publish-summary{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;font-size:0.85rem}
+.publish-summary span{padding:0.2rem 0.5rem;border-radius:4px;background:var(--surface);border:1px solid var(--border)}
+.publish-result-row{display:flex;gap:0.75rem;align-items:baseline;padding:0.35rem 0;border-bottom:1px solid var(--border);font-size:0.85rem}
+.publish-result-row:last-child{border-bottom:none}
+.publish-result-row .status{font-weight:600}
+.publish-result-row .status.ok{color:var(--green)}
+.publish-result-row .status.dry{color:var(--accent)}
+.publish-result-row .status.err{color:var(--red)}
+.publish-result-row .key{font-family:monospace;font-size:0.78rem;color:var(--accent)}
+.publish-result-row .file{color:var(--muted);font-size:0.78rem;margin-left:auto}
+
 /* Mobile */
 .mobile-toggle{display:none;position:fixed;top:0.75rem;left:0.75rem;z-index:100;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.7rem;cursor:pointer;font-size:1.2rem}
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:90}
@@ -331,6 +356,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
     <button class="btn-icon" id="exportBtn" onclick="window.showExport()" title="Export bundle/history">&#128228;</button>
     <button class="btn-icon" id="importBtn" onclick="window.showImport()" title="Import bundle">&#128229;</button>
+    <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
@@ -430,6 +456,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
 <input type="file" id="importFileInput" accept=".json,.jsonl,.txt" style="display:none" onchange="window.onImportFileSelected(this.files[0])">
 
+<input type="file" id="publishFileInput" multiple accept=".md,.markdown" style="display:none" onchange="window.onPublishFilesSelected(this.files)">
+
 <div class="main" id="main">
 <div class="empty-state" id="emptyState">
   <h2>&#x1F9E0; PermaBrain Viewer</h2>
@@ -483,9 +511,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import' | 'export' | 'publish'
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { view: 'export', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importResult: null };
+  var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
   var dashboardData = null;
   var dashboardLoading = false;
   var dashboardError = null;
@@ -1466,11 +1495,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       settings.pageSize = state.pageSize;
       localStorage.setItem('permabrain-page-size', String(state.pageSize));
     }
-    if (liveTailParam !== null) {
+    if (params.get('liveTail') !== null) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import','export','admin'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import','export','admin','publish'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.exportKey) exportImportState.exportKey = state.exportKey;
@@ -1712,6 +1741,238 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderList();
     renderExport();
     updateUrlState();
+  };
+
+  window.showPublish = async function() {
+    viewMode = 'publish';
+    selectedKey = null;
+    stopDashboardRefresh();
+    stopAuditStream();
+    renderList();
+    renderPublish();
+    updateUrlState();
+  };
+
+  window.pickPublishFiles = function() {
+    var input = document.getElementById('publishFileInput');
+    if (input) input.click();
+  };
+
+  function readPublishFiles(fileList) {
+    if (!fileList || !fileList.length) return;
+    var files = Array.from(fileList).filter(function(f) { return f.name.endsWith('.md') || f.name.endsWith('.markdown'); });
+    if (!files.length) {
+      publishState.error = 'No markdown files selected.';
+      renderPublish();
+      return;
+    }
+    publishState.error = null;
+    publishState.report = null;
+    var readers = files.map(function(file) {
+      return new Promise(function(resolve) {
+        var reader = new FileReader();
+        reader.onload = function(e) { resolve({ file: file, content: e.target.result }); };
+        reader.onerror = function() { resolve({ file: file, error: true }); };
+        reader.readAsText(file);
+      });
+    });
+    Promise.all(readers).then(function(results) {
+      publishState.files = results.filter(function(r) { return !r.error; }).map(function(r) { return { name: r.file.name, content: r.content }; });
+      if (results.some(function(r) { return r.error; })) publishState.error = 'Some files could not be read.';
+      renderPublish();
+    });
+  }
+
+  window.onPublishFilesSelected = function(fileList) {
+    readPublishFiles(fileList);
+    var input = document.getElementById('publishFileInput');
+    if (input) input.value = '';
+  };
+
+  function buildPublishBody() {
+    return {
+      files: publishState.files.map(function(f) { return { path: f.name, content: f.content }; }),
+      topic: publishState.topic || undefined,
+      kind: publishState.kind || 'subject',
+      sourceUrl: publishState.sourceUrl || undefined,
+      sourceName: publishState.sourceName || undefined,
+      language: publishState.language || 'en',
+      visibility: publishState.visibility || 'public',
+      recursive: publishState.recursive
+    };
+  }
+
+  function publishHeaders() {
+    var headers = { 'content-type': 'application/json' };
+    if (publishState.apiKey) headers['authorization'] = 'Bearer ' + publishState.apiKey;
+    return headers;
+  }
+
+  async function doPublishPreview() {
+    if (!isLocalServer()) return;
+    if (!publishState.files.length) {
+      publishState.error = 'Select markdown files first.';
+      renderPublish();
+      return;
+    }
+    publishState.loading = true;
+    publishState.error = null;
+    publishState.report = null;
+    renderPublish();
+    try {
+      var r = await fetch('/api/v1/publish-dir/preview', {
+        method: 'POST',
+        headers: publishHeaders(),
+        body: JSON.stringify(buildPublishBody())
+      });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+      publishState.report = data;
+    } catch(e) {
+      publishState.error = e.message;
+    } finally {
+      publishState.loading = false;
+    }
+    renderPublish();
+  }
+
+  async function doPublish() {
+    if (!isLocalServer()) return;
+    if (!publishState.files.length) {
+      publishState.error = 'Select markdown files first.';
+      renderPublish();
+      return;
+    }
+    publishState.loading = true;
+    publishState.error = null;
+    publishState.report = null;
+    renderPublish();
+    try {
+      var r = await fetch('/api/v1/publish-dir', {
+        method: 'POST',
+        headers: publishHeaders(),
+        body: JSON.stringify(buildPublishBody())
+      });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+      publishState.report = data;
+      if (isLocalListMode()) fetchLocalList();
+    } catch(e) {
+      publishState.error = e.message;
+    } finally {
+      publishState.loading = false;
+    }
+    renderPublish();
+  }
+
+  window.runPublishPreview = doPublishPreview;
+  window.runPublish = doPublish;
+
+  window.setPublishMeta = function(key, value) {
+    publishState[key] = value;
+  };
+
+  window.clearPublish = function() {
+    publishState.files = [];
+    publishState.report = null;
+    publishState.error = null;
+    renderPublish();
+    updateUrlState();
+  };
+
+  function renderPublishReport() {
+    var report = publishState.report;
+    if (!report) return '';
+    var summary = '<div class="publish-summary">' +
+      '<span>Files: ' + (report.count || 0) + '</span>' +
+      '<span>Succeeded: ' + (report.succeeded || 0) + '</span>' +
+      '<span>Failed: ' + (report.failed || 0) + '</span>' +
+      '<span>Skipped: ' + (report.skipped || 0) + '</span>' +
+      '<span>Mode: ' + (report.dryRun ? 'dry-run' : 'live') + '</span>' +
+      '</div>';
+    var rows = (report.results || []).map(function(r) {
+      var statusClass = r.status === 'ok' ? 'ok' : (r.status === 'dry-run' ? 'dry' : 'err');
+      var statusLabel = r.status === 'ok' ? '✓' : (r.status === 'dry-run' ? '~' : '✗');
+      return '<div class="publish-result-row">' +
+        '<span class="status ' + statusClass + '">' + statusLabel + ' ' + esc(r.status) + '</span>' +
+        '<span class="key">' + esc(r.key || '(no key)') + '</span>' +
+        '<span>' + esc(r.error || '') + '</span>' +
+        '<span class="file">' + esc(r.file ? r.file.replace(/^.*[\\/]/, '') : '') + '</span>' +
+        '</div>';
+    }).join('');
+    return '<div class="publish-report"><h3>Publish report</h3>' + summary + rows + '</div>';
+  }
+
+  function renderPublish() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Batch publish unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to publish a batch of markdown files.</p></div>';
+      return;
+    }
+    var fileList = publishState.files.length ?
+      '<ul class="publish-file-list">' + publishState.files.map(function(f) {
+        return '<li><span>' + esc(f.name) + '</span><span style="color:var(--muted);font-size:0.72rem">' + (f.content || '').length + ' chars</span></li>';
+      }).join('') + '</ul>' :
+      '<p style="color:var(--muted);font-size:0.85rem;margin:0.75rem 0">No files selected.</p>';
+
+    var dropzone = '<div class="publish-dropzone" id="publishDropzone" ondragover="window.onPublishDragOver(event)" ondragleave="window.onPublishDragLeave(event)" ondrop="window.onPublishDrop(event)" onclick="window.pickPublishFiles()">' +
+      '<div style="font-size:1.5rem;margin-bottom:0.25rem">&#128194;&#10133;</div>' +
+      '<div>Drop markdown files here or click to select</div>' +
+      '<div style="font-size:0.75rem;margin-top:0.5rem">.md and .markdown files accepted</div>' +
+      '</div>';
+
+    var toolbar = '<div class="publish-toolbar">' +
+      '<label>Topic <input type="text" id="publishTopic" placeholder="general" value="' + esc(publishState.topic) + '" onchange="window.setPublishMeta(\'topic\', this.value)"></label>' +
+      '<label>Kind <select id="publishKind" onchange="window.setPublishMeta(\'kind\', this.value)">' +
+        '<option value="subject"' + (publishState.kind === 'subject' ? ' selected' : '') + '>subject</option>' +
+        '<option value="guide"' + (publishState.kind === 'guide' ? ' selected' : '') + '>guide</option>' +
+        '<option value="reference"' + (publishState.kind === 'reference' ? ' selected' : '') + '>reference</option>' +
+        '<option value="note"' + (publishState.kind === 'note' ? ' selected' : '') + '>note</option>' +
+      '</select></label>' +
+      '<label>Source URL <input type="text" id="publishSourceUrl" placeholder="https://example.com" value="' + esc(publishState.sourceUrl) + '" onchange="window.setPublishMeta(\'sourceUrl\', this.value)"></label>' +
+      '<label>Source name <input type="text" id="publishSourceName" placeholder="Batch publish" value="' + esc(publishState.sourceName) + '" onchange="window.setPublishMeta(\'sourceName\', this.value)"></label>' +
+      '<label>Language <input type="text" id="publishLanguage" placeholder="en" value="' + esc(publishState.language) + '" onchange="window.setPublishMeta(\'language\', this.value)"></label>' +
+      '<label>Visibility <select id="publishVisibility" onchange="window.setPublishMeta(\'visibility\', this.value)">' +
+        '<option value="public"' + (publishState.visibility === 'public' ? ' selected' : '') + '>public</option>' +
+        '<option value="encrypted"' + (publishState.visibility === 'encrypted' ? ' selected' : '') + '>encrypted</option>' +
+      '</select></label>' +
+      '<label title="Include subdirectories when publishing a server-local directory"><input type="checkbox" id="publishRecursive" ' + (publishState.recursive ? 'checked' : '') + ' onchange="window.setPublishMeta(\'recursive\', this.checked)"> Recursive</label>' +
+      '<label>API key <input type="password" id="publishApiKey" placeholder="Bearer token (if required)" value="' + esc(publishState.apiKey) + '" onchange="window.setPublishMeta(\'apiKey\', this.value)"></label>' +
+      '</div>';
+
+    var actions = '<div style="display:flex;gap:0.5rem;margin:0.75rem 0">' +
+      '<button class="btn-icon" onclick="window.runPublishPreview()" ' + (publishState.files.length && !publishState.loading ? '' : 'disabled') + '>Preview</button>' +
+      '<button class="btn-icon" onclick="window.runPublish()" ' + (publishState.files.length && !publishState.loading ? '' : 'disabled') + '>Publish</button>' +
+      '<button class="btn-icon" onclick="window.clearPublish()">Clear</button>' +
+      '</div>';
+
+    var error = publishState.error ? '<div class="error-box">' + esc(publishState.error) + '</div>' : '';
+    var loading = publishState.loading ? '<div class="loading"><div class="spinner"></div> Publishing...</div>' : '';
+
+    main.innerHTML = '<div class="home">' +
+      '<h1>&#128228;&#10133; <span>Batch publish</span></h1>' +
+      '<p class="home-subtitle">Publish multiple markdown files at once to the local PermaBrain node</p>' +
+      '<div class="publish-panel">' + dropzone + toolbar + actions + fileList + error + loading + renderPublishReport() + '</div></div>';
+  }
+
+  window.renderPublish = renderPublish;
+
+  window.onPublishDragOver = function(e) {
+    e.preventDefault();
+    var dz = document.getElementById('publishDropzone');
+    if (dz) dz.classList.add('dragover');
+  };
+
+  window.onPublishDragLeave = function(e) {
+    var dz = document.getElementById('publishDropzone');
+    if (dz) dz.classList.remove('dragover');
+  };
+
+  window.onPublishDrop = function(e) {
+    e.preventDefault();
+    var dz = document.getElementById('publishDropzone');
+    if (dz) dz.classList.remove('dragover');
+    readPublishFiles(e.dataTransfer.files);
   };
 
   window.setExportKey = function(key) {
@@ -3075,6 +3336,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
           if (bootState.exportMode) exportImportState.exportMode = bootState.exportMode;
           window.showExport();
         }
+        else if (bootState.view === 'publish') window.showPublish();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -3089,6 +3351,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   else if (viewMode === 'audit') window.showAudit();
   else if (viewMode === 'import') window.showImport();
   else if (viewMode === 'export') window.showExport();
+  else if (viewMode === 'publish') window.showPublish();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
