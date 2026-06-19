@@ -47,6 +47,7 @@
     "test:merge": "node test/merge.mjs",
     "test:pi-goal": "node test/pi-goal.mjs",
     "test:viewer-publish-dir": "node test/viewer-publish-dir.mjs",
+    "test:viewer-import-export": "node test/viewer-import-export.mjs",
     "test:viewer-compose": "node test/viewer-compose.mjs",
     "test:transport-resilience": "node test/transport-resilience.mjs",
     "test:transport-metrics": "node test/transport-metrics.mjs",
