@@ -221,6 +221,7 @@ assert.equal(typeof summarizeThresholdAttestation, 'function', 'summarizeThresho
 // SDK exports
 import { createClient } from '../src/index.mjs';
 import { generateCompletion, listSupportedShells } from '../src/index.mjs';
+import { publishDirectory, publishDirectoryToMarkdown, deriveKeyFromPath, findMarkdownFiles } from '../src/index.mjs';
 
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
@@ -231,7 +232,11 @@ assert.equal(typeof stopServer, 'function', 'stopServer');
 assert.equal(typeof createClient, 'function', 'createClient');
 assert.equal(typeof createRateLimiter, 'function', 'createRateLimiter');
 assert.equal(typeof getClientIdentifier, 'function', 'getClientIdentifier');
-console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client + rate limit)');
+assert.equal(typeof publishDirectory, 'function', 'publishDirectory');
+assert.equal(typeof publishDirectoryToMarkdown, 'function', 'publishDirectoryToMarkdown');
+assert.equal(typeof deriveKeyFromPath, 'function', 'deriveKeyFromPath');
+assert.equal(typeof findMarkdownFiles, 'function', 'findMarkdownFiles');
+console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client + rate limit + publish-dir)');
 
 // --- 5. package.json exports field ---
 console.log('5. package.json exports field');
@@ -386,8 +391,14 @@ assert.equal(typeof sharePageId, 'function', 'sharePageId');
 assert.equal(typeof api.shareEncrypted, 'function', 'api.shareEncrypted is a function');
 console.log('   ✓ Encrypted share exports present');
 
-// --- 15. REPL exports ---
-console.log('15. REPL exports');
+// --- 15. Publish directory API methods ---
+console.log('15. Publish directory API methods');
+assert.equal(typeof api.publishDirectory, 'function', 'api.publishDirectory is a function');
+assert.equal(typeof api.publishDirectoryToMarkdown, 'function', 'api.publishDirectoryToMarkdown is a function');
+console.log('   ✓ Publish directory API methods present');
+
+// --- 16. REPL exports ---
+console.log('16. REPL exports');
 import { createRepl, readHistory, writeHistory, buildApiCompleter } from '../src/index.mjs';
 assert.equal(typeof api.repl, 'function', 'api.repl is a function');
 assert.equal(typeof createRepl, 'function', 'createRepl is a function');
@@ -396,8 +407,8 @@ assert.equal(typeof writeHistory, 'function', 'writeHistory is a function');
 assert.equal(typeof buildApiCompleter, 'function', 'buildApiCompleter is a function');
 console.log('   ✓ REPL exports present');
 
-// --- 16. Completion exports ---
-console.log('15. Completion exports');
+// --- 17. Completion exports ---
+console.log('17. Completion exports');
 assert.equal(typeof generateCompletion, 'function', 'generateCompletion');
 assert.equal(typeof listSupportedShells, 'function', 'listSupportedShells');
 assert.equal(typeof api.completion, 'function', 'api.completion is a function');

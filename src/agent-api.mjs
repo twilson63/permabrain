@@ -26,6 +26,7 @@ import { exportBundle, exportAllArticles, importBundle } from './bundle.mjs';
 import { exportHistory } from './export-history.mjs';
 import { importHistory } from './import-history.mjs';
 import { importBundleAutoDetect, importReportToMarkdown, BUNDLE_TYPES } from './import-unified.mjs';
+import { publishDirectory, publishDirectoryToMarkdown } from './publish-dir.mjs';
 import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
@@ -456,6 +457,44 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return loadIndex(this._home);
+  },
+
+  /**
+   * Publish all .md files in a directory as articles.
+   *
+   * Derives key/topic/kind from frontmatter and relative path. Each file is
+   * published independently; failures do not block other files.
+   *
+   * @param {string} dir - Directory path
+   * @param {Object} [opts]
+   * @param {boolean} [opts.recursive=false] - Recurse into subdirectories
+   * @param {boolean} [opts.dryRun=false] - Preview without publishing
+   * @param {string} [opts.topic] - Override topic
+   * @param {string} [opts.kind] - Override kind
+   * @param {string} [opts.title] - Override title
+   * @param {string} [opts.sourceUrl] - Override source URL
+   * @param {string} [opts.sourceName] - Override source display name
+   * @param {string} [opts.sourceLicense] - Override source license
+   * @param {string} [opts.language='en'] - Language code
+   * @param {boolean} [opts.useHyperbeam]
+   * @param {boolean} [opts.useHyperbeamReference]
+   * @param {string[]} [opts.encryptedFor] - X25519 public keys for encrypted publish
+   * @param {string} [opts.visibility='public'] - public|encrypted|private
+   * @returns {Promise<{dir, recursive, dryRun, count, succeeded, failed, skipped, results}>}
+   */
+  async publishDirectory(dir, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!dir) throw new Error('dir is required');
+    const report = await publishDirectory(dir, { ...opts, home: this._home });
+    return report;
+  },
+
+  /**
+   * Render a directory publish report as markdown.
+   */
+  publishDirectoryToMarkdown(report) {
+    return publishDirectoryToMarkdown(report);
   },
 
   /**

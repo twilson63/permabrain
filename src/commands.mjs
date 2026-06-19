@@ -69,6 +69,7 @@ import {
 } from './peer.mjs';
 
 import { importBundleAutoDetect, importReportToMarkdown, BUNDLE_TYPES, detectBundleType } from './import-unified.mjs';
+import { publishDirectory, publishDirectoryToMarkdown } from './publish-dir.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -109,6 +110,7 @@ export async function runCommand(command, args) {
   if (command === 'import-bundle') return importBundleCommand(args);
   if (command === 'import-history') return importHistoryCommand(args);
   if (command === 'import') return importUnifiedCommand(args);
+  if (command === 'publish-dir') return publishDirectoryCommand(args);
   if (command === 'transport-status') return transportStatusCommand(args);
   if (command === 'watch') return watchCommand(args);
   if (command === 'history') return historyCommand(args);
@@ -1134,6 +1136,43 @@ async function importHistoryCommand(args) {
       } else {
         console.log(`  ✓ ${r.type} ${r.key || r.targetKey || ''}: ${r.id}`);
       }
+    }
+  }
+  return result;
+}
+
+async function publishDirectoryCommand(args) {
+  const dir = args._[0] || args.dir;
+  if (!dir) throw new Error('publish-dir requires <dir>');
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) throw new Error(`Not a directory: ${dir}`);
+  const visibility = args.visibility || args.publish || 'public';
+  if (!['public', 'encrypted', 'private'].includes(visibility)) throw new Error(`--visibility must be public, encrypted, or private (got: ${visibility})`);
+  const encryptedFor = args.for ? String(args.for).split(',').map(k => k.trim()).filter(Boolean) : [];
+  const result = await publishDirectory(dir, {
+    home: getHome(),
+    recursive: args.recursive === true || args.recursive === 'true',
+    dryRun: args['dry-run'] === true || args['dry-run'] === 'true',
+    topic: args.topic,
+    kind: args.kind,
+    title: args.title,
+    sourceUrl: args['source-url'],
+    sourceName: args['source-name'],
+    sourceLicense: args['source-license'] || '',
+    language: args.language || 'en',
+    useHyperbeam: args['use-hyperbeam'] ?? false,
+    useHyperbeamReference: args['use-hyperbeam-reference'] ?? (process.env.PERMABRAIN_HYPERBEAM_REFERENCES === '1' ? true : undefined),
+    encryptedFor,
+    visibility,
+  });
+  if (args.json) printJson(result);
+  else if (args.markdown) console.log(publishDirectoryToMarkdown(result));
+  else {
+    console.log(`Publish directory ${dir}: ${result.count} files`);
+    console.log(`Succeeded: ${result.succeeded}, Failed: ${result.failed}, Skipped: ${result.skipped}`);
+    for (const r of result.results) {
+      if (r.status === 'ok') console.log(`  ✓ ${r.key}: ${r.id}`);
+      else if (r.status === 'dry-run') console.log(`  ~ ${r.key} [${r.kind}/${r.topic}]`);
+      else console.log(`  ✗ ${r.key || '(no key)'}: ${r.error}`);
     }
   }
   return result;

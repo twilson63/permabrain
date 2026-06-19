@@ -204,5 +204,8 @@ export {
   summarizeThresholdAttestation
 } from './threshold-attestation.mjs';
 
+// Batch directory publishing
+export { publishDirectory, publishDirectoryToMarkdown, deriveKeyFromPath, findMarkdownFiles } from './publish-dir.mjs';
+
 // Interactive REPL
 export { createRepl, readHistory, writeHistory, buildApiCompleter } from './repl.mjs';

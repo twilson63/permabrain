@@ -29,6 +29,7 @@ const COMMANDS = [
   'import-bundle',
   'import-history',
   'import',
+  'publish-dir',
   'fork',
   'list-forks',
   'merge',
@@ -123,6 +124,7 @@ Commands:
   import-bundle <file>         Import articles/attestations from a bundle file
   import <file>                Auto-detect import type and route to the correct importer
   import-history <file>        Import a history bundle into the local store
+  publish-dir <dir>            Publish all .md files in a directory as articles
   list-forks <source-key>      List forks of an article
   attest-for-agent             Attest on behalf of another agent
   list-agents                  List known external agents
@@ -1082,6 +1084,29 @@ In the shell:
   pb.status()
   pb.metrics({ top: 10 })
   .exit
+`,
+    'publish-dir': `Usage: permabrain publish-dir <dir> [--recursive] [--dry-run] [--kind <kind>] [--topic <topic>] [--title <title>] [--source-url <url>] [--source-name <name>] [--source-license <license>] [--language en] [--visibility public|encrypted|private] [--for <pubkey>[,...]] [--use-hyperbeam] [--use-hyperbeam-reference] [--json] [--markdown]
+
+Publish all .md files in a directory as PermaBrain articles.
+
+Each markdown file is published independently. Keys, topics, and kinds are
+inferred from YAML frontmatter when present, then from CLI overrides, then from
+the relative path. Failures do not block other files in the directory.
+
+Defaults and inference:
+  - kind: frontmatter.kind > --kind > 'subject'
+  - topic: frontmatter.topic > --topic > first directory segment > 'general'
+  - title: frontmatter.title > --title > file name converted to title case
+  - key: frontmatter.key > derived from '<kind>/<derived-slug>'
+  - source-url: --source-url > 'file://<absolute-path>'
+
+Use --recursive to include subdirectories. Use --dry-run to preview which files
+would be published and what keys they would receive.
+
+Examples:
+  permabrain publish-dir ./docs --topic ai --kind subject
+  permabrain publish-dir ./notes --recursive --topic notes --dry-run
+  permabrain publish-dir ./share --visibility encrypted --for pubkey1,pubkey2
 `
   };
   console.log(help[command] || `Unknown command: ${command}`);

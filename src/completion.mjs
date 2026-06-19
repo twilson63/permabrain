@@ -70,7 +70,8 @@ export const COMMANDS = [
   'threshold-attest',
   'events',
   'peer',
-  'shell'
+  'shell',
+  'publish-dir'
 ];
 
 export const GLOBAL_OPTIONS = [
@@ -101,6 +102,7 @@ export const COMMAND_OPTIONS = {
   'export-all': ['--no-attestations', '--output'],
   'import-bundle': ['--no-verify', '--no-skip-duplicates'],
   'import-history': ['--no-verify', '--no-skip-duplicates'],
+  'publish-dir': ['--recursive', '--dry-run', '--kind', '--topic', '--title', '--source-url', '--source-name', '--source-license', '--language', '--visibility', '--for'],
   fork: ['--key', '--slug', '--title', '--content', '--topic', '--kind', '--source-url', '--source-name', '--source-license', '--language', '--target-id'],
   'list-forks': ['--json'],
   merge: ['--title', '--topic', '--kind', '--source-url', '--source-name', '--source-license', '--language', '--no-carry-attestations'],
