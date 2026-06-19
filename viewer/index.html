@@ -374,7 +374,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <div class="subtitle">Public signed knowledge graph</div>
   <div class="header-actions">
     <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
-  <button class="btn-icon" id="adminBtn" onclick="window.showAdminPanel()" title="Admin / monitoring">&#128202;</button>
+    <button class="btn-icon" id="healthBtn" onclick="window.showHealth()" title="Health / diagnostics">&#10003;</button>
+    <button class="btn-icon" id="adminBtn" onclick="window.showAdminPanel()" title="Admin / monitoring">&#128202;</button>
     <button class="btn-icon" id="supportBundleBtn" onclick="window.showSupportBundle()" title="Support bundle">&#129520;</button>
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
@@ -537,7 +538,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health'
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
   var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
@@ -548,6 +549,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var supportBundleState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'markdown'
   var dashboardInterval = null;
   var adminState = { data: null, loading: false, error: null, accessLogLimit: 25, auditLogLimit: 25 };
+  var healthState = { data: null, routes: null, admin: null, loading: false, error: null, format: 'json' };
   var historyData = {};       // key -> history payload from local API
   var historyLoading = false;
   var historyError = null;
@@ -604,6 +606,15 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   function setPreferredLiveTransport(t) {
     liveTransport = t;
     localStorage.setItem('permabrain-live-transport', t);
+  }
+
+function statCard(label, value, cls) {
+    var color = 'var(--muted)';
+    if (cls === 'good') color = 'var(--green)';
+    if (cls === 'low') color = 'var(--red)';
+    if (cls === 'moderate') color = 'var(--orange)';
+    if (cls === 'accent' || cls === 'agent' || cls === 'transport') color = 'var(--accent)';
+    return '<div class="stat-card"><div class="stat-value" style="color:' + color + '">' + esc(String(value)) + '</div><div class="stat-label">' + esc(label) + '</div></div>';
   }
 
   // --- Settings panel ---
@@ -1527,7 +1538,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1712,6 +1723,119 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     await fetchSupportBundle();
     updateUrlState();
   };
+
+  window.showHealth = async function() {
+    viewMode = 'health';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchHealth();
+    updateUrlState();
+  };
+
+  window.refreshHealth = async function() {
+    await fetchHealth();
+    updateUrlState();
+  };
+
+  async function fetchHealth() {
+    if (!isLocalServer()) return;
+    healthState.loading = true;
+    healthState.error = null;
+    if (viewMode === 'health') renderHealth();
+    try {
+      var [healthRes, routesRes, adminRes] = await Promise.all([
+        fetch('/health').catch(function() { return { ok: false }; }),
+        fetch('/api/v1/routes').catch(function() { return { ok: false }; }),
+        fetch('/api/v1/admin').catch(function() { return { ok: false }; })
+      ]);
+      if (healthRes.ok) healthState.data = await healthRes.json();
+      if (routesRes.ok) healthState.routes = await routesRes.json();
+      if (adminRes.ok) healthState.admin = await adminRes.json();
+      healthState.loading = false;
+    } catch(e) {
+      healthState.error = e.message;
+      healthState.loading = false;
+    }
+    if (viewMode === 'health') renderHealth();
+  }
+
+  window.fetchHealth = fetchHealth;
+
+  function renderHealth() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Health panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see server health and diagnostics.</p></div>';
+      return;
+    }
+    if (healthState.loading && !healthState.data && !healthState.admin) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading health diagnostics...</div>';
+      return;
+    }
+    if (healthState.error && !healthState.data && !healthState.admin) {
+      main.innerHTML = '<div class="empty-state"><h2>Health diagnostics error</h2><p>' + esc(healthState.error) + '</p><button class="btn-icon" onclick="window.refreshHealth()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = healthState.data || {};
+    var routes = healthState.routes || [];
+    var admin = healthState.admin || {};
+    var m = admin.metrics || {};
+    var runtime = m.runtime || {};
+    var totals = (m.data && m.data.totals) || {};
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshHealth()">&#x21BB; Refresh</button>' +
+      '<span class="last-updated">generated ' + (admin.generatedAt ? fmtDate(admin.generatedAt) : '—') + '</span>' +
+      '</div>';
+
+    var statusCards = '<div class="stats-grid">' +
+      statCard('Status', data.status || '—', data.status === 'ok' ? 'good' : 'low') +
+      statCard('Service', data.service || '—', 'service') +
+      statCard('Agent', admin.agentId || data.agentId || '—', 'agent') +
+      statCard('Transport', admin.transport || data.transport || '—', 'transport') +
+      statCard('Key type', admin.keyType || '—', 'key') +
+      statCard('Uptime', runtime.uptime || '—', 'uptime') +
+      '</div>';
+
+    var streamInfo = data.streams || {};
+    var articlesStream = streamInfo.articles || {};
+    var streamHtml = '<div class="dashboard-section"><h2>Stream transport</h2>' +
+      '<p style="font-size:0.85rem">Default: <code>' + esc(articlesStream.default || data.streamTransport || 'sse') + '</code> · SSE: <code>' + esc(articlesStream.sse || streamInfo.sse || '—') + '</code> · WebSocket: <code>' + esc(articlesStream.websocket || streamInfo.websocket || '—') + '</code></p></div>';
+
+    var routeRows = (routes || []).map(function(r) {
+      var authBadge = r.requiresAuth ? '<span style="font-size:0.7rem;color:var(--orange)">auth</span>' : '<span style="font-size:0.7rem;color:var(--green)">public</span>';
+      return '<tr><td class="mono">' + esc(r.method) + '</td><td class="mono">' + esc(r.route) + '</td><td>' + esc(r.description || '') + '</td><td>' + authBadge + '</td></tr>';
+    }).join('');
+    var routesHtml = '<div class="dashboard-section" style="overflow:auto"><h2>Route discovery (' + routes.length + ')</h2>' +
+      '<table class="audit-table"><thead><tr><th>Method</th><th>Route</th><th>Description</th><th>Auth</th></tr></thead><tbody>' + routeRows + '</tbody></table></div>';
+
+    var metricsHtml = '<div class="stats-grid">' +
+      statCard('Requests', String((runtime.requests && runtime.requests.total) || 0), 'requests') +
+      statCard('Errors', String((runtime.requests && runtime.requests.errors) || 0), 'errors') +
+      statCard('Rate limited', String((runtime.requests && runtime.requests.rateLimited) || 0), 'rateLimited') +
+      statCard('SSE clients', String((runtime.activeStreams && runtime.activeStreams.sse) || 0), 'sse') +
+      statCard('WS clients', String((runtime.activeStreams && runtime.activeStreams.websocket) || 0), 'ws') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      statCard('Attestations', String(totals.attestations || 0), 'attestations') +
+      statCard('Topics', String(totals.topicCount || 0), 'topics') +
+      '</div>';
+
+    var bodyJson = '<pre class="support-bundle-json">' + esc(JSON.stringify({ health: data, admin: admin, routes: routes }, null, 2)) + '</pre>';
+
+    main.innerHTML = '<div class="home"><h1>&#10003; <span>Health / Diagnostics</span></h1><p class="home-subtitle">Server health, transport status, metrics snapshot, and route discovery</p>' + toolbar + statusCards + '<h2>Runtime metrics</h2>' + metricsHtml + streamInfoHtml() + '<h2>Routes</h2>' + routesHtml + '<h2>Raw snapshot</h2>' + bodyJson + '</div>';
+  }
+
+  function streamInfoHtml() {
+    var data = healthState.data || {};
+    var streamInfo = data.streams || {};
+    var articlesStream = streamInfo.articles || {};
+    return '<div class="dashboard-section"><h2>Stream transport</h2>' +
+      '<p style="font-size:0.85rem">Default: <code>' + esc(articlesStream.default || data.streamTransport || 'sse') + '</code> · SSE: <code>' + esc(articlesStream.sse || streamInfo.sse || '—') + '</code> · WebSocket: <code>' + esc(articlesStream.websocket || streamInfo.websocket || '—') + '</code></p></div>';
+  }
+
+  window.renderHealth = renderHealth;
 
   window.refreshSupportBundle = async function() {
     await fetchSupportBundle();
@@ -3117,8 +3241,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   // --- Interactive local article list (uses /api/v1/list) ---
+  function fmtDate(ts) { return fmtTs(ts); }
+
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health';
   }
 
   function readFiltersFromDom() {
@@ -3888,6 +4014,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   else if (viewMode === 'publish') window.showPublish();
   else if (viewMode === 'compose') window.showCompose();
   else if (viewMode === 'support') window.showSupportBundle();
+  else if (viewMode === 'health') window.showHealth();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
