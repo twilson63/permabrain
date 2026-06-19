@@ -16,12 +16,28 @@
   --border:#d0d7de;--card:#eef1f4;--sidebar:320px;
   --shadow:0 1px 3px rgba(0,0,0,0.08);
   --radius:8px;
+  --setting-bg:var(--bg);
 }
 [data-theme="dark"]{
   --bg:#0d1117;--surface:#161b22;--text:#e6edf3;--muted:#8b949e;
   --accent:#58a6ff;--green:#3fb950;--orange:#d29922;--red:#f85149;
   --border:#30363d;--card:#21262d;
   --shadow:0 1px 3px rgba(0,0,0,0.3);
+  --setting-bg:var(--surface);
+}
+[data-theme="auto"]{
+  --bg:#fff;--surface:#f6f8fa;--text:#1f2328;--muted:#656d76;
+  --accent:#0969da;--green:#1a7f37;--orange:#9a6700;--red:#cf222e;
+  --border:#d0d7de;--card:#eef1f4;--setting-bg:var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  [data-theme="auto"]{
+    --bg:#0d1117;--surface:#161b22;--text:#e6edf3;--muted:#8b949e;
+    --accent:#58a6ff;--green:#3fb950;--orange:#d29922;--red:#f85149;
+    --border:#30363d;--card:#21262d;
+    --shadow:0 1px 3px rgba(0,0,0,0.3);
+    --setting-bg:var(--surface);
+  }
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
 .app{display:flex;min-height:100vh}
@@ -32,7 +48,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .sidebar-header h1{font-size:1.1rem;margin-bottom:0.1rem;display:flex;align-items:center;gap:0.4rem}
 .sidebar-header h1 span{color:var(--accent)}
 .sidebar-header .subtitle{font-size:0.75rem;color:var(--muted)}
-.header-actions{display:flex;gap:0.5rem;margin-top:0.5rem;align-items:center}
+.header-actions{display:flex;gap:0.5rem;margin-top:0.5rem;align-items:center;flex-wrap:wrap}
 .btn-icon{background:none;border:1px solid var(--border);border-radius:6px;padding:0.3rem 0.5rem;cursor:pointer;color:var(--muted);font-size:0.85rem;transition:all .15s;line-height:1}
 .btn-icon:hover{border-color:var(--accent);color:var(--accent)}
 .btn-icon.active{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -264,6 +280,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .encrypted-hint{background:rgba(154,103,0,0.08);border:1px solid var(--orange);border-radius:var(--radius);padding:0.6rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:var(--orange)}
 [data-theme="dark"] .encrypted-hint{background:rgba(210,153,34,0.1);color:var(--orange)}
 
+/* Settings panel */
+.settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:120;align-items:center;justify-content:center;padding:1rem}
+.settings-overlay.show{display:flex}
+.settings-panel{background:var(--setting-bg);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:420px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.settings-header{display:flex;justify-content:space-between;align-items:center;padding:1rem;border-bottom:1px solid var(--border)}
+.settings-header h2{font-size:1.1rem;margin:0}
+.settings-body{flex:1;overflow-y:auto;padding:1.25rem}
+.settings-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
+.settings-row label{font-size:0.85rem;color:var(--text);font-weight:500}
+.settings-row select,.settings-row input[type="number"]{padding:0.35rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text);min-width:8rem}
+.settings-row input[type="checkbox"]{width:1.1rem;height:1.1rem;cursor:pointer;accent-color:var(--accent)}
+.settings-note{font-size:0.75rem;color:var(--muted);margin-top:0.2rem;flex-basis:100%}
+.settings-footer{padding:0.75rem 1rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;justify-content:flex-end}
+.settings-footer button{padding:0.4rem 0.9rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:0.85rem;cursor:pointer}
+.settings-footer button:hover{border-color:var(--accent);color:var(--accent)}
+.settings-footer .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.settings-footer .btn-primary:hover{opacity:0.9;color:#fff}
+
 /* Mobile */
 .mobile-toggle{display:none;position:fixed;top:0.75rem;left:0.75rem;z-index:100;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.7rem;cursor:pointer;font-size:1.2rem}
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:90}
@@ -275,6 +309,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   .main{padding:1.5rem 1rem;padding-top:3rem}
   .stats-row{grid-template-columns:repeat(2,1fr)}
   .home-cards{grid-template-columns:1fr}
+  .settings-overlay{padding:0.5rem}
 }
 @keyframes pulse{0%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.2)}100%{opacity:1;transform:scale(1)}}
 </style>
@@ -295,6 +330,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
+    <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
   <input type="text" class="search" id="search" placeholder="Search articles..." oninput="window.onSearchInput()">
   <div class="filters" id="filters"></div>
@@ -302,28 +338,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 <div class="filter-panel" id="filterPanel">
   <div class="filter-row">
     <label for="topicSelect">Topic</label>
-    <select id="topicSelect" onchange="window.onFilterChange()"><option value="">All topics</option></select>
+    <select id="topicSelect" onchange="window.onFilterChange()" data-testid="topic-select"><option value="">All topics</option></select>
   </div>
   <div class="filter-row">
     <label for="filterAfter">After</label>
-    <input type="date" id="filterAfter" onchange="window.onFilterChange()">
+    <input type="date" id="filterAfter" onchange="window.onFilterChange()" data-testid="filter-after">
     <label for="filterBefore">Before</label>
-    <input type="date" id="filterBefore" onchange="window.onFilterChange()">
+    <input type="date" id="filterBefore" onchange="window.onFilterChange()" data-testid="filter-before">
   </div>
   <div class="filter-row">
     <label for="filterAuthor">Author</label>
-    <input type="text" id="filterAuthor" placeholder="Agent id" oninput="window.onFilterChange()">
+    <input type="text" id="filterAuthor" placeholder="Agent id" oninput="window.onFilterChange()" data-testid="filter-author">
   </div>
   <div class="filter-actions">
-    <button class="btn-primary" onclick="window.applyFilters()">Apply</button>
-    <button onclick="window.resetFilters()">Reset</button>
+    <button class="btn-primary" onclick="window.applyFilters()" data-testid="apply-filters">Apply</button>
+    <button onclick="window.resetFilters()" data-testid="reset-filters">Reset</button>
   </div>
 </div>
 <div class="sort-bar">
   <label>Sort:</label>
-  <button class="sort-btn active" data-sort="date" onclick="window.setSort('date')">Date</button>
-  <button class="sort-btn" data-sort="title" onclick="window.setSort('title')">Title</button>
-  <button class="sort-btn" data-sort="consensus" onclick="window.setSort('consensus')">Score</button>
+  <button class="sort-btn active" data-sort="date" onclick="window.setSort('date')" data-testid="sort-date">Date</button>
+  <button class="sort-btn" data-sort="title" onclick="window.setSort('title')" data-testid="sort-title">Title</button>
+  <button class="sort-btn" data-sort="consensus" onclick="window.setSort('consensus')" data-testid="sort-consensus">Score</button>
+  <button class="sort-btn" data-sort="key" onclick="window.setSort('key')" data-testid="sort-key">Key</button>
 </div>
 <div class="status-bar" id="statusBar">
   <span id="statusText">Loading...</span>
@@ -334,6 +371,60 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 </div>
 <div class="article-list" id="articleList"></div>
 </div>
+<!-- Settings modal -->
+<div class="settings-overlay" id="settingsOverlay" aria-hidden="true">
+  <div class="settings-panel" role="dialog" aria-labelledby="settingsTitle" onclick="event.stopPropagation()">
+    <div class="settings-header">
+      <h2 id="settingsTitle">Settings</h2>
+      <button class="modal-close" onclick="window.hideSettings()" aria-label="Close">&times;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-row">
+        <label for="settingTheme">Theme</label>
+        <select id="settingTheme">
+          <option value="auto">Auto</option>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </div>
+      <div class="settings-note">Use system preference, always dark, or always light.</div>
+      <div class="settings-row">
+        <label for="settingTransport">Live transport</label>
+        <select id="settingTransport" data-testid="setting-transport">
+          <option value="sse">SSE</option>
+          <option value="ws">WebSocket</option>
+        </select>
+      </div>
+      <div class="settings-note">Preferred channel for live article updates.</div>
+      <div class="settings-row">
+        <label for="settingSort">Default sort</label>
+        <select id="settingSort" data-testid="setting-sort">
+          <option value="date">Date</option>
+          <option value="title">Title</option>
+          <option value="consensus">Score</option>
+          <option value="key">Key</option>
+        </select>
+      </div>
+      <div class="settings-note">Default sort order applied on load and reset.</div>
+      <div class="settings-row">
+        <label for="settingPageSize">Results per page</label>
+        <input type="number" id="settingPageSize" min="5" max="1000" step="1" value="100" data-testid="setting-page-size">
+      </div>
+      <div class="settings-note">Number of articles fetched from the local API.</div>
+      <div class="settings-row">
+        <label for="settingLiveTail">Live-tail audit log</label>
+        <input type="checkbox" id="settingLiveTail" data-testid="setting-live-tail">
+      </div>
+      <div class="settings-note">Stream new request-log entries on the Audit tab.</div>
+    </div>
+    <div class="settings-footer">
+      <button onclick="window.resetSettings()">Reset to defaults</button>
+      <button onclick="window.hideSettings()">Cancel</button>
+      <button class="btn-primary" onclick="window.saveSettings()" data-testid="save-settings">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="main" id="main">
 <div class="empty-state" id="emptyState">
   <h2>&#x1F9E0; PermaBrain Viewer</h2>
@@ -451,13 +542,125 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     localStorage.setItem('permabrain-live-transport', t);
   }
 
+  // --- Settings panel ---
+  var settings = {
+    theme: localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+    transport: localStorage.getItem('permabrain-live-transport') || 'sse',
+    defaultSort: localStorage.getItem('permabrain-default-sort') || 'date',
+    pageSize: parseInt(localStorage.getItem('permabrain-page-size') || '100', 10),
+    liveTail: localStorage.getItem('permabrain-live-tail') !== 'false'
+  };
+
+  function ensureSettingsDefaults() {
+    var rawTheme = localStorage.getItem('permabrain-theme');
+    var rawTransport = localStorage.getItem('permabrain-live-transport');
+    var rawSort = localStorage.getItem('permabrain-default-sort');
+    var rawPage = localStorage.getItem('permabrain-page-size');
+    var rawLive = localStorage.getItem('permabrain-live-tail');
+    if (!rawTheme) localStorage.setItem('permabrain-theme', settings.theme);
+    if (!rawTransport) localStorage.setItem('permabrain-live-transport', settings.transport);
+    if (!rawSort) localStorage.setItem('permabrain-default-sort', settings.defaultSort);
+    if (!rawPage) localStorage.setItem('permabrain-page-size', String(settings.pageSize));
+    if (rawLive === null) localStorage.setItem('permabrain-live-tail', settings.liveTail ? 'true' : 'false');
+  }
+
+  window.showSettings = function() {
+    populateSettingsPanel();
+    document.getElementById('settingsOverlay').classList.add('show');
+  };
+
+  window.hideSettings = function() {
+    document.getElementById('settingsOverlay').classList.remove('show');
+  };
+
+  function populateSettingsPanel() {
+    var themeSel = document.getElementById('settingTheme');
+    var transportSel = document.getElementById('settingTransport');
+    var sortSel = document.getElementById('settingSort');
+    var pageInput = document.getElementById('settingPageSize');
+    var liveCheck = document.getElementById('settingLiveTail');
+    if (themeSel) themeSel.value = settings.theme;
+    if (transportSel) transportSel.value = settings.transport;
+    if (sortSel) sortSel.value = settings.defaultSort;
+    if (pageInput) pageInput.value = settings.pageSize;
+    if (liveCheck) liveCheck.checked = settings.liveTail;
+  }
+
+  function saveSettingsFromPanel() {
+    var themeSel = document.getElementById('settingTheme');
+    var transportSel = document.getElementById('settingTransport');
+    var sortSel = document.getElementById('settingSort');
+    var pageInput = document.getElementById('settingPageSize');
+    var liveCheck = document.getElementById('settingLiveTail');
+    if (themeSel) {
+      settings.theme = themeSel.value;
+      localStorage.setItem('permabrain-theme', settings.theme);
+      applyTheme(settings.theme);
+    }
+    if (transportSel) {
+      settings.transport = transportSel.value;
+      localStorage.setItem('permabrain-live-transport', settings.transport);
+    }
+    if (sortSel) {
+      settings.defaultSort = sortSel.value;
+      localStorage.setItem('permabrain-default-sort', settings.defaultSort);
+    }
+    if (pageInput) {
+      var n = parseInt(pageInput.value, 10);
+      if (!isNaN(n) && n >= 5 && n <= 1000) {
+        settings.pageSize = n;
+        localStorage.setItem('permabrain-page-size', String(n));
+      }
+    }
+    if (liveCheck) {
+      settings.liveTail = liveCheck.checked;
+      localStorage.setItem('permabrain-live-tail', settings.liveTail ? 'true' : 'false');
+    }
+  }
+
+  window.saveSettings = function() {
+    saveSettingsFromPanel();
+    // Apply changes immediately where appropriate.
+    if (settings.transport !== liveTransport) {
+      setPreferredLiveTransport(settings.transport);
+      cycleLiveTransportIndicator();
+      stopLiveStream();
+      startLiveStream();
+    }
+    if (activeSort !== settings.defaultSort) {
+      window.setSort(settings.defaultSort);
+    }
+    if (!settings.liveTail) stopAuditStream();
+    hideSettings();
+    updateUrlState();
+  };
+
+  window.resetSettings = function() {
+    settings = { theme: 'auto', transport: 'sse', defaultSort: 'date', pageSize: 100, liveTail: true };
+    localStorage.setItem('permabrain-theme', settings.theme);
+    localStorage.setItem('permabrain-live-transport', settings.transport);
+    localStorage.setItem('permabrain-default-sort', settings.defaultSort);
+    localStorage.setItem('permabrain-page-size', String(settings.pageSize));
+    localStorage.setItem('permabrain-live-tail', 'true');
+    applyTheme(settings.theme);
+    setPreferredLiveTransport(settings.transport);
+    activeSort = settings.defaultSort;
+    document.querySelectorAll('.sort-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.sort === activeSort);
+    });
+    populateSettingsPanel();
+    if (isLocalListMode()) fetchLocalList().then(startLiveStream);
+  };
+
   // --- Theme ---
   function applyTheme(t) {
     theme = t;
     document.documentElement.setAttribute('data-theme', t);
     localStorage.setItem('permabrain-theme', t);
+    settings.theme = t;
     var btn = document.getElementById('themeToggle');
     if (btn) btn.innerHTML = t === 'dark' ? '&#9788;' : '&#9790;';
+    updateSettingThemeOption();
   }
   applyTheme(theme);
   window.toggleTheme = function() { applyTheme(theme === 'dark' ? 'light' : 'dark'); };
@@ -1156,7 +1359,9 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     var author = (document.getElementById('filterAuthor')?.value || '').trim();
     if (author) params.set('author', author);
     if (activeSort && activeSort !== 'date') params.set('sort', activeSort);
-    if (liveTransport && liveTransport !== 'sse' && isLocalServer()) params.set('transport', liveTransport);
+    if (settings.theme && settings.theme !== 'auto') params.set('theme', settings.theme);
+    if (settings.transport && settings.transport !== 'sse' && isLocalServer()) params.set('transport', settings.transport);
+    if (settings.pageSize && settings.pageSize !== 100) params.set('pageSize', String(settings.pageSize));
     if (viewMode && viewMode !== 'home') params.set('view', viewMode);
     if (viewMode === 'audit') {
       if (auditFilters.method) params.set('auditMethod', auditFilters.method);
@@ -1185,7 +1390,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       after: params.get('after') || '',
       before: params.get('before') || '',
       author: params.get('author') || '',
-      sort: params.get('sort') || 'date',
+      sort: params.get('sort') || (localStorage.getItem('permabrain-default-sort') || 'date'),
       transport: params.get('transport') || '',
       view: params.get('view') || 'home',
       key: params.get('key') || '',
@@ -1222,6 +1427,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (state.transport && ['sse','ws'].includes(state.transport)) {
       liveTransport = state.transport;
       localStorage.setItem('permabrain-live-transport', state.transport);
+    }
+    if (state.sort && ['date','title','consensus','key'].includes(state.sort)) {
+      activeSort = state.sort;
+      localStorage.setItem('permabrain-default-sort', state.sort);
     }
     if (state.view && ['home','article','dashboard','stats','audit','compare'].includes(state.view)) {
       viewMode = state.view;
@@ -1328,7 +1537,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderList();
     stopDashboardRefresh();
     await fetchAudit();
-    startAuditStream();
+    if (shouldStartAuditStream()) startAuditStream();
     updateUrlState();
   };
 
@@ -1661,7 +1870,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   };
 
   function startAuditStream() {
-    if (!isLocalServer() || auditEventSource || typeof EventSource === 'undefined') return;
+    if (!shouldStartAuditStream() || auditEventSource || typeof EventSource === 'undefined') return;
     var params = new URLSearchParams();
     if (auditFilters.method) params.set('method', auditFilters.method);
     if (auditFilters.status) params.set('status', auditFilters.status);
@@ -1690,6 +1899,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   function startDashboardRefresh() {
     stopDashboardRefresh();
     dashboardInterval = setInterval(fetchDashboard, 30000);
+  }
+
+  function updateSettingThemeOption() {
+    var themeSel = document.getElementById('settingTheme');
+    if (themeSel) themeSel.value = settings.theme;
   }
 
   function stopDashboardRefresh() {
@@ -1789,7 +2003,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       if (localList.filters.after) params.set('after', localList.filters.after + 'T00:00:00.000Z');
       if (localList.filters.before) params.set('before', localList.filters.before + 'T23:59:59.999Z');
       params.set('sort', activeSort);
-      params.set('limit', '100');
+      params.set('limit', String(settings.pageSize));
       var r = await fetch('/api/v1/list?' + params.toString());
       if (!r.ok) throw new Error('HTTP ' + r.status);
       var data = await r.json();
@@ -1829,7 +2043,17 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     var label = document.getElementById('liveTransport');
     var el = document.getElementById('liveIndicator');
     if (label) label.textContent = liveTransport.toUpperCase();
-    if (el) el.style.display = 'inline-flex';
+    if (el) {
+      if (isLocalServer() && settings.liveTail) {
+        el.style.display = 'inline-flex';
+      } else {
+        el.style.display = 'none';
+      }
+    }
+  }
+
+  function shouldStartAuditStream() {
+    return isLocalServer() && settings.liveTail;
   }
 
   window.cycleLiveTransport = function() {
@@ -2183,7 +2407,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     document.getElementById('filterAuthor').value = '';
     document.getElementById('search').value = '';
     activeFilter = 'all';
-    if (isLocalListMode()) fetchLocalList().then(updateUrlState);
+    activeSort = settings.defaultSort;
+    document.querySelectorAll('.sort-btn').forEach(function(b) {
+      b.classList.toggle('active', b.dataset.sort === activeSort);
+    });
+    if (isLocalListMode()) fetchLocalList().then(startLiveStream).then(updateUrlState);
     else { renderFilters(); renderList(); updateUrlState(); }
   };
 
