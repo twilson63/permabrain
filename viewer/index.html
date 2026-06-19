@@ -544,7 +544,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   // --- Settings panel ---
   var settings = {
-    theme: localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+    theme: localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'auto'),
     transport: localStorage.getItem('permabrain-live-transport') || 'sse',
     defaultSort: localStorage.getItem('permabrain-default-sort') || 'date',
     pageSize: parseInt(localStorage.getItem('permabrain-page-size') || '100', 10),
@@ -563,6 +563,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (!rawPage) localStorage.setItem('permabrain-page-size', String(settings.pageSize));
     if (rawLive === null) localStorage.setItem('permabrain-live-tail', settings.liveTail ? 'true' : 'false');
   }
+  ensureSettingsDefaults();
 
   window.showSettings = function() {
     populateSettingsPanel();
@@ -1362,6 +1363,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (settings.theme && settings.theme !== 'auto') params.set('theme', settings.theme);
     if (settings.transport && settings.transport !== 'sse' && isLocalServer()) params.set('transport', settings.transport);
     if (settings.pageSize && settings.pageSize !== 100) params.set('pageSize', String(settings.pageSize));
+    if (settings.liveTail === false) params.set('liveTail', 'false');
     if (viewMode && viewMode !== 'home') params.set('view', viewMode);
     if (viewMode === 'audit') {
       if (auditFilters.method) params.set('auditMethod', auditFilters.method);
@@ -1384,6 +1386,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   function readUrlState() {
     var params = new URLSearchParams(window.location.search);
+    var parsedPageSize = parseInt(params.get('pageSize') || '', 10);
+    var liveTailParam = params.get('liveTail');
     return {
       q: params.get('q') || '',
       topic: params.get('topic') || '',
@@ -1391,7 +1395,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       before: params.get('before') || '',
       author: params.get('author') || '',
       sort: params.get('sort') || (localStorage.getItem('permabrain-default-sort') || 'date'),
-      transport: params.get('transport') || '',
+      theme: params.get('theme') || (localStorage.getItem('permabrain-theme') || 'auto'),
+      transport: params.get('transport') || (localStorage.getItem('permabrain-live-transport') || 'sse'),
+      pageSize: !isNaN(parsedPageSize) && parsedPageSize >= 5 && parsedPageSize <= 1000 ? parsedPageSize : parseInt(localStorage.getItem('permabrain-page-size') || '100', 10),
+      liveTail: liveTailParam === null ? localStorage.getItem('permabrain-live-tail') !== 'false' : liveTailParam !== 'false',
       view: params.get('view') || 'home',
       key: params.get('key') || '',
       tab: params.get('tab') || 'content',
@@ -1424,13 +1431,23 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
         b.classList.toggle('active', b.dataset.sort === activeSort);
       });
     }
+    if (state.theme && ['auto','dark','light'].includes(state.theme)) {
+      settings.theme = state.theme;
+      localStorage.setItem('permabrain-theme', state.theme);
+      applyTheme(state.theme);
+    }
     if (state.transport && ['sse','ws'].includes(state.transport)) {
       liveTransport = state.transport;
+      settings.transport = state.transport;
       localStorage.setItem('permabrain-live-transport', state.transport);
     }
-    if (state.sort && ['date','title','consensus','key'].includes(state.sort)) {
-      activeSort = state.sort;
-      localStorage.setItem('permabrain-default-sort', state.sort);
+    if (typeof state.pageSize === 'number') {
+      settings.pageSize = state.pageSize;
+      localStorage.setItem('permabrain-page-size', String(state.pageSize));
+    }
+    if (liveTailParam !== null) {
+      settings.liveTail = state.liveTail;
+      localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
     if (state.view && ['home','article','dashboard','stats','audit','compare'].includes(state.view)) {
       viewMode = state.view;
