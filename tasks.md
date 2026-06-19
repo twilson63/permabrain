@@ -65,9 +65,10 @@
 - [ ] (none)
 
 ## Next
-- [ ] Web viewer dedicated "History" panel with visual timeline, version selection, and diff against prior versions, deep-linked via `?view=history`/`key`.
+- [x] Web viewer dedicated "History" panel with visual timeline, version selection, and diff against prior versions, deep-linked via `?view=history`/`key`. — Already implemented and committed in `f51e695` with `test/viewer-history.mjs` wired into `npm test`; full suite passes.
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-19 19:34 UTC): picked first unchecked Next task (History panel). Verified the implementation already exists in `viewer/index.html` and `test/viewer-history.mjs`, and the full `npm test` suite passes on clean `main` at `b568c53`. Marked task complete; queue is empty.
 - [x] Cron build loop checkpoint (2026-06-19 18:04 UTC): picked the in-progress task and implemented the web viewer Notifications/Activity panel. Added an `activity` view in `viewer/index.html` with a toolbar button, `window.showActivity()`, `refreshActivity()`, `fetchActivity()`, `renderActivity()`, `setActivityFilter()`, and `resetActivityFilters()`; fetches `/api/v1/activity` with auth and filters (event kind, topic, key, agent, after/before) and renders a live activity feed of publish/attest/fork/merge events. Added toast notifications for stream lifecycle events (`publish`, `attest`, `fork`, `merge`). Wired `viewMode === 'activity'` into URL state (`?view=activity` plus activity filter query params), boot-time restoration, local-list-mode guard, and view dispatch. Added `test/viewer-activity.mjs` covering HTML wiring and HTTP round-trip tests for the activity endpoint, and wired it into `npm test` plus `test:viewer-activity`. Also fixed a pre-existing undefined `params` reference in `applyUrlState` when applying the liveTail URL parameter. Full `npm test` suite passes; committed to `main` as `b738e3a`.
 
 ## Done
@@ -240,12 +241,6 @@
 
 ## Done
 - [x] Cron build loop checkpoint (2026-06-19 08:04 UTC): picked Next task — README/skill docs for batch directory publish. Added `permabrain publish-dir` and `api.publishDirectory()` coverage to `README.md`, `skills/permabrain/SKILL.md`, and `skills/permabrain-pi/SKILL.md`, including frontmatter overrides, dry-run/recursive options, and API examples. Full `npm test` suite passes; committed and pushed to `origin/main` as `49d5488`.
-
-## In Progress
-- [ ] (none)
-
-## Next
-- [ ] 
 
 ## Done
 - [x] Cron build loop checkpoint (2026-06-19 07:34 UTC): implemented **batch directory publish**. Added `src/publish-dir.mjs` with `publishDirectory()`, `publishDirectoryToMarkdown()`, `findMarkdownFiles()`, and `deriveKeyFromPath()`; exposed `api.publishDirectory()` and `api.publishDirectoryToMarkdown()` in `src/agent-api.mjs`; re-exported helpers from `src/index.mjs`. Wired `permabrain publish-dir <dir>` CLI command in `src/commands.mjs` and `scripts/cli.mjs` with `--recursive`, `--dry-run`, `--kind`, `--topic`, `--title`, `--source-url`, `--source-name`, `--source-license`, `--language`, `--visibility`, `--for`, `--use-hyperbeam`, `--use-hyperbeam-reference`, `--json`, and `--markdown` options; added command to shell completion. Added `test/publish-dir.mjs` (11 tests) covering markdown discovery, recursive discovery, frontmatter key inference, fallback key derivation, dry-run previews, live publishing, recursive publishing, markdown report rendering, API wrapper, version increments on re-publish, and markdown helper export. Wired `test/publish-dir.mjs` first in `npm test` and added `test:publish-dir` script. Updated `test/module-import.mjs` to expect 99 API methods and assert `publishDirectory` / `publishDirectoryToMarkdown` exports. Full `npm test` suite passes; committed and pushed to `origin/main` as `ab52e80`.
