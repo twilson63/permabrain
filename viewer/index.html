@@ -391,6 +391,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <div class="header-actions">
     <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
     <button class="btn-icon" id="activityBtn" onclick="window.showActivity()" title="Notifications / Activity">&#128276;</button>
+    <button class="btn-icon" id="historyBtn" onclick="window.showHistory()" title="Version history / diff">&#9200;</button>
     <button class="btn-icon" id="healthBtn" onclick="window.showHealth()" title="Health / diagnostics">&#10003;</button>
     <button class="btn-icon" id="adminBtn" onclick="window.showAdminPanel()" title="Admin / monitoring">&#128202;</button>
     <button class="btn-icon" id="supportBundleBtn" onclick="window.showSupportBundle()" title="Support bundle">&#129520;</button>
@@ -557,7 +558,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
@@ -570,9 +571,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var dashboardInterval = null;
   var adminState = { data: null, loading: false, error: null, accessLogLimit: 25, auditLogLimit: 25 };
   var healthState = { data: null, routes: null, admin: null, loading: false, error: null, format: 'json' };
-  var historyData = {};       // key -> history payload from local API
+  var historyData = {};       // key -> history payload from local API (used by article tab + modal)
   var historyLoading = false;
   var historyError = null;
+  var historyPanelState = { key: '', data: null, loading: false, error: null, selected: [], diffResult: null, diffLoading: false, diffError: null };
   var statsData = null;
   var statsLoading = false;
   var statsError = null;
@@ -1482,6 +1484,9 @@ function statCard(label, value, cls) {
       if (compareState.head) params.set('compareHead', compareState.head);
       if (compareState.base || compareState.head) params.set('compare', 'a');
     }
+    if (viewMode === 'history') {
+      if (historyPanelState.key) params.set('historyKey', historyPanelState.key);
+    }
     if (viewMode === 'activity') {
       if (activityState.filters.eventKind) params.set('activityKind', activityState.filters.eventKind);
       if (activityState.filters.topic) params.set('activityTopic', activityState.filters.topic);
@@ -1532,6 +1537,7 @@ function statCard(label, value, cls) {
       activityLimit: params.get('activityLimit') || '',
       compareBase: params.get('compareBase') || '',
       compareHead: params.get('compareHead') || '',
+      historyKey: params.get('historyKey') || '',
       exportKey: params.get('exportKey') || '',
       exportMode: params.get('exportMode') || 'bundle',
       importName: params.get('importName') || '',
@@ -1575,7 +1581,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1607,6 +1613,7 @@ function statCard(label, value, cls) {
     if (state.activityBefore) activityState.filters.before = state.activityBefore;
     if (state.compareBase) compareState.base = state.compareBase;
     if (state.compareHead) compareState.head = state.compareHead;
+    if (state.view === 'history' && state.historyKey) historyPanelState.key = state.historyKey;
     if (state.tab) activeTab = state.tab;
     return state;
   }
@@ -1899,6 +1906,182 @@ function statCard(label, value, cls) {
     await fetchActivity();
     updateUrlState();
   };
+
+  window.showHistory = async function() {
+    viewMode = 'history';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchHistory();
+    updateUrlState();
+  };
+
+  window.refreshHistory = async function() {
+    await fetchHistory();
+    updateUrlState();
+  };
+
+  async function fetchHistory() {
+    if (!isLocalServer()) return;
+    historyPanelState.loading = true;
+    historyPanelState.error = null;
+    if (viewMode === 'history') renderHistory();
+    try {
+      if (historyPanelState.key) {
+        var r = await fetch('/api/v1/articles/' + encodeURIComponent(historyPanelState.key) + '/history');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        historyPanelState.data = await r.json();
+        // Auto-diff against the previous version when exactly two versions exist and nothing selected yet.
+        var versions = (historyPanelState.data.timeline || []).filter(function(e) { return e.type === 'version'; });
+        if (historyPanelState.selected.length === 0 && versions.length >= 2) {
+          var sorted = versions.slice().sort(function(a, b) { return a.version - b.version; });
+          historyPanelState.selected = [sorted[sorted.length - 2].id, sorted[sorted.length - 1].id];
+          await fetchHistoryDiff();
+        }
+      }
+      historyPanelState.loading = false;
+    } catch(e) {
+      historyPanelState.error = e.message;
+      historyPanelState.loading = false;
+    }
+    if (viewMode === 'history') renderHistory();
+  }
+
+  window.fetchHistory = fetchHistory;
+
+  window.setHistoryKey = async function(key) {
+    historyPanelState.key = key || '';
+    historyPanelState.data = null;
+    historyPanelState.selected = [];
+    historyPanelState.diffResult = null;
+    historyPanelState.diffError = null;
+    await fetchHistory();
+    updateUrlState();
+  };
+
+  window.selectHistoryVersion = async function(id, index) {
+    var sel = historyPanelState.selected;
+    if (index >= 0 && index < sel.length) {
+      sel[index] = id;
+    } else {
+      if (sel.length < 2) sel.push(id);
+      else { sel[0] = sel[1]; sel[1] = id; }
+    }
+    // Deduplicate and trim
+    historyPanelState.selected = sel.slice(-2);
+    if (historyPanelState.selected.length === 2) await fetchHistoryDiff();
+    renderHistory();
+    updateUrlState();
+  };
+
+  async function fetchHistoryDiff() {
+    if (!isLocalServer() || historyPanelState.selected.length !== 2) return;
+    historyPanelState.diffLoading = true;
+    historyPanelState.diffError = null;
+    renderHistory();
+    try {
+      var params = new URLSearchParams();
+      params.set('base', historyPanelState.selected[0]);
+      params.set('head', historyPanelState.selected[1]);
+      params.set('format', 'unified');
+      var r = await fetch('/api/v1/diff?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+      historyPanelState.diffResult = await r.json();
+      historyPanelState.diffLoading = false;
+    } catch(e) {
+      historyPanelState.diffError = e.message;
+      historyPanelState.diffLoading = false;
+    }
+    if (viewMode === 'history') renderHistory();
+  }
+
+  window.fetchHistoryDiff = fetchHistoryDiff;
+
+  function renderHistoryTimeline() {
+    var data = historyPanelState.data || {};
+    var timeline = (data.timeline || []).slice().reverse();
+    if (!timeline.length) return '<p class="dashboard-empty">No version history available.</p>';
+    var rows = timeline.map(function(e) {
+      if (e.type === 'version') {
+        var v = e;
+        var selectedIndex = historyPanelState.selected.indexOf(v.id);
+        var badge = selectedIndex === 0 ? ' <span style="font-size:0.65rem;background:var(--orange);color:#fff;border-radius:4px;padding:0.05rem 0.3rem">base</span>' : (selectedIndex === 1 ? ' <span style="font-size:0.65rem;background:var(--accent);color:#fff;border-radius:4px;padding:0.05rem 0.3rem">head</span>' : '');
+        return '<div class="timeline-item version">' +
+          '<div class="tl-ts">' + fmtTs(v.updatedAt) + '</div>' +
+          '<div class="tl-title">Version ' + (v.version || '—') + badge + '</div>' +
+          '<div class="tl-meta">' +
+          '<a class="version-link" href="https://arweave.net/' + (v.id || '') + '" target="_blank">' + (v.id || '').substring(0, 12) + '…</a>' +
+          (v.contentHash ? ' · hash ' + v.contentHash.substring(0, 16) + '…' : '') +
+          '</div>' +
+          '<div class="tl-meta" style="margin-top:0.35rem">' +
+          '<button class="btn-icon" onclick="window.selectHistoryVersion(\'' + esc(v.id) + '\', 0)">Set base</button> ' +
+          '<button class="btn-icon" onclick="window.selectHistoryVersion(\'' + esc(v.id) + '\', 1)">Set head</button>' +
+          '</div>' +
+          '</div>';
+      }
+      var att = e;
+      var opClass = 'opinion-' + (att.opinion || '').replace(' ', '-');
+      return '<div class="timeline-item attestation">' +
+        '<div class="tl-ts">' + fmtTs(att.createdAt) + '</div>' +
+        '<div class="tl-title"><span class="opinion ' + opClass + '">' + esc((att.opinion || '').toUpperCase()) + '</span> · confidence ' + (att.confidence || 0) + '</div>' +
+        '<div class="tl-meta">' + esc(att.reason || '') + '</div>' +
+        '<div class="tl-meta">by ' + esc(att.agentId || '') + ' · target v' + (att.targetVersion || '?') + '</div>' +
+        '</div>';
+    }).join('');
+    return '<div class="dashboard-section"><h2>Timeline (' + (data.versionCount || 0) + ' versions, ' + (data.attestationCount || 0) + ' attestations)</h2><div class="timeline">' + rows + '</div></div>';
+  }
+
+  function renderHistoryDiffResult() {
+    if (historyPanelState.diffLoading) return '<div class="loading"><div class="spinner"></div> Loading diff...</div>';
+    if (historyPanelState.diffError) return '<div class="error-box">Diff failed: ' + esc(historyPanelState.diffError) + '</div>';
+    var result = historyPanelState.diffResult;
+    if (!result) {
+      if (historyPanelState.selected.length === 2) return '<p style="color:var(--muted)">Diff result unavailable.</p>';
+      return '<p style="color:var(--muted)">Select two versions from the timeline to compare.</p>';
+    }
+    var meta = '<div class="diff-meta">' + esc(historyPanelState.selected[0].substring(0, 12)) + '… → ' + esc(historyPanelState.selected[1].substring(0, 12)) + '…' +
+      ' · ' + (result.changes || 0) + ' change(s)' +
+      (typeof result.additions === 'number' ? ' · +' + result.additions : '') +
+      (typeof result.deletions === 'number' ? ' · -' + result.deletions : '') + '</div>';
+    return '<div class="compare-result">' + meta + (result.hunks ? renderDiffHunks(result.hunks) : renderDiffUnified(result.text)) + '</div>';
+  }
+
+  function renderHistory() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>History panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to browse article version history and diffs.</p></div>';
+      return;
+    }
+    if (historyPanelState.loading && !historyPanelState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading history...</div>';
+      return;
+    }
+    if (historyPanelState.error && !historyPanelState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>History error</h2><p>' + esc(historyPanelState.error) + '</p><button class="btn-icon" onclick="window.refreshHistory()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var source = isLocalListMode() ? (localList.articles || []) : articles;
+    var options = source.map(function(a) {
+      return '<option value="' + esc(a.key) + '"' + (a.key === historyPanelState.key ? ' selected' : '') + '>' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+    }).join('');
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<label>Article <select id="historyKeySelect" onchange="window.setHistoryKey(this.value)" style="min-width:16rem"><option value="">Select article…</option>' + options + '</select></label>' +
+      '<button class="btn-icon" onclick="window.refreshHistory()">&#x21BB; Refresh</button>' +
+      '<span class="last-updated">' + ((historyPanelState.data && historyPanelState.data.versionCount) || 0) + ' versions</span>' +
+      '</div>';
+
+    main.innerHTML = '<div class="home"><h1>&#9200; <span>History</span></h1>' +
+      '<p class="home-subtitle">Visual timeline, version selection, and diff against prior versions</p>' +
+      toolbar +
+      '<div class="compare-panel"><h3>Diff</h3>' + renderHistoryDiffResult() + '</div>' +
+      renderHistoryTimeline() +
+      '</div>';
+  }
+
+  window.renderHistory = renderHistory;
 
   window.refreshActivity = async function() {
     await fetchActivity();
@@ -3450,7 +3633,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history';
   }
 
   function readFiltersFromDom() {
@@ -4214,6 +4397,10 @@ function statCard(label, value, cls) {
         }
         else if (bootState.view === 'publish') window.showPublish();
         else if (bootState.view === 'compose') window.showCompose();
+        else if (bootState.view === 'history') {
+          if (bootState.historyKey) historyPanelState.key = bootState.historyKey;
+          window.showHistory();
+        }
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -4232,6 +4419,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'support') window.showSupportBundle();
   else if (viewMode === 'health') window.showHealth();
   else if (viewMode === 'activity') window.showActivity();
+  else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
