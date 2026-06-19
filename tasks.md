@@ -205,7 +205,7 @@
 - [x] Cron build loop checkpoint (2026-06-17 13:34 UTC): implemented live web dashboard route in `permabrain serve`. Verified `/api/v1/dashboard` (JSON) and `/api/v1/dashboard.html` (HTML) routes in `src/serve.mjs` reuse `buildDashboard`/`dashboardToHtml` from `src/dashboard.mjs`. Added `test/serve-dashboard.mjs` with 5 tests covering HTML/JSON endpoints, query-param filters, custom title, and 404 handling. Wired `test:serve-dashboard` script and included the new suite in `npm test`. Full `npm test` suite passes; committed and pushed to `origin/main`.
 
 ## In Progress
-- [ ] Viewer import/export: add UI panel to export selected article/fork/history as a PermaBrain bundle or history bundle, and import a bundle file from the viewer, with deep-link state support (`?view=import`/`?view=export`).
+- [x] Viewer import/export: add UI panel to export selected article/fork/history as a PermaBrain bundle or history bundle, and import a bundle file from the viewer, with deep-link state support (`?view=import`/`?view=export`). Completed 2026-06-19 03:34 UTC.
 
 ## Next
 - [ ] Consolidated admin/monitoring: add a read-only admin panel (`/admin` route) with live metrics, recent access-log entries, and audit-log tail, surfaced both in `permabrain serve` HTML and via SDK `client.admin()` methods.
