@@ -298,6 +298,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .settings-footer .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .settings-footer .btn-primary:hover{opacity:0.9;color:#fff}
 
+/* Compose panel */
+.compose-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start}
+@media(max-width:900px){.compose-grid{grid-template-columns:1fr}}
+.compose-form{display:flex;flex-direction:column;gap:0.75rem}
+.compose-form label{font-size:0.78rem;color:var(--muted);display:flex;flex-direction:column;gap:0.25rem}
+.compose-form input,.compose-form select,.compose-form textarea{padding:0.45rem 0.65rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;background:var(--bg);color:var(--text)}
+.compose-form textarea{min-height:18rem;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;line-height:1.5;resize:vertical}
+.compose-form input:focus,.compose-form select:focus,.compose-form textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(9,105,218,0.2)}
+[data-theme="dark"] .compose-form input:focus,[data-theme="dark"] .compose-form select:focus,[data-theme="dark"] .compose-form textarea:focus{box-shadow:0 0 0 2px rgba(88,166,255,0.2)}
+.compose-preview{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;min-height:18rem;max-height:70vh;overflow:auto}
+.compose-preview h3{margin:0 0 0.75rem;font-size:1rem;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:0.4rem}
+.compose-actions{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem}
+.compose-status{font-size:0.85rem;color:var(--muted);margin-top:0.5rem}
+.compose-status.ok{color:var(--green)}
+.compose-status.err{color:var(--red)}
+.compose-hint{font-size:0.75rem;color:var(--muted)}
+.compose-draft-note{font-size:0.75rem;color:var(--muted);font-style:italic}
 /* Publish batch panel */
 .publish-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
 .publish-dropzone{border:2px dashed var(--border);border-radius:var(--radius);padding:2rem;text-align:center;color:var(--muted);cursor:pointer;transition:border-color .15s,background .15s}
@@ -356,6 +373,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
     <button class="btn-icon" id="exportBtn" onclick="window.showExport()" title="Export bundle/history">&#128228;</button>
     <button class="btn-icon" id="importBtn" onclick="window.showImport()" title="Import bundle">&#128229;</button>
+    <button class="btn-icon" id="composeBtn" onclick="window.showCompose()" title="Compose article">&#9998;</button>
     <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
@@ -511,10 +529,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import' | 'export' | 'publish'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import' | 'export' | 'publish' | 'compose'
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { view: 'export', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importResult: null };
   var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
+  var composeState = { content: '', title: '', topic: 'general', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', apiKey: '', loading: false, error: null, result: null, lastSaved: null };
   var dashboardData = null;
   var dashboardLoading = false;
   var dashboardError = null;
@@ -1499,8 +1518,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import','export','admin','publish'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import','export','admin','publish','compose'].includes(state.view)) {
       viewMode = state.view;
+    }
+    if (state.view === 'compose') {
+      loadComposeDraft();
     }
     if (state.exportKey) exportImportState.exportKey = state.exportKey;
     if (state.exportMode) exportImportState.exportMode = state.exportMode;
@@ -1752,6 +1774,210 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderPublish();
     updateUrlState();
   };
+
+  window.showCompose = async function() {
+    viewMode = 'compose';
+    selectedKey = null;
+    stopDashboardRefresh();
+    stopAuditStream();
+    loadComposeDraft();
+    renderList();
+    renderCompose();
+    updateUrlState();
+  };
+
+  function loadComposeDraft() {
+    try {
+      var saved = localStorage.getItem('permabrain-compose-draft');
+      if (saved) {
+        var parsed = JSON.parse(saved);
+        composeState.content = parsed.content || '';
+        composeState.title = parsed.title || '';
+        composeState.topic = parsed.topic || 'general';
+        composeState.kind = parsed.kind || 'subject';
+        composeState.sourceUrl = parsed.sourceUrl || '';
+        composeState.sourceName = parsed.sourceName || '';
+        composeState.language = parsed.language || 'en';
+        composeState.visibility = parsed.visibility || 'public';
+        composeState.lastSaved = parsed.lastSaved || null;
+      }
+    } catch(e) {
+      // ignore corrupt draft
+    }
+  }
+
+  function saveComposeDraft() {
+    try {
+      composeState.lastSaved = new Date().toISOString();
+      localStorage.setItem('permabrain-compose-draft', JSON.stringify({
+        content: composeState.content,
+        title: composeState.title,
+        topic: composeState.topic,
+        kind: composeState.kind,
+        sourceUrl: composeState.sourceUrl,
+        sourceName: composeState.sourceName,
+        language: composeState.language,
+        visibility: composeState.visibility,
+        lastSaved: composeState.lastSaved
+      }));
+    } catch(e) {
+      // best-effort
+    }
+  }
+
+  function clearComposeDraft() {
+    try { localStorage.removeItem('permabrain-compose-draft'); } catch(e) {}
+    composeState = { content: '', title: '', topic: 'general', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', apiKey: '', loading: false, error: null, result: null, lastSaved: null };
+  }
+
+  function deriveComposeSlug(title) {
+    if (!title) return 'untitled';
+    return title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-{2,}/g, '-') || 'untitled';
+  }
+
+  function deriveComposeTitle(content) {
+    if (!content) return '';
+    var heading = content.match(/^#{1,2}\s+(.+)/m);
+    if (heading) return heading[1].trim();
+    var first = content.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 0 && l.length < 120; })[0];
+    return first || '';
+  }
+
+  function buildComposeBody() {
+    var title = composeState.title.trim() || deriveComposeTitle(composeState.content);
+    var slug = deriveComposeSlug(title);
+    var sourceUrl = composeState.sourceUrl.trim() || ('compose://' + slug);
+    var sourceName = composeState.sourceName.trim() || 'Compose editor';
+    return {
+      content: composeState.content,
+      title: title,
+      key: composeState.kind + '/' + slug,
+      kind: composeState.kind,
+      topic: composeState.topic,
+      sourceUrl: sourceUrl,
+      sourceName: sourceName,
+      sourceLicense: '',
+      language: composeState.language,
+      visibility: composeState.visibility
+    };
+  }
+
+  function composeHeaders() {
+    var headers = { 'content-type': 'application/json' };
+    if (composeState.apiKey) headers['authorization'] = 'Bearer ' + composeState.apiKey;
+    return headers;
+  }
+
+  window.updateComposeDraft = function(field, value) {
+    composeState[field] = value;
+    saveComposeDraft();
+  };
+
+  window.clearCompose = function() {
+    clearComposeDraft();
+    renderCompose();
+    updateUrlState();
+  };
+
+  window.runComposePublish = async function() {
+    if (!isLocalServer()) return;
+    if (!composeState.content.trim()) {
+      composeState.error = 'Content is required.';
+      composeState.result = null;
+      renderCompose();
+      return;
+    }
+    composeState.loading = true;
+    composeState.error = null;
+    composeState.result = null;
+    renderCompose();
+    try {
+      var r = await fetch('/api/v1/articles', {
+        method: 'POST',
+        headers: composeHeaders(),
+        body: JSON.stringify(buildComposeBody())
+      });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+      composeState.result = data;
+      clearComposeDraft();
+      if (isLocalListMode()) fetchLocalList();
+    } catch(e) {
+      composeState.error = e.message;
+    } finally {
+      composeState.loading = false;
+    }
+    renderCompose();
+    updateUrlState();
+  };
+
+  function renderComposePreview(content) {
+    if (!content.trim()) return '<p style="color:var(--muted)">Start typing to see a preview.</p>';
+    try {
+      if (window.marked) return window.marked.parse(content);
+    } catch(e) {}
+    return '<pre style="white-space:pre-wrap">' + esc(content) + '</pre>';
+  }
+
+  function renderCompose() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Compose unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to compose and publish articles.</p></div>';
+      return;
+    }
+    var title = composeState.title.trim() || deriveComposeTitle(composeState.content);
+    var derivedKey = composeState.kind + '/' + deriveComposeSlug(title);
+    var form = '<div class="compose-form">' +
+      '<label>Title <input type="text" id="composeTitle" placeholder="Article title (derived from first heading if empty)" value="' + esc(composeState.title) + '" oninput="window.updateComposeDraft(\'title\', this.value)"></label>' +
+      '<div style="display:flex;gap:0.75rem;flex-wrap:wrap">' +
+        '<label style="flex:1;min-width:8rem">Topic <input type="text" id="composeTopic" placeholder="general" value="' + esc(composeState.topic) + '" oninput="window.updateComposeDraft(\'topic\', this.value)"></label>' +
+        '<label style="flex:1;min-width:8rem">Kind <select id="composeKind" onchange="window.updateComposeDraft(\'kind\', this.value)">' +
+          '<option value="subject"' + (composeState.kind === 'subject' ? ' selected' : '') + '>subject</option>' +
+          '<option value="person"' + (composeState.kind === 'person' ? ' selected' : '') + '>person</option>' +
+          '<option value="event"' + (composeState.kind === 'event' ? ' selected' : '') + '>event</option>' +
+          '<option value="organization"' + (composeState.kind === 'organization' ? ' selected' : '') + '>organization</option>' +
+          '<option value="source"' + (composeState.kind === 'source' ? ' selected' : '') + '>source</option>' +
+          '<option value="news"' + (composeState.kind === 'news' ? ' selected' : '') + '>news</option>' +
+        '</select></label>' +
+        '<label style="flex:1;min-width:8rem">Language <input type="text" id="composeLanguage" placeholder="en" value="' + esc(composeState.language) + '" oninput="window.updateComposeDraft(\'language\', this.value)"></label>' +
+      '</div>' +
+      '<label>Content (Markdown) <textarea id="composeContent" placeholder="# Title\n\nWrite your article in markdown..." oninput="window.updateComposeDraft(\'content\', this.value); window.refreshComposePreview()">' + esc(composeState.content) + '</textarea></label>' +
+      '<div style="display:flex;gap:0.75rem;flex-wrap:wrap">' +
+        '<label style="flex:1;min-width:10rem">Source URL <input type="text" id="composeSourceUrl" placeholder="https://example.com" value="' + esc(composeState.sourceUrl) + '" oninput="window.updateComposeDraft(\'sourceUrl\', this.value)"></label>' +
+        '<label style="flex:1;min-width:10rem">Source name <input type="text" id="composeSourceName" placeholder="Compose editor" value="' + esc(composeState.sourceName) + '" oninput="window.updateComposeDraft(\'sourceName\', this.value)"></label>' +
+        '<label style="flex:1;min-width:8rem">Visibility <select id="composeVisibility" onchange="window.updateComposeDraft(\'visibility\', this.value)">' +
+          '<option value="public"' + (composeState.visibility === 'public' ? ' selected' : '') + '>public</option>' +
+          '<option value="encrypted"' + (composeState.visibility === 'encrypted' ? ' selected' : '') + '>encrypted</option>' +
+        '</select></label>' +
+      '</div>' +
+      '<label>API key (if required) <input type="password" id="composeApiKey" placeholder="Bearer token" value="' + esc(composeState.apiKey) + '" oninput="window.updateComposeDraft(\'apiKey\', this.value)"></label>' +
+      '<div class="compose-hint">Derived key: <code>' + esc(derivedKey) + '</code></div>' +
+      '<div class="compose-actions">' +
+        '<button class="btn-icon" onclick="window.runComposePublish()" ' + (composeState.content.trim() && !composeState.loading ? '' : 'disabled') + '>Publish</button>' +
+        '<button class="btn-icon" onclick="window.clearCompose()">Clear draft</button>' +
+      '</div>' +
+      '<div class="compose-draft-note">' + (composeState.lastSaved ? 'Draft saved ' + fmtDate(composeState.lastSaved) : 'No draft saved yet') + '</div>' +
+      (composeState.error ? '<div class="error-box">' + esc(composeState.error) + '</div>' : '') +
+      (composeState.loading ? '<div class="loading"><div class="spinner"></div> Publishing...</div>' : '') +
+      (composeState.result ? '<div class="compose-status ok">Published <code>' + esc(composeState.result.summary.key) + '</code> · ID <code>' + esc(composeState.result.summary.id) + '</code> · v' + esc(String(composeState.result.summary.version)) + '</div>' : '') +
+    '</div>';
+
+    var preview = '<div class="compose-preview"><h3>Preview</h3><div id="composePreviewBody">' + renderComposePreview(composeState.content) + '</div></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#9998; <span>Compose</span></h1><p class="home-subtitle">Create and publish a new PermaBrain article</p><div class="compose-grid">' + form + preview + '</div></div>';
+  }
+
+  window.refreshComposePreview = function() {
+    var el = document.getElementById('composePreviewBody');
+    var ta = document.getElementById('composeContent');
+    if (el && ta) el.innerHTML = renderComposePreview(ta.value);
+  };
+
+  window.renderCompose = renderCompose;
 
   window.pickPublishFiles = function() {
     var input = document.getElementById('publishFileInput');
@@ -3337,6 +3563,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
           window.showExport();
         }
         else if (bootState.view === 'publish') window.showPublish();
+        else if (bootState.view === 'compose') window.showCompose();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -3352,6 +3579,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   else if (viewMode === 'import') window.showImport();
   else if (viewMode === 'export') window.showExport();
   else if (viewMode === 'publish') window.showPublish();
+  else if (viewMode === 'compose') window.showCompose();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
