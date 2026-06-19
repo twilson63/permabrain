@@ -755,3 +755,15 @@ const reportMd = await client.publishDirectoryMarkdown({
 The client mirrors the agent API surface and returns JSON responses from the REST endpoints. Every method rejects with `{ status, error }` when the server responds with a non-2xx status code.
 
 See `src/agent-api.mjs` and `src/client.mjs` for the full method lists.
+
+## Publishing the Package
+
+To publish a new version to npm:
+
+1. Run the full test suite: `npm test`
+2. Bump the version: `npm version patch|minor|major`
+3. Review the package contents: `npm pack --dry-run`
+4. Publish a dry-run to check everything: `npm run publish:dry-run`
+5. Publish: `npm publish --access public`
+
+`package.json` `files` includes `src/`, `scripts/`, `viewer/`, `skills/`, `docs/`, `README.md`, `CHANGELOG.md`, `NEXT-STEPS.md`, and `package.json`. The `permabrain` bin entry points at `scripts/cli.mjs`.

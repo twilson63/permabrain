@@ -75,7 +75,8 @@ const COMMANDS = [
   'events',
   'query-stream',
   'subscribe',
-  'shell'
+  'shell',
+  'version'
 ];
 
 // Alias support: map legacy/import-export subcommands to canonical names.
@@ -179,6 +180,7 @@ Commands:
   query-stream [options]       Subscribe to live filtered article/attestation updates
   subscribe <remote-url> [options]  Forward local events to a remote PermaBrain peer
   shell                        Start an interactive REPL for live agent API exploration
+  version                      Print PermaBrain CLI and package version
 
 Common examples:
   permabrain init

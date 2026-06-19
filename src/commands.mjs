@@ -146,6 +146,7 @@ export async function runCommand(command, args) {
   if (command === 'threshold-attest' || command === 'threshold') return thresholdAttestCommand(args);
   if (command === 'peer') return peerCommand(args);
   if (command === 'shell') return shellCommand(args);
+  if (command === 'version' || command === '--version' || command === '-v') return versionCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -2882,4 +2883,29 @@ In the shell:
     prompt: args.prompt
   });
   return { ok: true };
+}
+
+async function versionCommand(args) {
+  const pkgPath = path.join(process.cwd(), 'package.json');
+  let pkg;
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  } catch {
+    pkg = { name: 'permabrain', version: 'unknown' };
+  }
+  const result = {
+    name: pkg.name,
+    version: pkg.version,
+    description: pkg.description,
+    main: pkg.main,
+    bin: pkg.bin,
+    homepage: pkg.homepage,
+    repository: pkg.repository
+  };
+  if (args.json) printJson(result);
+  else {
+    console.log(`PermaBrain ${result.version}`);
+    if (result.description) console.log(result.description);
+  }
+  return result;
 }
