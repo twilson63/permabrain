@@ -209,7 +209,7 @@
 - [x] Cron build loop checkpoint (2026-06-19 08:04 UTC): picked Next task — README/skill docs for batch directory publish. Added `permabrain publish-dir` and `api.publishDirectory()` coverage to `README.md`, `skills/permabrain/SKILL.md`, and `skills/permabrain-pi/SKILL.md`, including frontmatter overrides, dry-run/recursive options, and API examples. Full `npm test` suite passes; committed and pushed to `origin/main` as `49d5488`.
 
 ## In Progress
-- [ ] (none)
+- [ ] Web viewer batch publish panel: drag-and-drop / multi-file selection of markdown files, infer kind/topic/title from frontmatter or path, dry-run preview, and progress log, using `/api/v1/articles` (publish) and `/api/v1/articles/preview` endpoints.
 
 ## Next
 - [ ] 
