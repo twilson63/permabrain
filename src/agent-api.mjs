@@ -1943,6 +1943,29 @@ const api = {
   },
 
   /**
+   * Start an interactive REPL for live agent API exploration.
+   *
+   * Exposes `api` (and the alias `pb`) as the REPL context so you can run
+   * commands like `await api.query({topic:'ai'})` or `pb.status()`. History is
+   * persisted to the PermaBrain home directory and tab completion covers the
+   * `api` method surface.
+   *
+   * @param {Object} [opts]
+   * @param {stream.Readable} [opts.input] - Input stream (default process.stdin)
+   * @param {stream.Writable} [opts.output] - Output stream (default process.stdout)
+   * @param {string} [opts.historyPath] - File to persist command history
+   * @param {string} [opts.prompt] - REPL prompt
+   * @param {boolean} [opts.terminal] - Force terminal mode
+   * @returns {Promise<void>}
+   */
+  async repl(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const { createRepl } = await import('./repl.mjs');
+    return createRepl({ api: this, home: this._home, ...opts });
+  },
+
+  /**
    * Get the current agent identity.
    * @returns {{agentId, keyType}}
    */

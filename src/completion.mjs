@@ -69,7 +69,8 @@ export const COMMANDS = [
   'completion',
   'threshold-attest',
   'events',
-  'peer'
+  'peer',
+  'shell'
 ];
 
 export const GLOBAL_OPTIONS = [
@@ -141,6 +142,7 @@ export const COMMAND_OPTIONS = {
   'threshold-attest': ['--opinion', '--confidence', '--reason', '--source-url', '--target-id', '--threshold', '--co-signers', '--output', '--signature', '--signature-type', '--public-key', '--agent-id'],
   events: ['--url', '--ws', '--events', '--json', '--compact', '--duration', '--count'],
   peer: ['--url', '--home', '--include-attestations', '--verify', '--skip-duplicates', '--output', '--verbose'],
+  shell: ['--history-path', '--prompt', '--json'],
   client: ['--url'],
   completion: []
 };

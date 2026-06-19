@@ -320,7 +320,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'accessLog', 'tailAccessLog', 'accessLogToMarkdown', 'events', 'subscribeEventsRemote', 'subscribe', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
+  'repl', 'accessLog', 'tailAccessLog', 'accessLogToMarkdown', 'events', 'subscribeEventsRemote', 'subscribe', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard',
   'validateMetadata', 'validateDataItem',
   'peerInfo', 'buildPeerPullBundle', 'pullFromPeer', 'pullFromPeerAsBundle', 'peerStatus',
   'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
@@ -335,7 +335,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 92 API methods present');
+console.log('   ✓ All 93 API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -374,7 +374,17 @@ assert.equal(typeof sharePageId, 'function', 'sharePageId');
 assert.equal(typeof api.shareEncrypted, 'function', 'api.shareEncrypted is a function');
 console.log('   ✓ Encrypted share exports present');
 
-// --- 15. Completion exports ---
+// --- 15. REPL exports ---
+console.log('15. REPL exports');
+import { createRepl, readHistory, writeHistory, buildApiCompleter } from '../src/index.mjs';
+assert.equal(typeof api.repl, 'function', 'api.repl is a function');
+assert.equal(typeof createRepl, 'function', 'createRepl is a function');
+assert.equal(typeof readHistory, 'function', 'readHistory is a function');
+assert.equal(typeof writeHistory, 'function', 'writeHistory is a function');
+assert.equal(typeof buildApiCompleter, 'function', 'buildApiCompleter is a function');
+console.log('   ✓ REPL exports present');
+
+// --- 16. Completion exports ---
 console.log('15. Completion exports');
 assert.equal(typeof generateCompletion, 'function', 'generateCompletion');
 assert.equal(typeof listSupportedShells, 'function', 'listSupportedShells');

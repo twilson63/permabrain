@@ -241,6 +241,30 @@ permabrain completion fish > ~/.config/fish/completions/permabrain.fish
 
 Then reload your shell or source the generated script.
 
+### Interactive Shell
+
+```sh
+permabrain shell
+```
+
+Opens a live Node.js REPL with the agent API as the context. `api` and the
+alias `pb` expose every API method, so you can explore interactively:
+
+```
+permabrain> await api.query({ topic: 'ai', limit: 5 })
+permabrain> pb.status()
+permabrain> pb.metrics({ top: 10 })
+permabrain> .exit
+```
+
+Command history is persisted to `<PERMABRAIN_HOME>/repl-history.jsonl`, and
+tab completion lists available `api` / `pb` methods. Use `--history-path` or
+`--prompt` to customize the session:
+
+```sh
+permabrain shell --prompt "pb> " --history-path ~/.pb-history.jsonl
+```
+
 ```javascript
 import { createClient } from 'permabrain';
 const client = createClient({ baseUrl: 'http://localhost:8765' });

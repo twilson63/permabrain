@@ -141,6 +141,7 @@ export async function runCommand(command, args) {
   if (command === 'subscribe') return subscribeRemoteCommand(args);
   if (command === 'threshold-attest' || command === 'threshold') return thresholdAttestCommand(args);
   if (command === 'peer') return peerCommand(args);
+  if (command === 'shell') return shellCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -2757,4 +2758,45 @@ async function serveCommand(args) {
   process.once('SIGTERM', () => shutdown('SIGTERM'));
 
   return new Promise(() => {}); // keep running until signal
+}
+
+async function shellCommand(args) {
+  const { api } = await import('./agent-api.mjs');
+  if (args.help) {
+    console.log(`Usage: permabrain shell [options]
+
+Start an interactive REPL with the agent API exposed as \`api\` (alias \`pb\`).
+History is persisted to the PermaBrain home directory and tab completion
+lists available \`api\` methods.
+
+Options:
+  --history-path <file>   Custom history file (default: <PERMABRAIN_HOME>/repl-history.jsonl)
+  --prompt <string>       Custom REPL prompt
+  --json                  Print the identity object before starting (noop for interactive mode)
+
+Examples:
+  permabrain shell
+  permabrain shell --prompt "pb> "
+
+In the shell:
+  await api.query({ topic: 'ai' })
+  pb.status()
+  pb.metrics({ top: 10 })
+  .exit
+`);
+    return { ok: true, help: true };
+  }
+  const home = getHome();
+  await api.ensureInit();
+  if (args.json) printJson(api.identity);
+  else {
+    console.log(`PermaBrain shell (${api.identity?.agentId || 'unknown'})`);
+    console.log(`Home: ${home}`);
+  }
+  await api.repl({
+    home,
+    historyPath: args['history-path'],
+    prompt: args.prompt
+  });
+  return { ok: true };
 }

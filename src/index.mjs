@@ -200,3 +200,6 @@ export {
   normalizeThresholdPolicy,
   summarizeThresholdAttestation
 } from './threshold-attestation.mjs';
+
+// Interactive REPL
+export { createRepl, readHistory, writeHistory, buildApiCompleter } from './repl.mjs';

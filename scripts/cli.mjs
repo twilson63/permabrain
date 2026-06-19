@@ -72,7 +72,8 @@ const COMMANDS = [
   'peer',
   'events',
   'query-stream',
-  'subscribe'
+  'subscribe',
+  'shell'
 ];
 
 // Alias support: map legacy/import-export subcommands to canonical names.
@@ -173,6 +174,7 @@ Commands:
   events [options]             Subscribe to real-time events from permabrain serve
   query-stream [options]       Subscribe to live filtered article/attestation updates
   subscribe <remote-url> [options]  Forward local events to a remote PermaBrain peer
+  shell                        Start an interactive REPL for live agent API exploration
 
 Common examples:
   permabrain init
@@ -1037,6 +1039,27 @@ ANS-104-style DataItem with a { tags: [{ name, value }, ...] } array.
 Examples:
   permabrain validate article ./tags.json
   permabrain validate attestation ./dataitem.json --json
+`,
+    'shell': `Usage: permabrain shell [options]
+
+Start an interactive REPL with the agent API exposed as \`api\` (alias \`pb\`).
+History is persisted to the PermaBrain home directory and tab completion
+lists available \`api\` methods.
+
+Options:
+  --history-path <file>   Custom history file (default: <PERMABRAIN_HOME>/repl-history.jsonl)
+  --prompt <string>       Custom REPL prompt
+  --json                  Print the identity object before starting (noop for interactive mode)
+
+Examples:
+  permabrain shell
+  permabrain shell --prompt "pb> "
+
+In the shell:
+  await api.query({ topic: 'ai' })
+  pb.status()
+  pb.metrics({ top: 10 })
+  .exit
 `
   };
   console.log(help[command] || `Unknown command: ${command}`);
