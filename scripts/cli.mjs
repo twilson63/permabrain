@@ -68,6 +68,7 @@ const COMMANDS = [
   'access-log',
   'template',
   'dashboard',
+  'support-bundle',
   'client',
   'completion',
   'threshold-attest',
@@ -171,6 +172,7 @@ Commands:
   access-log [filters]         Query HTTP access/request logs from disk or a running server
   template <file>              Publish an article from a markdown template
   dashboard                    Build a self-contained web dashboard snapshot
+  support-bundle               Build a self-contained diagnostics bundle
   client [action] [args]         HTTP client SDK for a permabrain serve instance
   completion <shell>           Generate shell completion script (bash|zsh|fish)
   validate <type> [path]         Validate article/attestation metadata against JSON Schema
@@ -944,6 +946,27 @@ Options:
   --markdown              Output markdown instead of the default summary
   --json                  Output structured JSON dashboard data
   --use-hyperbeam         Query via HyperBEAM transport`,
+    'support-bundle': `Usage: permabrain support-bundle [options]
+
+Build a self-contained diagnostics bundle for the current PermaBrain home.
+Includes config (secrets redacted), identity metadata, index summary, recent
+audit/access logs, runtime metrics, registered routes, transport health, and
+environment variable names.
+
+Options:
+  --output <path>        Write JSON bundle to file
+  --markdown             Print markdown rendering to stdout
+  --markdown-output <p>  Write markdown rendering to file
+  --audit-limit <n>      Audit log entries (default 50)
+  --access-limit <n>     Access log entries (default 50)
+  --no-redact            Disable redaction (caution: may include secrets)
+  --json                 Output raw JSON to stdout
+
+Examples:
+  permabrain support-bundle
+  permabrain support-bundle --markdown --output bundle.json
+  permabrain support-bundle --audit-limit 10 --access-limit 10
+`,
     'client': `Usage: permabrain client [health|status|routes|openapi|get|query|publish] [args] [--url <base-url>] [--api-key <key>] [--json]
 
 HTTP client SDK command for interacting with a running permabrain serve instance.

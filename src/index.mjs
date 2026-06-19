@@ -190,6 +190,9 @@ export { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown, ac
 // Admin / monitoring panel
 export { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from './admin-panel.mjs';
 
+// Support / diagnostics bundle
+export { buildSupportBundle, supportBundleToMarkdown, redactSecrets } from './support-bundle.mjs';
+
 export {
   createThresholdEnvelope,
   addCoSigner,

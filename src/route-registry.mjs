@@ -347,6 +347,18 @@ export const ROUTES = [
     response: { summary: 'object' }
   },
   {
+    route: '/api/v1/support-bundle',
+    method: 'GET',
+    description: 'Self-contained diagnostics snapshot for support and troubleshooting.',
+    public: false,
+    params: [
+      { name: 'access-log-limit', in: 'query', type: 'integer', required: false },
+      { name: 'audit-log-limit', in: 'query', type: 'integer', required: false },
+      { name: 'redact', in: 'query', type: 'boolean', required: false }
+    ],
+    response: { generatedAt: 'string', package: 'object', home: 'string', config: 'object', identity: 'object', indexSummary: 'object', auditLog: 'object', accessLog: 'object', metrics: 'object', routes: 'array', transport: 'object', environment: 'array' }
+  },
+  {
     route: '/api/v1/verify',
     method: 'POST',
     description: 'Verify a DataItem or article by id/key.',

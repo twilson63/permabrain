@@ -47,9 +47,10 @@ import { accessLogResultToMarkdown } from './request-log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from './admin-panel.mjs';
-import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
+import { buildSupportBundle, supportBundleToMarkdown, redactSecrets } from './support-bundle.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
+import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
 import { getCircuitBreakerStatus, getTransportMetrics } from './transport.mjs';
 import {
   peerInfo,
@@ -1605,6 +1606,42 @@ const api = {
    */
   adminPanelMarkdown(data, opts = {}) {
     return adminPanelToMarkdown(data, opts);
+  },
+
+  /**
+   * Build a self-contained support/diagnostics bundle.
+   *
+   * Collects package version, local config (secrets redacted), public
+   * identity metadata, index summary, recent audit/access logs, runtime
+   * metrics, registered routes, transport health, and environment variable
+   * names. Useful for troubleshooting and cross-node comparisons.
+   *
+   * @param {Object} [opts]
+   * @param {number} [opts.auditLogLimit=50]
+   * @param {number} [opts.accessLogLimit=50]
+   * @param {Object} [opts.metricsFilters]
+   * @param {boolean} [opts.markdown=false] - Also return markdown rendering
+   * @param {boolean} [opts.redact=true] - Redact secret fields
+   * @returns {Promise<Object>} Support bundle data
+   */
+  async supportBundle(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const bundle = await buildSupportBundle({ ...opts, home: this._home });
+    if (opts.markdown) {
+      return { ...bundle, markdown: supportBundleToMarkdown(bundle) };
+    }
+    return bundle;
+  },
+
+  /**
+   * Render a support bundle to markdown.
+   *
+   * @param {Object} data - Output of api.supportBundle()
+   * @returns {string} Markdown
+   */
+  supportBundleMarkdown(data) {
+    return supportBundleToMarkdown(data);
   },
 
   /**

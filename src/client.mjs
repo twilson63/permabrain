@@ -380,6 +380,9 @@ export function createClient(options = {}) {
     /** @returns {Promise<Object>} */
     doctor: (body = {}) => request('GET', `/api/v1/doctor${toQuery(body)}`),
 
+    /** @returns {Promise<Object>} */
+    supportBundle: (opts = {}) => request('GET', `/api/v1/support-bundle${toQuery(opts)}`),
+
     /**
      * Stream live request-log entries from /api/v1/log/requests/stream.
      *

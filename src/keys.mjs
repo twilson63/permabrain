@@ -80,6 +80,7 @@ export function publicIdentity(identity) {
   return {
     type: identity.type,
     agentId: identity.agentId,
+    publicKey: identity.publicKey || undefined,
     createdAt: identity.createdAt
   };
 }

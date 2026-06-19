@@ -30,6 +30,7 @@ import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { computeStats, statsToMarkdown } from './stats.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
+import { buildSupportBundle, supportBundleToMarkdown } from './support-bundle.mjs';
 import { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage } from './share-encrypted.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
@@ -137,6 +138,7 @@ export async function runCommand(command, args) {
   if (command === 'access-log') return accessLogCommand(args);
   if (command === 'template') return templateCommand(args);
   if (command === 'dashboard') return dashboardCommand(args);
+  if (command === 'support-bundle') return supportBundleCommand(args);
   if (command === 'client') return clientCommand(args);
   if (command === 'completion') return completionCommand(args);
   if (command === 'validate') return validateCommand(args);
@@ -2908,4 +2910,66 @@ async function versionCommand(args) {
     if (result.description) console.log(result.description);
   }
   return result;
+}
+
+async function supportBundleCommand(args) {
+  if (args.help || args._[0] === '--help' || args._[0] === 'help') {
+    console.log(`Usage: permabrain support-bundle [options]
+
+Build a self-contained diagnostics bundle for the current PermaBrain home.
+Includes config, identity metadata, index summary, recent logs, metrics,
+routes, transport health, and environment variable names. Secrets are
+redacted by default.
+
+Options:
+  --output <path>        Write JSON bundle to file
+  --markdown             Print markdown rendering to stdout
+  --markdown-output <p>  Write markdown rendering to file
+  --audit-limit <n>      Audit log entries (default 50)
+  --access-limit <n>     Access log entries (default 50)
+  --no-redact            Disable redaction (caution: may include secrets)
+  --json                 Output raw JSON to stdout
+
+Examples:
+  permabrain support-bundle
+  permabrain support-bundle --markdown --output bundle.json
+  permabrain support-bundle --audit-limit 10 --access-limit 10
+`);
+    return { ok: true, help: true };
+  }
+
+  const home = getHome();
+  const bundle = await buildSupportBundle({
+    home,
+    auditLogLimit: args['audit-limit'] ? Number(args['audit-limit']) : undefined,
+    accessLogLimit: args['access-limit'] ? Number(args['access-limit']) : undefined,
+    redact: args['no-redact'] ? false : true
+  });
+
+  const output = args.output || args.o;
+  const markdownOutput = args['markdown-output'];
+  const asMarkdown = args.markdown || markdownOutput;
+
+  if (output) {
+    fs.writeFileSync(output, JSON.stringify(bundle, null, 2), 'utf8');
+    console.log(`Support bundle written to ${output}`);
+  }
+  if (asMarkdown) {
+    const markdown = supportBundleToMarkdown(bundle);
+    if (markdownOutput) {
+      fs.writeFileSync(markdownOutput, markdown, 'utf8');
+      console.log(`Support bundle markdown written to ${markdownOutput}`);
+    } else {
+      console.log(markdown);
+    }
+  }
+  if (args.json && !output) printJson(bundle);
+  if (!output && !asMarkdown && !args.json) {
+    console.log(`Support bundle generated at ${bundle.generatedAt}`);
+    console.log(`Home: ${bundle.home}`);
+    console.log(`Articles: ${bundle.indexSummary?.articleCount ?? 0}`);
+    console.log(`Attestations: ${bundle.indexSummary?.attestationCount ?? 0}`);
+    console.log(`Routes: ${bundle.routes?.length ?? 0}`);
+  }
+  return bundle;
 }

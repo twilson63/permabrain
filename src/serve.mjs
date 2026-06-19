@@ -1062,6 +1062,20 @@ async function handleRequest(req, res, home, options = {}) {
       return res.end(html);
     }
 
+    if (method === 'GET' && route === '/api/v1/support-bundle') {
+      const opts = {
+        accessLogLimit: url.searchParams.has('access-log-limit') ? Number(url.searchParams.get('access-log-limit')) : undefined,
+        auditLogLimit: url.searchParams.has('audit-log-limit') ? Number(url.searchParams.get('audit-log-limit')) : undefined,
+        redact: url.searchParams.get('redact') !== 'false'
+      };
+      const result = await api.supportBundle({ ...opts, runtimeMetrics });
+      if (req.headers.accept?.includes('text/markdown')) {
+        res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+        return res.end(api.supportBundleMarkdown(result));
+      }
+      return sendJson(res, 200, result);
+    }
+
     if (method === 'POST' && route === '/api/v1/dashboard/publish') {
       const body = bodyOrRead || await readBody(req);
       const dashboardOpts = {
