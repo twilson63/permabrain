@@ -205,11 +205,14 @@
 - [x] Add `permabrain --version` / `-v` CLI flag that prints the version from `package.json`, plus a unit test and update to the top-level help text.
 - [x] Cron build loop checkpoint (2026-06-17 13:34 UTC): implemented live web dashboard route in `permabrain serve`. Verified `/api/v1/dashboard` (JSON) and `/api/v1/dashboard.html` (HTML) routes in `src/serve.mjs` reuse `buildDashboard`/`dashboardToHtml` from `src/dashboard.mjs`. Added `test/serve-dashboard.mjs` with 5 tests covering HTML/JSON endpoints, query-param filters, custom title, and 404 handling. Wired `test:serve-dashboard` script and included the new suite in `npm test`. Full `npm test` suite passes; committed and pushed to `origin/main`.
 
+## Done
+- [x] Cron build loop checkpoint (2026-06-19 08:04 UTC): picked Next task — README/skill docs for batch directory publish. Added `permabrain publish-dir` and `api.publishDirectory()` coverage to `README.md`, `skills/permabrain/SKILL.md`, and `skills/permabrain-pi/SKILL.md`, including frontmatter overrides, dry-run/recursive options, and API examples. Full `npm test` suite passes; committed and pushed to `origin/main` as `49d5488`.
+
 ## In Progress
 - [ ] (none)
 
 ## Next
-- [ ] README/skill docs for batch directory publish: document `permabrain publish-dir`, `api.publishDirectory()`, frontmatter overrides, and dry-run/recursive options in README.md and both skill docs.
+- [ ] 
 
 ## Done
 - [x] Cron build loop checkpoint (2026-06-19 07:34 UTC): implemented **batch directory publish**. Added `src/publish-dir.mjs` with `publishDirectory()`, `publishDirectoryToMarkdown()`, `findMarkdownFiles()`, and `deriveKeyFromPath()`; exposed `api.publishDirectory()` and `api.publishDirectoryToMarkdown()` in `src/agent-api.mjs`; re-exported helpers from `src/index.mjs`. Wired `permabrain publish-dir <dir>` CLI command in `src/commands.mjs` and `scripts/cli.mjs` with `--recursive`, `--dry-run`, `--kind`, `--topic`, `--title`, `--source-url`, `--source-name`, `--source-license`, `--language`, `--visibility`, `--for`, `--use-hyperbeam`, `--use-hyperbeam-reference`, `--json`, and `--markdown` options; added command to shell completion. Added `test/publish-dir.mjs` (11 tests) covering markdown discovery, recursive discovery, frontmatter key inference, fallback key derivation, dry-run previews, live publishing, recursive publishing, markdown report rendering, API wrapper, version increments on re-publish, and markdown helper export. Wired `test/publish-dir.mjs` first in `npm test` and added `test:publish-dir` script. Updated `test/module-import.mjs` to expect 99 API methods and assert `publishDirectory` / `publishDirectoryToMarkdown` exports. Full `npm test` suite passes; committed and pushed to `origin/main` as `ab52e80`.
