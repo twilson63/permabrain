@@ -135,5 +135,8 @@
     "arweave": "^1.15.7",
     "ws": "^8.18.0",
     "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@daytona/sdk": "^0.189.0"
   }
 }
