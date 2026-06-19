@@ -22,10 +22,11 @@
 - [x] Cron build loop checkpoint (2026-06-18 21:04 UTC): queue empty at start; full `npm test` suite passes; clean `main` at `e451524`. No implementation work picked. Seeded next chunk: web viewer "Compare" tab for diff/merge visualization.
 - [x] Wire HTTP API route discovery into `permabrain client` CLI and README: added `permabrain client routes` and `permabrain client openapi` actions in `src/commands.mjs`, updated `scripts/cli.mjs` help, documented `/api/v1/routes` + `/api/v1/openapi.json` in README, added `test/client-routes.mjs`, and wired it into `npm test` + `test:client-routes`. Full `npm test` suite passes; committed to `main` as `0cbfd55` on 2026-06-18 12:34 UTC.
 
-## In Progress
-- [ ] (none)
+## Done
+- [x] Cron build loop checkpoint (2026-06-19 04:34 UTC): picked the seeded Next task and implemented consolidated admin/monitoring panel for `permabrain serve`. Added `src/admin-panel.mjs` with `buildAdminPanel()`, `adminPanelToHtml()`, and `adminPanelToMarkdown()`; exposed `api.adminPanel()`, `api.adminPanelHTML()`, and `api.adminPanelMarkdown()` in `src/agent-api.mjs`; re-exported panel helpers from `src/index.mjs`. Added read-only HTTP routes `GET /api/v1/admin` (JSON) and `GET /api/v1/admin.html` (HTML) to `src/serve.mjs` and registered them in `src/route-registry.mjs`. Added SDK `client.admin()` and `client.adminHTML()` in `src/client.mjs`. Wired the new `/admin` view into `viewer/index.html` with a toolbar button, deep-link via `?view=admin`, status cards, runtime metrics, recent access-log table, and audit-log tail. Added `test/serve-admin.mjs` covering JSON/HTML routes, query limits, and SDK methods; included it in `npm test` and `test:serve-admin`. Updated `test/module-import.mjs` to expect 96 API methods and assert admin panel exports. Full `npm test` suite passes.
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-19 04:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `e480056`. No implementation work picked. Seeded next chunk: consolidated admin/monitoring — read-only admin panel (`/admin` route) with live metrics, recent access-log entries, and audit-log tail, surfaced in `permabrain serve` HTML and via SDK `client.admin()` methods.
 - [x] Document API-key auth, `POST /api/v1/completion`, and bundle/history import endpoints in README and skill docs. Updated README.md with API-key auth section, public endpoints, key delivery methods, and new HTTP routes; expanded the SDK snippet to cover `createClient({ apiKey })`, bundle/history import/export, and `client.completion()`. Updated `skills/permabrain/SKILL.md` with an HTTP API and Authentication section and `skills/permabrain-pi/SKILL.md` with an HTTP Client SDK section. Synced package-internal skill docs under `permabrain/skills/`. Full `npm test` suite passes; committed to `main` as `9ea6bbf` and pushed to `origin/main` on 2026-06-18 15:34 UTC.
 
 - [x] Cron build loop checkpoint (2026-06-18 17:04 UTC): queue empty at start; seeded and implemented HTTP API rate limiting for `permabrain serve`. Added `src/rate-limit.mjs` token-bucket per-client limiter with `--rate-limit`, `--rate-window`, `--rate-burst`, `--trust-proxy`, and equivalent env vars. Wired middleware into `src/serve.mjs` for all non-stream routes, returning 429 with `Retry-After` and adding `RateLimit-*` headers on every response. Updated `src/commands.mjs`, `scripts/cli.mjs`, `src/index.mjs`, and `test/module-import.mjs` for new exports. Added `test/rate-limit.mjs` unit tests and `test/serve-rate-limit.mjs` HTTP integration tests, wired into `npm test` and focused scripts. Documented rate limiting in `README.md` and both skill docs. Full `npm test` suite passes; committed and pushed to `origin/main` as `070b02a`.
@@ -205,10 +206,13 @@
 - [x] Cron build loop checkpoint (2026-06-17 13:34 UTC): implemented live web dashboard route in `permabrain serve`. Verified `/api/v1/dashboard` (JSON) and `/api/v1/dashboard.html` (HTML) routes in `src/serve.mjs` reuse `buildDashboard`/`dashboardToHtml` from `src/dashboard.mjs`. Added `test/serve-dashboard.mjs` with 5 tests covering HTML/JSON endpoints, query-param filters, custom title, and 404 handling. Wired `test:serve-dashboard` script and included the new suite in `npm test`. Full `npm test` suite passes; committed and pushed to `origin/main`.
 
 ## In Progress
+- [ ] (none)
+
+## Done
 - [x] Viewer import/export: add UI panel to export selected article/fork/history as a PermaBrain bundle or history bundle, and import a bundle file from the viewer, with deep-link state support (`?view=import`/`?view=export`). Completed 2026-06-19 03:34 UTC.
+- [x] Cron build loop checkpoint (2026-06-19 05:04 UTC): queue had only stale duplication from prior run; the 'In Progress' admin panel task was already implemented and committed at `8277c53`. Ran full `npm test` suite — all tests pass. Cleaned `tasks.md` by removing the stale duplicate and marking queue empty.
 
 ## Next
-- [ ] Consolidated admin/monitoring: add a read-only admin panel (`/admin` route) with live metrics, recent access-log entries, and audit-log tail, surfaced both in `permabrain serve` HTML and via SDK `client.admin()` methods.
 
 ## Notes
 - Cron build loop checkpoint (2026-06-19 02:34 UTC): queue empty at start; full `npm test` suite passes; clean `main` at `0bb0408`. No implementation work picked. Seeded next chunk: viewer import/export panel.
