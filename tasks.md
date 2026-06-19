@@ -56,6 +56,9 @@
 ## In Progress
 - [ ] (none)
 
+## Next
+- [ ] Add in-app support-bundle viewer panel: surface a read-only diagnostics report inside `viewer/index.html` via `GET /api/v1/support-bundle` with JSON/Markdown toggle, redaction notice, and one-click copy/download.
+
 ## Done
 - [x] Cron build loop checkpoint (2026-06-19 13:04 UTC): picked the Next task and refreshed `README.md` with a consolidated Web Viewer documentation section under the Local HTTP API area. Added coverage of opening the viewer, sidebar navigation, mobile layout, search/filters/sorting, article detail + version history, permalink sharing, SSE/WebSocket live streams with failover, Compose article editor with draft recovery, batch Publish panel with dry-run, Import/Export panel, Compare diff/merge, Settings (theme/transport/sort/page-size/live-tail), Audit and Admin panels, encrypted-article in-browser decryption, and PWA/offline support. Full `npm test` suite passes.
 
