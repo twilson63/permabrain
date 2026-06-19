@@ -10,7 +10,7 @@
 - [x] Add HTTP API key-based auth middleware for `permabrain serve` endpoints, CLI `--api-key`/env var, and SDK `apiKey` option. Implemented `src/auth.mjs`, wired `--api-key`/`PERMABRAIN_API_KEY` into `serveCommand`, applied middleware in `createServer/startServer` for protected routes (public `/health`, event/stream routes exempted), and added SDK `createClient({ apiKey })` support. Added `test/auth.mjs` and `test/serve-auth.mjs` coverage and included them in `npm test`. Also fixed a pre-existing body double-read bug in `src/serve.mjs` route handlers and the undeclared `reader` variable in `src/events-client.mjs`. Full `npm test` suite passes; committed to `main` as `85583a1` on 2026-06-18 11:15 UTC.
 
 ## Next
-- [ ] (none — seed next chunk on the next heartbeat)
+- [ ] Web viewer “Settings” panel with persistent preferences: transport (SSE/WebSocket), theme (dark/light/auto), default sort, results per page, live-tail toggle; persisted to localStorage and reflected in URL query params. Add `test/viewer-settings.mjs`.
 
 ## In Progress
 - [ ] (none)
