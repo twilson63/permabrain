@@ -44,6 +44,7 @@ import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } fro
 import { accessLogResultToMarkdown } from './request-log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
+import { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from './admin-panel.mjs';
 import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
@@ -1480,6 +1481,48 @@ const api = {
    */
   accessLogToMarkdown(result) {
     return accessLogResultToMarkdown(result);
+  },
+
+  /**
+   * Build a consolidated, read-only admin/monitoring snapshot.
+   *
+   * Aggregates runtime metrics, recent HTTP access-log entries, and the
+   * audit-log tail. Intended for a single `/admin` endpoint view.
+   *
+   * @param {Object} [opts]
+   * @param {number} [opts.accessLogLimit=25]
+   * @param {number} [opts.auditLogLimit=25]
+   * @param {Object} [opts.metricsFilters]
+   * @returns {Promise<Object>} Admin panel data
+   */
+  async adminPanel(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return buildAdminPanel({ ...opts, home: this._home });
+  },
+
+  /**
+   * Render admin panel data to a self-contained HTML string.
+   *
+   * @param {Object} data - Output of api.adminPanel()
+   * @param {Object} [opts]
+   * @param {string} [opts.title]
+   * @returns {string} HTML
+   */
+  adminPanelHTML(data, opts = {}) {
+    return adminPanelToHtml(data, opts);
+  },
+
+  /**
+   * Render admin panel data as markdown.
+   *
+   * @param {Object} data - Output of api.adminPanel()
+   * @param {Object} [opts]
+   * @param {string} [opts.title]
+   * @returns {string} Markdown
+   */
+  adminPanelMarkdown(data, opts = {}) {
+    return adminPanelToMarkdown(data, opts);
   },
 
   /**

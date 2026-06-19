@@ -479,6 +479,29 @@ export const ROUTES = [
     response: { summary: 'object' }
   },
   {
+    route: '/api/v1/admin',
+    method: 'GET',
+    description: 'Consolidated read-only admin/monitoring panel data (metrics, access log, audit log tail).',
+    public: false,
+    params: [
+      { name: 'access-log-limit', in: 'query', type: 'integer', required: false },
+      { name: 'audit-log-limit', in: 'query', type: 'integer', required: false }
+    ],
+    response: { generatedAt: 'string', agentId: 'string', transport: 'string', metrics: 'object', accessLog: 'object', auditLog: 'object', links: 'object' }
+  },
+  {
+    route: '/api/v1/admin.html',
+    method: 'GET',
+    description: 'Self-contained read-only admin/monitoring panel HTML.',
+    public: false,
+    params: [
+      { name: 'access-log-limit', in: 'query', type: 'integer', required: false },
+      { name: 'audit-log-limit', in: 'query', type: 'integer', required: false },
+      { name: 'title', in: 'query', type: 'string', required: false }
+    ],
+    response: { html: 'string' }
+  },
+  {
     route: '/api/v1/dashboard',
     method: 'GET',
     description: 'Return dashboard data as JSON.',

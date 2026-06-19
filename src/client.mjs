@@ -215,6 +215,12 @@ export function createClient(options = {}) {
     template: (body) => request('POST', '/api/v1/template', body),
 
     /** @returns {Promise<Object>} */
+    admin: (opts = {}) => request('GET', `/api/v1/admin${toQuery(opts)}`),
+
+    /** @returns {Promise<string>} */
+    adminHTML: (opts = {}) => request('GET', `/api/v1/admin.html${toQuery(opts)}`, undefined, { accept: 'text/html' }),
+
+    /** @returns {Promise<Object>} */
     dashboard: (opts = {}) => request('GET', `/api/v1/dashboard${toQuery(opts)}`),
 
     /** @returns {Promise<string>} */

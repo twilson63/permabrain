@@ -912,6 +912,27 @@ async function handleRequest(req, res, home, options = {}) {
       return res.end(html);
     }
 
+    if (method === 'GET' && route === '/api/v1/admin') {
+      const opts = {
+        accessLogLimit: url.searchParams.has('access-log-limit') ? Number(url.searchParams.get('access-log-limit')) : undefined,
+        auditLogLimit: url.searchParams.has('audit-log-limit') ? Number(url.searchParams.get('audit-log-limit')) : undefined
+      };
+      const result = await api.adminPanel({ ...opts, runtimeMetrics });
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/admin.html') {
+      const opts = {
+        accessLogLimit: url.searchParams.has('access-log-limit') ? Number(url.searchParams.get('access-log-limit')) : undefined,
+        auditLogLimit: url.searchParams.has('audit-log-limit') ? Number(url.searchParams.get('audit-log-limit')) : undefined,
+        title: url.searchParams.get('title')
+      };
+      const data = await api.adminPanel({ ...opts, runtimeMetrics });
+      const html = api.adminPanelHTML(data, { title: opts.title });
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    }
+
     if (method === 'POST' && route === '/api/v1/dashboard/publish') {
       const body = bodyOrRead || await readBody(req);
       const dashboardOpts = {

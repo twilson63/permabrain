@@ -324,6 +324,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <div class="subtitle">Public signed knowledge graph</div>
   <div class="header-actions">
     <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
+  <button class="btn-icon" id="adminBtn" onclick="window.showAdminPanel()" title="Admin / monitoring">&#128202;</button>
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
@@ -482,13 +483,14 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin'
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { view: 'export', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importResult: null };
   var dashboardData = null;
   var dashboardLoading = false;
   var dashboardError = null;
   var dashboardInterval = null;
+  var adminState = { data: null, loading: false, error: null, accessLogLimit: 25, auditLogLimit: 25 };
   var historyData = {};       // key -> history payload from local API
   var historyLoading = false;
   var historyError = null;
@@ -1468,7 +1470,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import','export'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import','export','admin'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.exportKey) exportImportState.exportKey = state.exportKey;
@@ -1536,6 +1538,108 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderArticle(key);
     updateUrlState();
   };
+
+  window.showAdminPanel = async function() {
+    viewMode = 'admin';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchAdminPanel();
+    updateUrlState();
+  };
+
+  async function fetchAdminPanel() {
+    if (!isLocalServer()) return;
+    adminState.loading = true;
+    adminState.error = null;
+    if (viewMode === 'admin') renderAdminPanel();
+    try {
+      var params = new URLSearchParams();
+      params.set('access-log-limit', String(adminState.accessLogLimit));
+      params.set('audit-log-limit', String(adminState.auditLogLimit));
+      var r = await fetch('/api/v1/admin?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      adminState.data = data;
+      adminState.loading = false;
+    } catch(e) {
+      adminState.error = e.message;
+      adminState.loading = false;
+    }
+    if (viewMode === 'admin') renderAdminPanel();
+  }
+
+  window.fetchAdminPanel = fetchAdminPanel;
+
+  function renderAdminPanel() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Admin panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see the admin / monitoring panel.</p></div>';
+      return;
+    }
+    if (adminState.loading && !adminState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading admin panel...</div>';
+      return;
+    }
+    if (adminState.error && !adminState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Admin panel error</h2><p>' + esc(adminState.error) + '</p><button class="btn-icon" onclick="window.fetchAdminPanel()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = adminState.data || {};
+    var r = data.metrics && data.metrics.runtime ? data.metrics.runtime : {};
+    var req = r.requests || {};
+    var totals = data.metrics && data.metrics.data ? data.metrics.data.totals : {};
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.fetchAdminPanel()">&#x21BB; Refresh</button>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '</div>';
+
+    var statusCards = '<div class="stats-grid">' +
+      statCard('Agent', data.agentId || '—', 'agent') +
+      statCard('Transport', data.transport || '—', 'transport') +
+      statCard('Key type', data.keyType || '—', 'key') +
+      '</div>';
+
+    var metricCards = '<div class="stats-grid">' +
+      statCard('Uptime', r.uptime || '—', 'uptime') +
+      statCard('Requests', String(req.total || 0), 'requests') +
+      statCard('Errors', String(req.errors || 0), 'errors') +
+      statCard('Rate limited', String(req.rateLimited || 0), 'rateLimited') +
+      statCard('SSE clients', String((r.activeStreams && r.activeStreams.sse) || 0), 'sse') +
+      statCard('WebSocket clients', String((r.activeStreams && r.activeStreams.websocket) || 0), 'ws') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      statCard('Attestations', String(totals.attestations || 0), 'attestations') +
+      '</div>';
+
+    function accessRows() {
+      var entries = (data.accessLog && data.accessLog.entries) || [];
+      if (!entries.length) return '<p class="empty">No recent requests recorded.</p>';
+      var rows = entries.map(function(e) {
+        return '<tr><td>' + fmtDate(e.timestamp) + '</td><td class="mono">' + esc(e.requestId || '—') + '</td><td>' + esc(e.method || '—') + '</td><td class="mono">' + esc(e.path || '—') + '</td><td style="color:' + statusColor(e.statusCode) + '">' + (e.statusCode || 0) + '</td><td>' + (e.durationMs || 0) + 'ms</td></tr>';
+      }).join('');
+      return '<table class="audit-table"><thead><tr><th>Time</th><th>Request ID</th><th>Method</th><th>Path</th><th>Status</th><th>Duration</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    function auditRows() {
+      var entries = (data.auditLog && data.auditLog.entries) || [];
+      if (!entries.length) return '<p class="empty">No recent audit events.</p>';
+      return entries.map(function(e) {
+        var icon = e.status === 'ok' ? '&#10004;' : e.status === 'error' ? '&#10008;' : '&#9203;';
+        return '<div class="audit-row">' +
+          '<span class="mono muted">' + fmtDate(e.createdAt) + '</span>' +
+          '<span class="status-badge ' + (e.status === 'ok' ? 'ok' : e.status === 'error' ? 'error' : '') + '">' + icon + ' ' + esc(e.status) + '</span>' +
+          '<span><strong>' + esc(e.action) + '</strong>' + (e.key ? ' <code>' + esc(e.key) + '</code>' : '') + (e.message ? ' — ' + esc(e.message) : '') + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    main.innerHTML = '<div class="home"><h1>&#128737; <span>Admin / Monitoring</span></h1><p class="home-subtitle">Live metrics, access log, and audit tail</p>' + toolbar + statusCards + '<h2>Runtime metrics</h2>' + metricCards + '<h2>Recent HTTP access log</h2><div class="section">' + accessRows() + '</div><h2>Audit log tail</h2><div class="section">' + auditRows() + '</div></div>';
+  }
+
+  window.renderAdminPanel = renderAdminPanel;
 
   window.showHome = function() {
     viewMode = 'home';
@@ -2219,7 +2323,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
 
   // --- Interactive local article list (uses /api/v1/list) ---
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin';
   }
 
   function readFiltersFromDom() {

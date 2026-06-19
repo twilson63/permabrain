@@ -186,6 +186,8 @@ export { publishPage, dashboardPageId, computeFingerprint, contentDigest, signRe
 // HTTP request logging / access-log ring buffer + disk persistence
 export { requestLogger, RequestLogger, getRecentRequests, requestsToMarkdown, accessLogResultToMarkdown, defaultLogPath } from './request-log.mjs';
 
+// Admin / monitoring panel
+export { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from './admin-panel.mjs';
 
 export {
   createThresholdEnvelope,

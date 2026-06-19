@@ -330,12 +330,20 @@ const expectedMethods = [
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
   'verify', 'exportBundle', 'exportAll', 'importBundle', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
-  'createThresholdAttestation', 'addThresholdSigner', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope', 'shareEncrypted'
+  'createThresholdAttestation', 'addThresholdSigner', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope', 'shareEncrypted',
+  'adminPanel', 'adminPanelHTML', 'adminPanelMarkdown'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 93 API methods present');
+console.log('   ✓ All 96 API methods present');
+
+// --- 11a. Admin panel API methods ---
+console.log('11a. Admin panel API methods');
+assert.equal(typeof api.adminPanel, 'function', 'api.adminPanel is a function');
+assert.equal(typeof api.adminPanelHTML, 'function', 'api.adminPanelHTML is a function');
+assert.equal(typeof api.adminPanelMarkdown, 'function', 'api.adminPanelMarkdown is a function');
+console.log('   ✓ Admin panel API methods present');
 
 // --- 12. Log API methods ---
 console.log('12. Log API methods');
@@ -436,3 +444,11 @@ assert.equal(typeof requestsToMarkdown, 'function', 'requestsToMarkdown');
 assert.equal(typeof accessLogResultToMarkdown, 'function', 'accessLogResultToMarkdown');
 
 console.log('   OK Request-log exports present');
+
+// Admin panel exports
+import { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from '../src/index.mjs';
+assert.equal(typeof buildAdminPanel, 'function', 'buildAdminPanel');
+assert.equal(typeof adminPanelToHtml, 'function', 'adminPanelToHtml');
+assert.equal(typeof adminPanelToMarkdown, 'function', 'adminPanelToMarkdown');
+
+console.log('   OK Admin panel exports present');
