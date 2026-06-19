@@ -722,6 +722,34 @@ const { score } = await client.consensus('person/ada-lovelace');
 const html = await client.dashboardHTML();
 const metrics = await client.metrics();           // JSON runtime + data metrics
 const prom = await client.metrics({ format: 'prometheus' }); // Prometheus text
+
+// Batch publish from an inline file batch or a server-local directory
+const batch = await client.publishDirectory({
+  dir: 'docs',
+  recursive: true,
+  kind: 'subject',
+  topic: 'ai',
+  sourceName: 'Docs',
+  sourceLicense: 'CC-BY-SA-4.0'
+});
+console.log(batch.succeeded, batch.count);
+
+// Dry-run preview without publishing
+const preview = await client.previewDirectory({
+  files: [
+    { path: 'docs/overview.md', content: '# Overview\n...' }
+  ],
+  kind: 'subject',
+  topic: 'ai'
+});
+console.log(preview.results.map((r) => r.key));
+
+// Markdown report via Accept header
+const reportMd = await client.publishDirectoryMarkdown({
+  files: [
+    { path: 'docs/overview.md', content: '# Overview\n...' }
+  ]
+});
 ```
 
 The client mirrors the agent API surface and returns JSON responses from the REST endpoints. Every method rejects with `{ status, error }` when the server responds with a non-2xx status code.

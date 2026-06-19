@@ -765,6 +765,108 @@ async function handleRequest(req, res, home, options = {}) {
       return sendJson(res, 200, result);
     }
 
+    if (method === 'POST' && (route === '/api/v1/publish-dir' || route === '/api/v1/publish-dir/preview')) {
+      const body = bodyOrRead || await readBody(req);
+      const { publishDirectory: publishDir, publishDirectoryToMarkdown, deriveKeyFromPath } = await import('./publish-dir.mjs');
+      const dryRun = route === '/api/v1/publish-dir/preview' || body.dryRun === true;
+      const files = body.files;
+      const dir = body.dir;
+      const baseDir = dir ? path.resolve(currentHome, dir) : undefined;
+      let results = [];
+      let count = 0;
+      let succeeded = 0;
+      let failed = 0;
+      let skipped = 0;
+
+      if (files && Array.isArray(files) && files.length > 0) {
+        count = files.length;
+        const baseDirForMeta = dir ? path.resolve(currentHome, dir) : (files[0].path ? path.dirname(path.resolve(currentHome, files[0].path)) : currentHome);
+        for (const entry of files) {
+          const filePath = entry.path ? path.resolve(currentHome, entry.path) : undefined;
+          const meta = deriveKeyFromPath(filePath, baseDirForMeta, body.kind || 'subject', body.topic || 'general');
+          const finalKey = body.key && typeof body.key === 'string' ? body.key : meta.key;
+          if (dryRun) {
+            results.push({ file: filePath, key: finalKey || meta.key, kind: meta.kind, topic: meta.topic, title: meta.title, status: 'dry-run' });
+            continue;
+          }
+          try {
+            const fileContent = entry.content ?? (entry.file ? fs.readFileSync(path.resolve(currentHome, entry.file), 'utf8') : undefined);
+            const result = await api.publish({
+              content: fileContent,
+              file: entry.file ? path.resolve(currentHome, entry.file) : filePath,
+              key: finalKey || meta.key,
+              kind: meta.kind,
+              topic: meta.topic,
+              title: meta.title,
+              sourceUrl: entry.sourceUrl || body.sourceUrl || (filePath ? `file://${path.resolve(currentHome, filePath)}` : undefined),
+              sourceName: entry.sourceName || body.sourceName || 'Directory Publish',
+              sourceLicense: entry.sourceLicense || body.sourceLicense || '',
+              language: entry.language || body.language || 'en',
+              visibility: body.visibility || (body.encryptedFor?.length ? 'encrypted' : 'public'),
+              encryptedFor: body.encryptedFor || []
+            });
+            results.push({ file: filePath, key: result.summary.key, id: result.summary.id, version: result.summary.version, status: 'ok', encrypted: result.encrypted });
+            succeeded++;
+          } catch (err) {
+            results.push({ file: filePath, key: finalKey || meta.key, status: 'error', error: err.message });
+            failed++;
+          }
+        }
+      } else if (dir && fs.existsSync(baseDir) && fs.statSync(baseDir).isDirectory()) {
+        const { findMarkdownFiles } = await import('./publish-dir.mjs');
+        const filePaths = findMarkdownFiles(baseDir, body.recursive === true);
+        count = filePaths.length;
+        for (const filePath of filePaths) {
+          const meta = deriveKeyFromPath(filePath, baseDir, body.kind || 'subject', body.topic || 'general');
+          if (dryRun) {
+            results.push({ file: filePath, key: meta.key, kind: meta.kind, topic: meta.topic, title: meta.title, status: 'dry-run' });
+            continue;
+          }
+          try {
+            const fileContent = fs.readFileSync(filePath, 'utf8');
+            const result = await api.publish({
+              content: fileContent,
+              file: filePath,
+              key: meta.key,
+              kind: meta.kind,
+              topic: meta.topic,
+              title: meta.title,
+              sourceUrl: body.sourceUrl || `file://${filePath}`,
+              sourceName: body.sourceName || 'Directory Publish',
+              sourceLicense: body.sourceLicense || '',
+              language: body.language || 'en',
+              visibility: body.visibility || (body.encryptedFor?.length ? 'encrypted' : 'public'),
+              encryptedFor: body.encryptedFor || []
+            });
+            results.push({ file: filePath, key: result.summary.key, id: result.summary.id, version: result.summary.version, status: 'ok', encrypted: result.encrypted });
+            succeeded++;
+          } catch (err) {
+            results.push({ file: filePath, key: meta.key, status: 'error', error: err.message });
+            failed++;
+          }
+        }
+      } else {
+        return sendError(res, 400, 'files array or existing dir is required');
+      }
+
+      const report = {
+        dir: dir || '(inline batch)',
+        recursive: body.recursive === true,
+        dryRun,
+        count,
+        succeeded,
+        failed,
+        skipped,
+        results
+      };
+      const accept = req.headers.accept || '';
+      if (accept.includes('text/markdown')) {
+        res.setHeader('content-type', 'text/markdown');
+        return res.end(publishDirectoryToMarkdown(report));
+      }
+      return sendJson(res, dryRun ? 200 : 201, report);
+    }
+
     if (method === 'POST' && route === '/api/v1/import-wikipedia') {
       const body = bodyOrRead || await readBody(req);
       if (!body.title) return sendError(res, 400, 'title is required');

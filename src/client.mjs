@@ -215,6 +215,15 @@ export function createClient(options = {}) {
     template: (body) => request('POST', '/api/v1/template', body),
 
     /** @returns {Promise<Object>} */
+    publishDirectory: (body) => request('POST', '/api/v1/publish-dir', body),
+
+    /** @returns {Promise<Object>} */
+    previewDirectory: (body) => request('POST', '/api/v1/publish-dir/preview', body),
+
+    /** @returns {Promise<string>} Markdown directory publish report. */
+    publishDirectoryMarkdown: (body) => request('POST', '/api/v1/publish-dir', body, { accept: 'text/markdown' }),
+
+    /** @returns {Promise<Object>} */
     admin: (opts = {}) => request('GET', `/api/v1/admin${toQuery(opts)}`),
 
     /** @returns {Promise<string>} */

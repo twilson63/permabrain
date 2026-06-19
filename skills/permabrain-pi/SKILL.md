@@ -90,6 +90,33 @@ const history = await client.exportHistory('subject/my-article');
 await client.importBundle(bundle);              // accepts { bundle, verify?, skipDuplicates? }
 await client.importHistory(history);            // accepts { bundle, verify?, skipDuplicates? }
 
+// Batch directory publish over HTTP
+const batch = await client.publishDirectory({
+  dir: 'docs',                       // server-local directory; omit to send inline files
+  recursive: true,
+  kind: 'subject',
+  topic: 'ai',
+  sourceName: 'Example Docs',
+  sourceLicense: 'CC-BY-4.0'
+});
+// → { dir, recursive, dryRun, count, succeeded, failed, skipped, results }
+
+// Dry-run preview before publishing
+const preview = await client.previewDirectory({
+  files: [
+    { path: 'docs/overview.md', content: '# Overview\n...' }
+  ],
+  kind: 'subject',
+  topic: 'ai'
+});
+
+// Markdown report via Accept header
+const reportMd = await client.publishDirectoryMarkdown({
+  files: [
+    { path: 'docs/overview.md', content: '# Overview\n...' }
+  ]
+});
+
 // Generate a shell completion script
 const { script } = await client.completion({ shell: 'bash' });
 

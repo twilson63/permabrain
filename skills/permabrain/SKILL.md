@@ -571,6 +571,7 @@ Useful REST endpoints beyond the basics:
 - `GET /api/v1/history-export?key=...` / `POST /api/v1/history-import` — export/import version history
 - `POST /api/v1/completion` — generate a shell completion script (`{ shell: 'bash' }`)
 - `GET /api/v1/routes` / `GET /api/v1/openapi.json` — route catalog and OpenAPI document
+- `POST /api/v1/publish-dir` / `POST /api/v1/publish-dir/preview` — batch publish markdown files from an inline file batch or a server-local directory; accepts `{ dir?, files?, recursive?, kind?, topic?, sourceUrl?, sourceName?, sourceLicense?, language?, visibility?, encryptedFor?, dryRun? }`; set `Accept: text/markdown` for a rendered report
 
 Bundle and history import bodies accept `{ bundle, verify?, skipDuplicates? }`. Completion returns `{ script }`.
 

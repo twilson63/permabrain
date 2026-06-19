@@ -754,6 +754,41 @@ export const ROUTES = [
     response: { article: 'object', attestation: 'object' }
   },
   {
+    route: '/api/v1/publish-dir',
+    method: 'POST',
+    description: 'Batch publish markdown files from an inline file batch or a server-local directory.',
+    public: false,
+    params: [
+      { name: 'dir', in: 'body', type: 'string', required: false },
+      { name: 'files', in: 'body', type: 'array', required: false },
+      { name: 'recursive', in: 'body', type: 'boolean', required: false },
+      { name: 'topic', in: 'body', type: 'string', required: false },
+      { name: 'kind', in: 'body', type: 'string', required: false },
+      { name: 'sourceUrl', in: 'body', type: 'string', required: false },
+      { name: 'sourceName', in: 'body', type: 'string', required: false },
+      { name: 'sourceLicense', in: 'body', type: 'string', required: false },
+      { name: 'language', in: 'body', type: 'string', required: false },
+      { name: 'visibility', in: 'body', type: 'string', required: false },
+      { name: 'encryptedFor', in: 'body', type: 'array', required: false },
+      { name: 'dryRun', in: 'body', type: 'boolean', required: false }
+    ],
+    response: { dir: 'string', recursive: 'boolean', dryRun: 'boolean', count: 'number', succeeded: 'number', failed: 'number', skipped: 'number', results: 'array' }
+  },
+  {
+    route: '/api/v1/publish-dir/preview',
+    method: 'POST',
+    description: 'Dry-run preview of batch directory publish.',
+    public: false,
+    params: [
+      { name: 'dir', in: 'body', type: 'string', required: false },
+      { name: 'files', in: 'body', type: 'array', required: false },
+      { name: 'recursive', in: 'body', type: 'boolean', required: false },
+      { name: 'topic', in: 'body', type: 'string', required: false },
+      { name: 'kind', in: 'body', type: 'string', required: false }
+    ],
+    response: { dir: 'string', recursive: 'boolean', dryRun: 'boolean', count: 'number', succeeded: 'number', failed: 'number', skipped: 'number', results: 'array' }
+  },
+  {
     route: '/api/v1/log/requests',
     method: 'GET',
     description: 'Recent HTTP request ring buffer (memory). Add ?source=disk to query persisted logs with filters, retention, and pagination.',
