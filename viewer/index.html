@@ -348,6 +348,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .publish-result-row .key{font-family:monospace;font-size:0.78rem;color:var(--accent)}
 .publish-result-row .file{color:var(--muted);font-size:0.78rem;margin-left:auto}
 
+/* Activity / notifications panel */
+.activity-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+.activity-filters{display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.activity-filters label{font-size:0.72rem;color:var(--muted);white-space:nowrap}
+.activity-filters input,.activity-filters select{padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text);min-width:8rem}
+.activity-row{gap:0.75rem;padding:0.45rem 0}
+.toast-container{position:fixed;top:1rem;right:1rem;z-index:130;display:flex;flex-direction:column;gap:0.5rem;max-width:320px}
+.toast{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--radius);padding:0.75rem 1rem;box-shadow:var(--shadow);font-size:0.85rem;animation:toastIn 0.2s ease}
+.toast.error{border-left-color:var(--red)}
+.toast.success{border-left-color:var(--green)}
+.toast.warn{border-left-color:var(--orange)}
+.toast-title{font-weight:600;margin-bottom:0.25rem}
+.toast-body{color:var(--muted);font-size:0.78rem}
+.toast-close{float:right;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;margin-left:0.5rem}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
 /* Mobile */
 .mobile-toggle{display:none;position:fixed;top:0.75rem;left:0.75rem;z-index:100;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.5rem 0.7rem;cursor:pointer;font-size:1.2rem}
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:90}
@@ -374,6 +390,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <div class="subtitle">Public signed knowledge graph</div>
   <div class="header-actions">
     <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
+    <button class="btn-icon" id="activityBtn" onclick="window.showActivity()" title="Notifications / Activity">&#128276;</button>
     <button class="btn-icon" id="healthBtn" onclick="window.showHealth()" title="Health / diagnostics">&#10003;</button>
     <button class="btn-icon" id="adminBtn" onclick="window.showAdminPanel()" title="Admin / monitoring">&#128202;</button>
     <button class="btn-icon" id="supportBundleBtn" onclick="window.showSupportBundle()" title="Support bundle">&#129520;</button>
@@ -485,6 +502,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
 <input type="file" id="publishFileInput" multiple accept=".md,.markdown" style="display:none" onchange="window.onPublishFilesSelected(this.files)">
 
+<div class="toast-container" id="toastContainer"></div>
+
 <div class="main" id="main">
 <div class="empty-state" id="emptyState">
   <h2>&#x1F9E0; PermaBrain Viewer</h2>
@@ -538,7 +557,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity'
+  var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
   var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
@@ -1462,6 +1482,15 @@ function statCard(label, value, cls) {
       if (compareState.head) params.set('compareHead', compareState.head);
       if (compareState.base || compareState.head) params.set('compare', 'a');
     }
+    if (viewMode === 'activity') {
+      if (activityState.filters.eventKind) params.set('activityKind', activityState.filters.eventKind);
+      if (activityState.filters.topic) params.set('activityTopic', activityState.filters.topic);
+      if (activityState.filters.key) params.set('activityKey', activityState.filters.key);
+      if (activityState.filters.agent) params.set('activityAgent', activityState.filters.agent);
+      if (activityState.filters.after) params.set('activityAfter', activityState.filters.after);
+      if (activityState.filters.before) params.set('activityBefore', activityState.filters.before);
+      if (activityState.limit && activityState.limit !== 50) params.set('activityLimit', String(activityState.limit));
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -1484,6 +1513,7 @@ function statCard(label, value, cls) {
       transport: params.get('transport') || (localStorage.getItem('permabrain-live-transport') || 'sse'),
       pageSize: !isNaN(parsedPageSize) && parsedPageSize >= 5 && parsedPageSize <= 1000 ? parsedPageSize : parseInt(localStorage.getItem('permabrain-page-size') || '100', 10),
       liveTail: liveTailParam === null ? localStorage.getItem('permabrain-live-tail') !== 'false' : liveTailParam !== 'false',
+      liveTailParam: liveTailParam,
       view: params.get('view') || 'home',
       key: params.get('key') || '',
       tab: params.get('tab') || 'content',
@@ -1493,6 +1523,13 @@ function statCard(label, value, cls) {
       auditPath: params.get('auditPath') || '',
       auditAfter: params.get('auditAfter') || '',
       auditBefore: params.get('auditBefore') || '',
+      activityKind: params.get('activityKind') || '',
+      activityTopic: params.get('activityTopic') || '',
+      activityKey: params.get('activityKey') || '',
+      activityAgent: params.get('activityAgent') || '',
+      activityAfter: params.get('activityAfter') || '',
+      activityBefore: params.get('activityBefore') || '',
+      activityLimit: params.get('activityLimit') || '',
       compareBase: params.get('compareBase') || '',
       compareHead: params.get('compareHead') || '',
       exportKey: params.get('exportKey') || '',
@@ -1534,15 +1571,24 @@ function statCard(label, value, cls) {
       settings.pageSize = state.pageSize;
       localStorage.setItem('permabrain-page-size', String(state.pageSize));
     }
-    if (params.get('liveTail') !== null) {
+    if (state.liveTailParam !== null) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
       loadComposeDraft();
+    }
+    if (state.view === 'activity') {
+      if (state.activityKind) activityState.filters.eventKind = state.activityKind;
+      if (state.activityTopic) activityState.filters.topic = state.activityTopic;
+      if (state.activityKey) activityState.filters.key = state.activityKey;
+      if (state.activityAgent) activityState.filters.agent = state.activityAgent;
+      if (state.activityAfter) activityState.filters.after = state.activityAfter;
+      if (state.activityBefore) activityState.filters.before = state.activityBefore;
+      if (state.activityLimit) { var al = parseInt(state.activityLimit, 10); if (!isNaN(al) && al > 0) activityState.limit = al; }
     }
     if (state.exportKey) exportImportState.exportKey = state.exportKey;
     if (state.exportMode) exportImportState.exportMode = state.exportMode;
@@ -1553,6 +1599,12 @@ function statCard(label, value, cls) {
     if (state.auditPath) auditFilters.path = state.auditPath;
     if (state.auditAfter) auditFilters.after = state.auditAfter;
     if (state.auditBefore) auditFilters.before = state.auditBefore;
+    if (state.activityKind) activityState.filters.eventKind = state.activityKind;
+    if (state.activityTopic) activityState.filters.topic = state.activityTopic;
+    if (state.activityKey) activityState.filters.key = state.activityKey;
+    if (state.activityAgent) activityState.filters.agent = state.activityAgent;
+    if (state.activityAfter) activityState.filters.after = state.activityAfter;
+    if (state.activityBefore) activityState.filters.before = state.activityBefore;
     if (state.compareBase) compareState.base = state.compareBase;
     if (state.compareHead) compareState.head = state.compareHead;
     if (state.tab) activeTab = state.tab;
@@ -1836,6 +1888,160 @@ function statCard(label, value, cls) {
   }
 
   window.renderHealth = renderHealth;
+
+  // --- Activity / notifications panel ---
+  window.showActivity = async function() {
+    viewMode = 'activity';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchActivity();
+    updateUrlState();
+  };
+
+  window.refreshActivity = async function() {
+    await fetchActivity();
+    updateUrlState();
+  };
+
+  async function fetchActivity() {
+    if (!isLocalServer()) return;
+    activityState.loading = true;
+    activityState.error = null;
+    if (viewMode === 'activity') renderActivity();
+    try {
+      var params = new URLSearchParams();
+      params.set('limit', String(activityState.limit || 50));
+      if (activityState.filters.eventKind) params.set('event-kind', activityState.filters.eventKind);
+      if (activityState.filters.topic) params.set('topic', activityState.filters.topic);
+      if (activityState.filters.key) params.set('key', activityState.filters.key);
+      if (activityState.filters.agent) params.set('agent', activityState.filters.agent);
+      if (activityState.filters.after) params.set('after', activityState.filters.after + 'T00:00:00.000Z');
+      if (activityState.filters.before) params.set('before', activityState.filters.before + 'T23:59:59.999Z');
+      var r = await fetch('/api/v1/activity?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      activityState.data = await r.json();
+      activityState.loading = false;
+    } catch(e) {
+      activityState.error = e.message;
+      activityState.loading = false;
+    }
+    if (viewMode === 'activity') renderActivity();
+  }
+
+  window.fetchActivity = fetchActivity;
+
+  function renderActivityEvent(e) {
+    var kind = e.kind || 'publish';
+    var ts = fmtTs(e.timestamp || e.createdAt);
+    var badgeColor = kind === 'publish' ? 'var(--accent)' : kind === 'attest' ? 'var(--green)' : kind === 'fork' ? 'var(--orange)' : kind === 'merge' ? 'var(--red)' : 'var(--muted)';
+    var title = '';
+    var detail = '';
+    if (kind === 'publish') {
+      title = 'Article published';
+      detail = (e.title || '(untitled)') + ' · <code>' + esc(e.key || '') + '</code> v' + (e.version || 1) + ' by ' + esc(e.agentId || '—');
+    } else if (kind === 'attest') {
+      title = 'Attestation';
+      detail = esc(e.opinion || '') + ' on <code>' + esc(e.targetKey || '') + '</code> by ' + esc(e.agentId || '—') + (e.confidence ? ' · confidence ' + e.confidence : '');
+    } else if (kind === 'fork') {
+      title = 'Forked';
+      detail = '<code>' + esc(e.sourceKey || '') + '</code> → <code>' + esc(e.key || '') + '</code> by ' + esc(e.agentId || '—');
+    } else if (kind === 'merge') {
+      title = 'Merged';
+      detail = '<code>' + esc(e.sourceKey || '') + '</code> → <code>' + esc(e.key || '') + '</code> by ' + esc(e.agentId || '—') + (e.hasConflicts ? ' · ⚠ conflicts' : '');
+    }
+    var lock = e.encrypted ? '🔒 ' : '';
+    return '<div class="activity-row">' +
+      '<span class="ts">' + ts + '</span>' +
+      '<span class="badge" style="background:' + badgeColor + ';color:#fff;border:none">' + esc(kind) + '</span>' +
+      '<span>' + lock + '<strong>' + esc(title) + '</strong> — ' + detail + '</span>' +
+      '</div>';
+  }
+
+  function renderActivity() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Activity feed unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see live notifications and activity.</p></div>';
+      return;
+    }
+    if (activityState.loading && !activityState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading activity feed...</div>';
+      return;
+    }
+    if (activityState.error && !activityState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Activity feed error</h2><p>' + esc(activityState.error) + '</p><button class="btn-icon" onclick="window.refreshActivity()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = activityState.data || {};
+    var events = data.events || [];
+    var toolbar = '<div class="activity-filters">' +
+      '<label>Kind <select id="activityKind" onchange="window.setActivityFilter(\'eventKind\', this.value)" data-testid="activity-kind">' +
+        '<option value="">all</option>' +
+        '<option value="publish"' + (activityState.filters.eventKind === 'publish' ? ' selected' : '') + '>publish</option>' +
+        '<option value="attest"' + (activityState.filters.eventKind === 'attest' ? ' selected' : '') + '>attest</option>' +
+        '<option value="fork"' + (activityState.filters.eventKind === 'fork' ? ' selected' : '') + '>fork</option>' +
+        '<option value="merge"' + (activityState.filters.eventKind === 'merge' ? ' selected' : '') + '>merge</option>' +
+      '</select></label>' +
+      '<label>Topic <input type="text" id="activityTopic" placeholder="topic" value="' + esc(activityState.filters.topic) + '" onchange="window.setActivityFilter(\'topic\', this.value)"></label>' +
+      '<label>Key <input type="text" id="activityKey" placeholder="key" value="' + esc(activityState.filters.key) + '" onchange="window.setActivityFilter(\'key\', this.value)"></label>' +
+      '<label>Agent <input type="text" id="activityAgent" placeholder="agent id" value="' + esc(activityState.filters.agent) + '" onchange="window.setActivityFilter(\'agent\', this.value)"></label>' +
+      '<label>After <input type="date" id="activityAfter" value="' + esc(activityState.filters.after) + '" onchange="window.setActivityFilter(\'after\', this.value)"></label>' +
+      '<label>Before <input type="date" id="activityBefore" value="' + esc(activityState.filters.before) + '" onchange="window.setActivityFilter(\'before\', this.value)"></label>' +
+      '<button class="btn-icon" onclick="window.refreshActivity()">&#x21BB; Refresh</button>' +
+      '<button class="btn-icon" onclick="window.resetActivityFilters()">Reset</button>' +
+      '<span style="font-size:0.72rem;color:var(--muted);margin-left:auto">' + (data.total || 0) + ' events · showing ' + events.length + '</span>' +
+      '</div>';
+
+    var rows = events.length ? events.map(renderActivityEvent).join('') : '<p class="dashboard-empty">No activity events match the current filters.</p>';
+
+    main.innerHTML = '<div class="home"><h1>&#128276; <span>Notifications / Activity</span></h1>' +
+      '<p class="home-subtitle">Live activity feed of publishes, attestations, forks, and merges</p>' +
+      toolbar +
+      '<div class="activity-panel">' + rows + '</div>' +
+      '</div>';
+  }
+
+  window.renderActivity = renderActivity;
+
+  window.setActivityFilter = function(key, value) {
+    activityState.filters[key] = value || '';
+    fetchActivity().then(updateUrlState);
+  };
+
+  window.resetActivityFilters = function() {
+    activityState.filters = { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' };
+    fetchActivity().then(updateUrlState);
+  };
+
+  function toastContainer() {
+    var el = document.getElementById('toastContainer');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'toastContainer';
+      el.className = 'toast-container';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function showToast(title, body, type) {
+    if (!isLocalServer()) return;
+    var container = toastContainer();
+    var toast = document.createElement('div');
+    toast.className = 'toast ' + (type || '');
+    toast.innerHTML = '<button class="toast-close" onclick="this.parentElement.remove()">&times;</button>' +
+      '<div class="toast-title">' + esc(title) + '</div>' +
+      '<div class="toast-body">' + esc(body) + '</div>';
+    container.appendChild(toast);
+    activityState.toasts.push(toast);
+    setTimeout(function() {
+      if (toast.parentElement) toast.remove();
+    }, 6000);
+  }
+
+  window.showToast = showToast;
 
   window.refreshSupportBundle = async function() {
     await fetchSupportBundle();
@@ -3244,7 +3450,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity';
   }
 
   function readFiltersFromDom() {
@@ -3496,6 +3702,16 @@ function statCard(label, value, cls) {
     // Refresh list on any article/attestation lifecycle event.
     if (['publish','attest','fork','merge','import'].includes(name)) {
       scheduleListRefresh();
+    }
+    // Push lightweight toast notifications for visible activity.
+    if (name === 'publish' && event.key) {
+      showToast('Article published', (event.title || event.key || '') + (event.agentId ? ' by ' + event.agentId : ''), 'success');
+    } else if (name === 'attest' && event.targetKey) {
+      showToast('Attestation', event.opinion + ' on ' + event.targetKey + (event.agentId ? ' by ' + event.agentId : ''), 'success');
+    } else if (name === 'fork' && event.sourceKey && event.key) {
+      showToast('Forked', event.sourceKey + ' → ' + event.key, 'warn');
+    } else if (name === 'merge' && event.sourceKey && event.key) {
+      showToast('Merged', event.sourceKey + ' → ' + event.key + (event.hasConflicts ? ' · conflicts' : ''), event.hasConflicts ? 'warn' : 'success');
     }
   }
 
@@ -4015,6 +4231,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'compose') window.showCompose();
   else if (viewMode === 'support') window.showSupportBundle();
   else if (viewMode === 'health') window.showHealth();
+  else if (viewMode === 'activity') window.showActivity();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
