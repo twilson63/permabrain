@@ -53,6 +53,17 @@ const article = await api.publish({
   key: 'subject/my-article', // optional, derived from kind+title if omitted
 });
 
+// Publish every markdown file in a directory
+const batch = await api.publishDirectory('./docs', {
+  recursive: true,
+  kind: 'subject',
+  topic: 'ai',
+  sourceName: 'Example Docs',
+  sourceLicense: 'CC-BY-4.0',
+  dryRun: false
+});
+console.log(`Published ${batch.succeeded}/${batch.count} files`);
+
 // Query articles (searches local index first, then remote)
 const articles = await api.query({ topic: 'ai' });
 const byKind = await api.query({ kind: 'person' });
@@ -217,8 +228,14 @@ cd /home/node/.openclaw/workspace/permabrain-project
 # Initialize (ed25519 recommended for agents)
 PERMABRAIN_KEY_TYPE=ed25519 node scripts/cli.mjs init
 
-# Publish
+# Publish a single article
 node scripts/cli.mjs publish article.md --kind subject --topic ai --source-url "https://example.com"
+
+# Publish every markdown file in a directory
+node scripts/cli.mjs publish-dir ./docs --recursive --kind subject --topic ai --source-url "https://example.com/docs"
+
+# Preview directory publish without writing anything
+node scripts/cli.mjs publish-dir ./docs --dry-run --recursive --markdown
 
 # Query
 node scripts/cli.mjs query --topic ai --json

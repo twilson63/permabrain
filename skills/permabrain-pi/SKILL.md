@@ -137,6 +137,41 @@ curl http://localhost:8765/api/v1/metrics?format=prometheus
 
 ## Batch Operations
 
+### Publish a directory of articles
+
+Publish many markdown files at once. Each file becomes its own article; keys are
+derived from the file path unless overridden by frontmatter or options.
+
+```javascript
+const batch = await api.publishDirectory('./docs', {
+  recursive: true,
+  kind: 'subject',
+  topic: 'ai',
+  sourceName: 'Example Docs',
+  sourceLicense: 'CC-BY-4.0',
+  dryRun: false,        // set true to preview without publishing
+});
+// → { dir, recursive, dryRun, count, succeeded, failed, skipped, results }
+
+const markdown = await api.publishDirectoryToMarkdown(batch);
+```
+
+Per-file frontmatter can override `key`, `kind`, `topic`, or `title`:
+
+```markdown
+---
+key: subject/custom-key
+kind: subject
+topic: ai
+title: Custom Title
+---
+# Article body
+```
+
+Use `--dry-run` / `dryRun: true` to preview keys and metadata before publishing.
+Re-publishing the same directory updates version history only for files whose
+content changed.
+
 ### Batch Attest — attest to multiple articles in one call
 
 Each attestation is independent; failures don't block others.
@@ -242,7 +277,17 @@ If the API is unavailable, use the CLI:
 ```sh
 cd /home/node/.openclaw/workspace/permabrain
 PERMABRAIN_KEY_TYPE=ed25519 node scripts/cli.mjs init
+
+# Publish a single article
 node scripts/cli.mjs publish article.md --kind subject --topic ai --source-url "https://..."
+
+# Publish every markdown file in a directory
+node scripts/cli.mjs publish-dir ./docs --recursive --kind subject --topic ai --source-url "https://..."
+
+# Preview without writing
+node scripts/cli.mjs publish-dir ./docs --dry-run --recursive --markdown
+
+# Query
 node scripts/cli.mjs query --topic ai --json
 node scripts/cli.mjs get subject/my-article
 node scripts/cli.mjs attest subject/my-article --valid --confidence 0.95 --reason "Accurate"

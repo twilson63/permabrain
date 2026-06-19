@@ -123,6 +123,7 @@ permabrain doctor [--fix] [--json]
 ```sh
 permabrain publish <file> --kind <kind> --topic <topic> --source-url <url>
 permabrain publish-encrypted <file> --kind <kind> --topic <topic> --for <pubkeys>
+permabrain publish-dir <dir> [--recursive] [--dry-run] [--kind <kind>] [--topic <topic>]
 permabrain get-encrypted <canonical-key> [--seed-file <path>]
 permabrain import-wikipedia "<title>" --kind <kind> --topic <topic>
 permabrain template <file> [--variables '{"name":"Ada"}'] [--encrypt] [--recipient <key>]
@@ -195,6 +196,7 @@ permabrain export-bundle <canonical-key> [--output bundle.json]
 permabrain export-all [--output all.json]
 permabrain export-history <canonical-key> [--output history.json]
 permabrain export-articles [--topic <topic>] [--format json|markdown] [--output articles.md]
+permabrain import <file>                 # auto-detects bundle type
 permabrain import-bundle <file>
 permabrain import-history <file>
 ```
@@ -553,6 +555,29 @@ permabrain get-encrypted subject/notes --seed-file my-seed.txt
 permabrain dashboard --output dashboard.html --publish --topic computing
 ```
 
+### Publish a directory of articles
+
+```sh
+# Publish all .md files in a directory (non-recursive)
+permabrain publish-dir ./docs --kind subject --topic ai --source-url https://example.com/docs
+
+# Recursively publish every markdown file under ./docs
+permabrain publish-dir ./docs --recursive
+
+# Preview what would be published without writing anything
+permabrain publish-dir ./docs --dry-run --recursive --markdown
+
+# Override frontmatter defaults for the whole batch
+permabrain publish-dir ./wiki --recursive --kind subject --topic permabrain \
+  --source-name "Community Wiki" --source-license "CC-BY-SA-4.0"
+```
+
+Each file's canonical key is derived from its path: subdirectories become the
+`topic` unless overridden with `--topic`, and the filename becomes the slug.
+Frontmatter inside each markdown file can override the key, kind, topic, or
+title for individual files. Re-publishing the same directory updates version
+history for articles whose content changed.
+
 ### Audit everything that happened today
 
 ```sh
@@ -666,6 +691,17 @@ await api.init();
 const result = await api.publish({ content: '# AI\n...', kind: 'subject', topic: 'ai', sourceUrl: 'https://example.com/ai' });
 const article = await api.get('subject/artificial-intelligence');
 const report = await api.doctor({ fix: true });
+
+// Publish every .md file in a directory
+const batch = await api.publishDirectory('./docs', {
+  recursive: true,
+  kind: 'subject',
+  topic: 'ai',
+  sourceName: 'Docs',
+  sourceLicense: 'CC-BY-SA-4.0'
+});
+console.log(batch.succeeded, batch.failed);
+console.log(await api.publishDirectoryToMarkdown(batch));
 ```
 
 You can also talk to a running `permabrain serve` instance with the HTTP client SDK:
