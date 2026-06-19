@@ -10,9 +10,13 @@
 - [x] Add HTTP API key-based auth middleware for `permabrain serve` endpoints, CLI `--api-key`/env var, and SDK `apiKey` option. Implemented `src/auth.mjs`, wired `--api-key`/`PERMABRAIN_API_KEY` into `serveCommand`, applied middleware in `createServer/startServer` for protected routes (public `/health`, event/stream routes exempted), and added SDK `createClient({ apiKey })` support. Added `test/auth.mjs` and `test/serve-auth.mjs` coverage and included them in `npm test`. Also fixed a pre-existing body double-read bug in `src/serve.mjs` route handlers and the undeclared `reader` variable in `src/events-client.mjs`. Full `npm test` suite passes; committed to `main` as `85583a1` on 2026-06-18 11:15 UTC.
 
 ## Next
-- [x] Implement `permabrain shell` / `api.repl()` interactive command for live agent API exploration, with command history and tab completion.
+- [ ] (none — seed next chunk on the next heartbeat)
 
 ## In Progress
+- [ ] (none)
+
+## Done
+- [x] Cron build loop checkpoint (2026-06-19 00:34 UTC): picked the seeded Next task and implemented `permabrain shell` / `api.repl()` interactive command for live agent API exploration, with command history and tab completion. Added `src/repl.mjs` with `createRepl`, `readHistory`, `writeHistory`, and `buildApiCompleter`; exposed `api.repl()` in `src/agent-api.mjs`; wired `permabrain shell` CLI command in `src/commands.mjs` and `scripts/cli.mjs` with `--history-path` and `--prompt` options; registered `shell` in the COMMANDS list and shell completion; added `test/repl.mjs` (7 tests) covering helper exports, history persistence, tab completion, programmatic JS/API evaluation, CLI help, and non-interactive CLI usage; wired `test:repl` script and included `test/repl.mjs` in `npm test`. Updated `test/module-import.mjs` to expect 93 API methods and assert REPL exports. Full `npm test` suite passes; committed to `main` as `e88bc94` and `91160e0`, and pushed to `origin/main`.
 - [x] Implement web viewer "Compare" tab for diff/merge visualization: added a `compare` view in `viewer/index.html` with base/head article selectors; wired `GET /api/v1/diff` for unified diff output and `POST /api/v1/merge` for merge preview/apply; rendered hunks, conflict markers, and merge previews; deep-links via `?view=compare`, `compareBase`, and `compareHead`; added `test/viewer-compare.mjs` and wired into `npm test`. Also added `dryRun` support to `mergeArticles()` plus a `previewMerge()` export. Full `npm test` suite passes; committed and pushed to `origin/main` as `9914203`.
 
 ## Done
