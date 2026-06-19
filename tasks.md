@@ -58,11 +58,14 @@
 ## Done
 - [x] Cron build loop checkpoint (2026-06-19 16:34 UTC): picked the in-progress task and implemented the web viewer health/diagnostics panel. Added a `health` view in `viewer/index.html` with a toolbar button, `window.showHealth()`, `window.refreshHealth()`, `window.fetchHealth()`, and `window.renderHealth()`; fetches `/health`, `/api/v1/routes`, and `/api/v1/admin` in parallel; renders status cards, runtime metrics, stream transport info, route discovery table, and a raw JSON snapshot. Wired `viewMode === 'health'` into URL state (`?view=health`), boot-time restoration, local-list-mode guard, and the view dispatch at startup. Added shared `statCard()` helper and `fmtDate()` alias for consistent dashboard-style cards. Added `test/viewer-health.mjs` covering HTML wiring (health button, exposed window functions, view guards, endpoint references) and HTTP round-trips against a live `permabrain serve` instance for `/health`, `/api/v1/routes`, and `/api/v1/admin`. Wired the new test into `npm test` plus `test:viewer-health`. Full focused test suite passes; the full `npm test` run is blocked in this environment by a pre-existing hang in `test/transport-probe.mjs` (`permabrain probe --use-hyperbeam --json`), unrelated to this change.
 
+## Done
+- [x] Cron build loop checkpoint (2026-06-19 18:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `d8fcac2`. No implementation work picked. Seeded next chunk: web viewer dedicated "History" panel with visual timeline, version selection, and diff against prior versions, deep-linked via `?view=history`/`key`.
+
 ## In Progress
 - [ ] (none)
 
 ## Next
-- [ ] (none)
+- [ ] Web viewer dedicated "History" panel with visual timeline, version selection, and diff against prior versions, deep-linked via `?view=history`/`key`.
 
 ## Done
 - [x] Cron build loop checkpoint (2026-06-19 18:04 UTC): picked the in-progress task and implemented the web viewer Notifications/Activity panel. Added an `activity` view in `viewer/index.html` with a toolbar button, `window.showActivity()`, `refreshActivity()`, `fetchActivity()`, `renderActivity()`, `setActivityFilter()`, and `resetActivityFilters()`; fetches `/api/v1/activity` with auth and filters (event kind, topic, key, agent, after/before) and renders a live activity feed of publish/attest/fork/merge events. Added toast notifications for stream lifecycle events (`publish`, `attest`, `fork`, `merge`). Wired `viewMode === 'activity'` into URL state (`?view=activity` plus activity filter query params), boot-time restoration, local-list-mode guard, and view dispatch. Added `test/viewer-activity.mjs` covering HTML wiring and HTTP round-trip tests for the activity endpoint, and wired it into `npm test` plus `test:viewer-activity`. Also fixed a pre-existing undefined `params` reference in `applyUrlState` when applying the liveTail URL parameter. Full `npm test` suite passes; committed to `main` as `b738e3a`.
