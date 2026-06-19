@@ -1,3 +1,35 @@
+function normalizeImportResult(result) {
+  // importBundle is now unified import; article bundles return a results array,
+  // while other shapes return a summary object. Normalize to a standard response.
+  if (!result) return { imported: 0, skipped: 0, failed: 0, type: 'unknown' };
+  if (Array.isArray(result)) {
+    return {
+      type: 'article-bundle',
+      imported: result.filter((r) => r.ok && r.imported).length,
+      skipped: result.filter((r) => r.ok && !r.imported).length,
+      failed: result.filter((r) => !r.ok).length,
+      results: result
+    };
+  }
+  if (result.results) {
+    return {
+      type: result.type || 'article-bundle',
+      imported: result.imported ?? result.importedArticles ?? 0,
+      skipped: result.skipped ?? 0,
+      failed: result.failed ?? 0,
+      results: result.results
+    };
+  }
+  // threshold / encrypted-share / history summaries without a nested results array
+  return {
+    type: result.type || 'unknown',
+    imported: result.imported ?? result.importedArticles ?? (result.imported === true ? 1 : 0),
+    skipped: result.skipped ?? 0,
+    failed: result.failed ?? 0,
+    ...result
+  };
+}
+
 /**
  * PermaBrain Local HTTP API Server
  *
@@ -705,12 +737,7 @@ async function handleRequest(req, res, home, options = {}) {
           ? { home: currentHome, verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false }
           : { home: currentHome, ...(body.options || {}), verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false };
         const result = await api.importBundle(bundle, options);
-        return sendJson(res, 200, {
-          imported: result.filter((r) => r.ok && r.imported).length,
-          skipped: result.filter((r) => r.ok && !r.imported).length,
-          failed: result.filter((r) => !r.ok).length,
-          results: result
-        });
+        return sendJson(res, 200, normalizeImportResult(result));
       }
     }
 
@@ -1089,7 +1116,7 @@ async function handleRequest(req, res, home, options = {}) {
       if (!body.bundle && !Array.isArray(body.entries)) return sendError(res, 400, 'bundle object with entries is required');
       const bundle = body.bundle || body;
       const result = await api.importBundle(bundle, { home: currentHome, verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false });
-      return sendJson(res, 200, { imported: result.filter((r) => r.ok && r.imported).length, skipped: result.filter((r) => r.ok && !r.imported).length, failed: result.filter((r) => !r.ok).length, results: result });
+      return sendJson(res, 200, normalizeImportResult(result));
     }
 
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);

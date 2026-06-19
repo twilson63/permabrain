@@ -28,6 +28,7 @@ const COMMANDS = [
   'export-history',
   'import-bundle',
   'import-history',
+  'import',
   'fork',
   'list-forks',
   'merge',
@@ -120,7 +121,8 @@ Commands:
   export-bundle                Export an article bundle (versions + attestations)
   export-all                   Export all indexed articles as a bundle
   import-bundle <file>         Import articles/attestations from a bundle file
-  fork <source-key>            Fork an article into a new canonical key
+  import <file>                Auto-detect import type and route to the correct importer
+  import-history <file>        Import a history bundle into the local store
   list-forks <source-key>      List forks of an article
   attest-for-agent             Attest on behalf of another agent
   list-agents                  List known external agents
@@ -502,6 +504,26 @@ Imports a history bundle produced by export-history into the local store.
 Articles are replayed in version order so the version chain is preserved;
 attestations are imported after articles. Each entry is verified by default
 (unless --no-verify is passed), and duplicates are skipped.`,
+  'import': `Usage: permabrain import <file> [--dry-run] [--no-verify] [--no-skip-duplicates] [--finalize] [--seed <base64url-seed>] [--no-publish] [--use-hyperbeam] [--json] [--markdown]
+
+Auto-detect import type and route to the correct importer.
+
+Detects:
+  - article-bundle   (plain article/attestation bundle)
+  - history-bundle   (version-chain history bundle)
+  - threshold-envelope (multi-sig attestation envelope)
+  - encrypted-share  (encrypted share page payload)
+
+Options:
+  --dry-run            Preview the import without writing anything
+  --no-verify          Skip DataItem signature verification for bundles
+  --no-skip-duplicates Import items even if already present locally
+  --finalize           For threshold envelopes, finalize/publish if threshold met
+  --seed <seed>        X25519 seed (base64url) to decrypt an encrypted share
+  --no-publish         For encrypted shares, decrypt but do not publish locally
+  --use-hyperbeam      Submit imported bundles / finalize through HyperBEAM
+  --json               Output structured import report
+  --markdown           Output import report as markdown`,
   'search': `Usage: permabrain search <query> [--kind <kind>] [--topic <topic>] [--author <agent-id>] [--key <key>] [--after <iso-date>] [--before <iso-date>] [--limit N] [--offset N] [--use-hyperbeam] [--json]
 
 Full-text search across article titles, topics, keys, source names, and
