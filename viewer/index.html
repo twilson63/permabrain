@@ -328,6 +328,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
     <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
+    <button class="btn-icon" id="exportBtn" onclick="window.showExport()" title="Export bundle/history">&#128228;</button>
+    <button class="btn-icon" id="importBtn" onclick="window.showImport()" title="Import bundle">&#128229;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
@@ -425,6 +427,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   </div>
 </div>
 
+<input type="file" id="importFileInput" accept=".json,.jsonl,.txt" style="display:none" onchange="window.onImportFileSelected(this.files[0])">
+
 <div class="main" id="main">
 <div class="empty-state" id="emptyState">
   <h2>&#x1F9E0; PermaBrain Viewer</h2>
@@ -480,6 +484,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var decryptedContent = {};  // key -> cached decrypted plaintext
   var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats'
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
+  var exportImportState = { view: 'export', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importResult: null };
   var dashboardData = null;
   var dashboardLoading = false;
   var dashboardError = null;
@@ -1303,6 +1308,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       '<a href="https://arweave.net/' + a.id + '" target="_blank">&#x1F517; Arweave</a>' +
       '<a href="https://viewblock.io/arweave/tx/' + a.id + '" target="_blank">&#x1F4CA; Viewblock</a>' +
       (a.sourceUrl ? '<a href="' + esc(a.sourceUrl) + '" target="_blank">&#x1F4C4; Source</a>' : '') +
+      '</div>' +
+      '<div class="links" style="margin-top:0.25rem">' +
+      '<button class="btn-icon" onclick="window.exportCurrentArticle()" title="Export as bundle">Export bundle</button>' +
+      '<button class="btn-icon" onclick="window.exportCurrentHistory()" title="Export full version history">Export history</button>' +
       '</div></div>' +
       '<div class="tabs">' +
       '<div class="tab' + (activeTab === 'content' ? ' active' : '') + '" onclick="window.setTab(\'content\')">Content</div>' +
@@ -1365,6 +1374,13 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (settings.pageSize && settings.pageSize !== 100) params.set('pageSize', String(settings.pageSize));
     if (settings.liveTail === false) params.set('liveTail', 'false');
     if (viewMode && viewMode !== 'home') params.set('view', viewMode);
+    if (viewMode === 'import') {
+      if (exportImportState.importFile && exportImportState.importFile.name) params.set('importName', exportImportState.importFile.name);
+    }
+    if (viewMode === 'export') {
+      if (exportImportState.exportKey) params.set('exportKey', exportImportState.exportKey);
+      if (exportImportState.exportMode && exportImportState.exportMode !== 'bundle') params.set('exportMode', exportImportState.exportMode);
+    }
     if (viewMode === 'audit') {
       if (auditFilters.method) params.set('auditMethod', auditFilters.method);
       if (auditFilters.status) params.set('auditStatus', auditFilters.status);
@@ -1409,7 +1425,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       auditAfter: params.get('auditAfter') || '',
       auditBefore: params.get('auditBefore') || '',
       compareBase: params.get('compareBase') || '',
-      compareHead: params.get('compareHead') || ''
+      compareHead: params.get('compareHead') || '',
+      exportKey: params.get('exportKey') || '',
+      exportMode: params.get('exportMode') || 'bundle',
+      importName: params.get('importName') || ''
     };
   }
 
@@ -1449,9 +1468,12 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import','export'].includes(state.view)) {
       viewMode = state.view;
     }
+    if (state.exportKey) exportImportState.exportKey = state.exportKey;
+    if (state.exportMode) exportImportState.exportMode = state.exportMode;
+    if (state.importName) exportImportState.importFile = { name: state.importName };
     if (state.auditMethod) auditFilters.method = state.auditMethod;
     if (state.auditStatus) auditFilters.status = state.auditStatus;
     if (state.auditPath) auditFilters.path = state.auditPath;
@@ -1566,6 +1588,210 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     renderList();
     renderCompare();
     updateUrlState();
+  };
+
+  window.showImport = async function() {
+    viewMode = 'import';
+    selectedKey = null;
+    stopDashboardRefresh();
+    stopAuditStream();
+    renderList();
+    renderImport();
+    updateUrlState();
+  };
+
+  window.showExport = async function() {
+    viewMode = 'export';
+    selectedKey = null;
+    stopDashboardRefresh();
+    stopAuditStream();
+    renderList();
+    renderExport();
+    updateUrlState();
+  };
+
+  window.setExportKey = function(key) {
+    exportImportState.exportKey = key || '';
+    updateUrlState();
+  };
+
+  window.setExportMode = function(mode) {
+    exportImportState.exportMode = mode || 'bundle';
+    updateUrlState();
+  };
+
+  window.setExportIncludeAttestations = function(v) {
+    exportImportState.includeAttestations = !!v;
+  };
+
+  window.setExportIncludeVersions = function(v) {
+    exportImportState.includeVersions = !!v;
+  };
+
+  window.pickImportFile = function() {
+    var input = document.getElementById('importFileInput');
+    if (input) input.click();
+  };
+
+  window.onImportFileSelected = async function(file) {
+    if (!file) return;
+    exportImportState.importFile = file;
+    exportImportState.importResult = null;
+    exportImportState.error = null;
+    try {
+      var text = await file.text();
+      exportImportState.importText = text;
+    } catch(e) {
+      exportImportState.error = e.message;
+    }
+    renderImport();
+    updateUrlState();
+  };
+
+  async function performImport() {
+    if (!isLocalServer() || !exportImportState.importText) return;
+    exportImportState.loading = true;
+    exportImportState.error = null;
+    exportImportState.importResult = null;
+    renderImport();
+    try {
+      var bundle = JSON.parse(exportImportState.importText);
+      var isHistory = bundle.type === 'history' || (bundle.meta && bundle.meta.type === 'history');
+      var endpoint = isHistory ? '/api/v1/history-import' : '/api/v1/bundles';
+      var r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ bundle: bundle })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+      exportImportState.importResult = await r.json();
+    } catch(e) {
+      exportImportState.error = e.message;
+    } finally {
+      exportImportState.loading = false;
+    }
+    renderImport();
+    if (isLocalListMode()) fetchLocalList();
+  }
+
+  window.performImport = performImport;
+
+  function renderImportResult() {
+    var res = exportImportState.importResult;
+    if (!res) return '';
+    var imported = res.imported || res.importedArticles || 0;
+    var skipped = res.skipped || res.skippedArticles || 0;
+    var failed = res.failed || 0;
+    return '<div class="dashboard-section" style="margin-top:1rem">' +
+      '<h3>Import result</h3>' +
+      '<p>Imported: ' + imported + ' · Skipped: ' + skipped + ' · Failed: ' + failed + '</p>' +
+      (res.results ? '<p style="font-size:0.8rem;color:var(--muted)">' + res.results.length + ' entries processed</p>' : '') +
+      '</div>';
+  }
+
+  function renderImport() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Import unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to import bundles into the local node.</p></div>';
+      return;
+    }
+    var fileName = exportImportState.importFile ? esc(exportImportState.importFile.name) : 'No file selected';
+    var preview = exportImportState.importText ? '<pre style="max-height:10rem;overflow:auto;font-size:0.78rem;margin-top:0.5rem">' + esc(exportImportState.importText.substring(0, 2000)) + (exportImportState.importText.length > 2000 ? '…' : '') + '</pre>' : '';
+    var error = exportImportState.error ? '<div class="error-box">Import error: ' + esc(exportImportState.error) + '</div>' : '';
+    var loading = exportImportState.loading ? '<div class="loading"><div class="spinner"></div> Importing...</div>' : '';
+    main.innerHTML = '<div class="home">' +
+      '<h1>&#128229; <span>Import bundle</span></h1>' +
+      '<p class="home-subtitle">Import a PermaBrain bundle or history bundle from a JSON file</p>' +
+      '<div class="compare-panel">' +
+      '<div class="compare-toolbar">' +
+      '<button class="btn-icon" onclick="window.pickImportFile()">Select file</button>' +
+      '<span style="font-size:0.85rem;color:var(--muted)">' + fileName + '</span>' +
+      '<button class="btn-icon" onclick="window.performImport()" ' + (exportImportState.importText ? '' : 'disabled') + '>Import</button>' +
+      '</div>' + error + loading + preview + renderImportResult() + '</div></div>';
+  }
+
+  window.renderImport = renderImport;
+
+  async function performExport() {
+    if (!isLocalServer() || !exportImportState.exportKey) return;
+    exportImportState.loading = true;
+    exportImportState.error = null;
+    exportImportState.result = null;
+    renderExport();
+    try {
+      var params = new URLSearchParams();
+      params.set('key', exportImportState.exportKey);
+      if (!exportImportState.includeAttestations) params.set('no-attestations', '1');
+      if (!exportImportState.includeVersions) params.set('no-versions', '1');
+      var endpoint = exportImportState.exportMode === 'history' ? '/api/v1/history-export' : '/api/v1/bundles';
+      var r = await fetch(endpoint + '?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+      var bundle = await r.json();
+      exportImportState.result = bundle;
+      var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'permabrain-' + exportImportState.exportMode + '-' + exportImportState.exportKey.replace(/[^a-zA-Z0-9\-_/]/g, '_') + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      exportImportState.error = e.message;
+    } finally {
+      exportImportState.loading = false;
+    }
+    renderExport();
+  }
+
+  window.performExport = performExport;
+
+  function renderExport() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Export unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to export bundles from the local node.</p></div>';
+      return;
+    }
+    var source = isLocalListMode() ? (localList.articles || []) : articles;
+    var options = source.map(function(a) {
+      return '<option value="' + esc(a.key) + '"' + (a.key === exportImportState.exportKey ? ' selected' : '') + '>' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+    }).join('');
+    var error = exportImportState.error ? '<div class="error-box">Export error: ' + esc(exportImportState.error) + '</div>' : '';
+    var loading = exportImportState.loading ? '<div class="loading"><div class="spinner"></div> Exporting...</div>' : '';
+    var result = exportImportState.result ? '<div class="dashboard-section" style="margin-top:1rem"><h3>Exported bundle</h3><p>Entries: ' + (exportImportState.result.entries ? exportImportState.result.entries.length : 'n/a') + '</p></div>' : '';
+    main.innerHTML = '<div class="home">' +
+      '<h1>&#128228; <span>Export bundle</span></h1>' +
+      '<p class="home-subtitle">Export an article, fork, or full version history as a PermaBrain bundle</p>' +
+      '<div class="compare-panel">' +
+      '<div class="compare-toolbar">' +
+      '<label>Article <select id="exportKeySelect" onchange="window.setExportKey(this.value)" style="min-width:14rem"><option value="">Select article…</option>' + options + '</select></label>' +
+      '<label>Mode <select id="exportModeSelect" onchange="window.setExportMode(this.value)">' +
+      '<option value="bundle"' + (exportImportState.exportMode === 'bundle' ? ' selected' : '') + '>Bundle (article + attestations)</option>' +
+      '<option value="history"' + (exportImportState.exportMode === 'history' ? ' selected' : '') + '>History (version chain + attestations)</option>' +
+      '</select></label>' +
+      '<label><input type="checkbox" ' + (exportImportState.includeAttestations ? 'checked' : '') + ' onchange="window.setExportIncludeAttestations(this.checked)"> Attestations</label>' +
+      '<label><input type="checkbox" ' + (exportImportState.includeVersions ? 'checked' : '') + ' onchange="window.setExportIncludeVersions(this.checked)"> Versions</label>' +
+      '<button class="btn-icon" onclick="window.performExport()" ' + (exportImportState.exportKey ? '' : 'disabled') + '>Download JSON</button>' +
+      '</div>' + error + loading + result + '</div></div>';
+  }
+
+  window.renderExport = renderExport;
+
+  window.exportCurrentArticle = function() {
+    var key = modalArticle && modalArticle.key ? modalArticle.key : selectedKey;
+    if (!key) return;
+    exportImportState.exportKey = key;
+    exportImportState.exportMode = 'bundle';
+    window.showExport();
+  };
+
+  window.exportCurrentHistory = function() {
+    var key = modalArticle && modalArticle.key ? modalArticle.key : selectedKey;
+    if (!key) return;
+    exportImportState.exportKey = key;
+    exportImportState.exportMode = 'history';
+    window.showExport();
   };
 
   window.setCompareBase = function(base) {
@@ -2398,6 +2624,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
           '<a href="https://viewblock.io/arweave/tx/' + (a.id || '') + '" target="_blank">&#x1F4CA; Viewblock</a>' +
           (a.sourceUrl ? '<a href="' + esc(a.sourceUrl) + '" target="_blank">&#x1F4C4; Source</a>' : '') +
         '</div>' +
+        '<div class="links" style="margin-top:0.25rem">' +
+          '<button class="btn-icon" onclick="window.exportCurrentArticle()" title="Export as bundle">Export bundle</button>' +
+          '<button class="btn-icon" onclick="window.exportCurrentHistory()" title="Export full version history">Export history</button>' +
+        '</div>' +
       '</div>' +
       '<h3>Content</h3>' + contentHtml +
       '<h3>Attestations (' + totalAtts + ')</h3>' + (attCards || '<p style="color:var(--muted)">No attestations yet.</p>') +
@@ -2735,6 +2965,12 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
         else if (bootState.view === 'stats') window.showStats();
         else if (bootState.view === 'audit') window.showAudit();
         else if (bootState.view === 'compare') window.showCompare();
+        else if (bootState.view === 'import') window.showImport();
+        else if (bootState.view === 'export') {
+          if (bootState.exportKey) exportImportState.exportKey = bootState.exportKey;
+          if (bootState.exportMode) exportImportState.exportMode = bootState.exportMode;
+          window.showExport();
+        }
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -2747,6 +2983,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   // Pre-render dashboard/audit if already in that mode (e.g., page reload)
   if (viewMode === 'dashboard') window.showDashboard();
   else if (viewMode === 'audit') window.showAudit();
+  else if (viewMode === 'import') window.showImport();
+  else if (viewMode === 'export') window.showExport();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
