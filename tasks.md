@@ -56,7 +56,11 @@
 ## In Progress
 - [ ] (none)
 
+## Done
+- [x] Cron build loop checkpoint (2026-06-19 13:04 UTC): picked the Next task and refreshed `README.md` with a consolidated Web Viewer documentation section under the Local HTTP API area. Added coverage of opening the viewer, sidebar navigation, mobile layout, search/filters/sorting, article detail + version history, permalink sharing, SSE/WebSocket live streams with failover, Compose article editor with draft recovery, batch Publish panel with dry-run, Import/Export panel, Compare diff/merge, Settings (theme/transport/sort/page-size/live-tail), Audit and Admin panels, encrypted-article in-browser decryption, and PWA/offline support. Full `npm test` suite passes.
+
 ## Next
+- [ ] 
 - [ ] 
 ## Done
 - [x] Cron build loop checkpoint (2026-06-18 22:34 UTC): implemented `permabrain access-log` CLI command to query and live-tail HTTP request logs from local disk or a running `permabrain serve` instance. Fixed the `tailStream()` async generator in `src/request-log.mjs` to flush new entries eagerly via a pending resolver. Added disk query mode with `--method`, `--status`, `--path`, `--after`, `--before`, `--limit`, `--offset`, `--tail`, `--source disk`, `--count`, and `--duration` filters; added `--follow` live-tail mode via SSE using `client.requestsStream()` with `AbortController` + SIGINT/SIGTERM cleanup. Registered the command in `src/commands.mjs` and `scripts/cli.mjs`, added agent API wrappers (`api.accessLog`, `api.tailAccessLog`, `api.accessLogToMarkdown`) in `src/agent-api.mjs`, re-exported `accessLogResultToMarkdown` from `src/index.mjs`, and added `test/access-log.mjs` coverage covering disk query/filters/pagination, markdown rendering, `tailStream`, agent API wrappers, remote server query (JSON/markdown), follow streaming, local disk CLI mode, and CLI help. Updated `test/module-import.mjs` to expect 92 API methods, wired the new suite and `test:access-log` script into `package.json`, and documented `permabrain access-log` in `README.md`. Full `npm test` suite passes; committed to `main` as `b171c9a` and pushed to `origin/main`.
