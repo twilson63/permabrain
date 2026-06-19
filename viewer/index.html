@@ -337,6 +337,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .publish-result-row .status.ok{color:var(--green)}
 .publish-result-row .status.dry{color:var(--accent)}
 .publish-result-row .status.err{color:var(--red)}
+
+/* Support bundle panel */
+.support-bundle-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;max-height:60vh;overflow:auto;line-height:1.55}
+.support-bundle-panel pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem;overflow:auto;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:0.8rem}
+.support-bundle-panel table{border-collapse:collapse;width:100%;font-size:0.85rem;margin:0.75rem 0}
+.support-bundle-panel th,.support-bundle-panel td{border:1px solid var(--border);padding:0.35rem 0.5rem;text-align:left}
+.support-bundle-panel th{background:var(--bg)}
+.support-bundle-json{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;max-height:60vh;overflow:auto;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:0.8rem;line-height:1.5}
 .publish-result-row .key{font-family:monospace;font-size:0.78rem;color:var(--accent)}
 .publish-result-row .file{color:var(--muted);font-size:0.78rem;margin-left:auto}
 
@@ -367,6 +375,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <div class="header-actions">
     <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
   <button class="btn-icon" id="adminBtn" onclick="window.showAdminPanel()" title="Admin / monitoring">&#128202;</button>
+    <button class="btn-icon" id="supportBundleBtn" onclick="window.showSupportBundle()" title="Support bundle">&#129520;</button>
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
@@ -528,7 +537,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support'
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
   var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
@@ -536,6 +545,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var dashboardData = null;
   var dashboardLoading = false;
   var dashboardError = null;
+  var supportBundleState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'markdown'
   var dashboardInterval = null;
   var adminState = { data: null, loading: false, error: null, accessLogLimit: 25, auditLogLimit: 25 };
   var historyData = {};       // key -> history payload from local API
@@ -1517,7 +1527,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1691,6 +1701,134 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   }
 
   window.renderAdminPanel = renderAdminPanel;
+
+  // --- Support bundle panel ---
+  window.showSupportBundle = async function() {
+    viewMode = 'support';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchSupportBundle();
+    updateUrlState();
+  };
+
+  window.refreshSupportBundle = async function() {
+    await fetchSupportBundle();
+    updateUrlState();
+  };
+
+  async function fetchSupportBundle() {
+    if (!isLocalServer()) return;
+    supportBundleState.loading = true;
+    supportBundleState.error = null;
+    if (viewMode === 'support') renderSupportBundle();
+    try {
+      var headers = {};
+      if (supportBundleState.apiKey) headers['authorization'] = 'Bearer ' + supportBundleState.apiKey;
+      if (supportBundleState.format === 'markdown') headers['accept'] = 'text/markdown';
+      var r = await fetch('/api/v1/support-bundle', { headers: headers });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (supportBundleState.format === 'markdown') {
+        supportBundleState.data = { _markdown: await r.text() };
+      } else {
+        supportBundleState.data = await r.json();
+      }
+      supportBundleState.loading = false;
+    } catch(e) {
+      supportBundleState.error = e.message;
+      supportBundleState.loading = false;
+    }
+    if (viewMode === 'support') renderSupportBundle();
+  }
+
+  window.fetchSupportBundle = fetchSupportBundle;
+
+  function renderSupportBundle() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Support bundle unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see the diagnostics support bundle.</p></div>';
+      return;
+    }
+    if (supportBundleState.loading && !supportBundleState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading support bundle...</div>';
+      return;
+    }
+    if (supportBundleState.error && !supportBundleState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Support bundle error</h2><p>' + esc(supportBundleState.error) + '</p><button class="btn-icon" onclick="window.refreshSupportBundle()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = supportBundleState.data || {};
+    var isMarkdown = supportBundleState.format === 'markdown';
+    var generatedAt = data.generatedAt ? fmtDate(data.generatedAt) : '—';
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshSupportBundle()">&#x21BB; Refresh</button>' +
+      '<button class="btn-icon" onclick="window.copySupportBundle()">&#128203; Copy</button>' +
+      '<button class="btn-icon" onclick="window.downloadSupportBundle()">&#128229; Download</button>' +
+      '<label style="font-size:0.72rem;color:var(--muted);display:flex;align-items:center;gap:0.35rem;">' +
+      '<input type="checkbox" ' + (isMarkdown ? 'checked' : '') + ' onchange="window.toggleSupportBundleFormat(this.checked)"> Markdown' +
+      '</label>' +
+      '<span class="last-updated">generated ' + generatedAt + '</span>' +
+      '</div>';
+
+    var redactionNotice = '<div class="encrypted-hint"><strong>&#128272; Redacted</strong> — API keys, secrets, and private values are masked. Pass <code>?redact=false</code> on the API only when you control the destination.</div>';
+
+    var body = '';
+    if (isMarkdown && data._markdown) {
+      var mdHtml = '';
+      try { if (window.marked) mdHtml = window.marked.parse(data._markdown); } catch(e) {}
+      if (!mdHtml) mdHtml = '<pre>' + esc(data._markdown) + '</pre>';
+      body = '<div class="support-bundle-panel">' + mdHtml + '</div>';
+    } else if (data.generatedAt) {
+      body = '<pre class="support-bundle-json">' + esc(JSON.stringify(data, null, 2)) + '</pre>';
+    } else {
+      body = '<p class="empty">No support bundle loaded.</p>';
+    }
+
+    main.innerHTML = '<div class="home"><h1>&#129520; <span>Support Bundle</span></h1><p class="home-subtitle">Read-only diagnostics snapshot</p>' + toolbar + redactionNotice + body + '</div>';
+  }
+
+  window.renderSupportBundle = renderSupportBundle;
+
+  window.toggleSupportBundleFormat = function(enabled) {
+    supportBundleState.format = enabled ? 'markdown' : 'json';
+    fetchSupportBundle();
+  };
+
+  window.copySupportBundle = function() {
+    var text = supportBundleState.format === 'markdown'
+      ? (supportBundleState.data?._markdown || '')
+      : JSON.stringify(supportBundleState.data, null, 2);
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        var btn = document.getElementById('copyLinkBtn');
+        if (btn) {
+          var original = btn.innerHTML;
+          btn.innerHTML = '&#10003;';
+          setTimeout(function() { btn.innerHTML = original; }, 1200);
+        }
+      }).catch(function() {});
+    }
+  };
+
+  window.downloadSupportBundle = function() {
+    var isMarkdown = supportBundleState.format === 'markdown';
+    var text = isMarkdown
+      ? (supportBundleState.data?._markdown || '')
+      : JSON.stringify(supportBundleState.data, null, 2);
+    if (!text) return;
+    var blob = new Blob([text], { type: isMarkdown ? 'text/markdown' : 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'permabrain-support-bundle.' + (isMarkdown ? 'md' : 'json');
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  };
 
   window.showHome = function() {
     viewMode = 'home';
@@ -3749,6 +3887,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   else if (viewMode === 'import-export') window.showImportExport();
   else if (viewMode === 'publish') window.showPublish();
   else if (viewMode === 'compose') window.showCompose();
+  else if (viewMode === 'support') window.showSupportBundle();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
