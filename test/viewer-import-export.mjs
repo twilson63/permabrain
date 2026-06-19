@@ -1,10 +1,11 @@
 /**
  * Viewer import/export panel tests.
  *
- * Verifies that the web viewer includes Import and Export panels wired to
- * /api/v1/bundles and /api/v1/history-export / history-import, supports deep-link
- * state (?view=import / ?view=export, ?exportKey=, ?exportMode=), and that the
- * underlying HTTP endpoints can round-trip a bundle through a new node.
+ * Verifies that the web viewer includes a unified Import/Export panel wired to
+ * /api/v1/bundles, /api/v1/export-all, /api/v1/history-export, /api/v1/raw/:id,
+ * /api/v1/history-import, and /api/v1/bundles (import). Supports deep-link state
+ * (?view=import-export, ?importTab=, ?exportKey=, ?exportMode=), metadata summary
+ * before import, dry-run/preview toggle, and inline import report.
  */
 
 import assert from 'node:assert/strict';
@@ -34,14 +35,14 @@ async function resetApi(home) {
   await api.init({ transport: 'local', keyType: 'ed25519' });
 }
 
-function request(port, reqPath, method = 'GET', body = null) {
+function request(port, reqPath, method = 'GET', body = null, headers = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request({
       hostname: '127.0.0.1',
       port,
       method,
       path: reqPath,
-      headers: body ? { 'content-type': 'application/json' } : {}
+      headers: body ? { 'content-type': 'application/json', ...headers } : headers
     }, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
@@ -58,15 +59,17 @@ function request(port, reqPath, method = 'GET', body = null) {
   });
 }
 
-// --- viewer/index.html contains import/export wiring ---
+// --- viewer/index.html contains unified import-export wiring ---
 {
   const html = fs.readFileSync(viewerPath, 'utf8');
-  assert.ok(html.includes('id="importBtn"'), 'viewer should have import button');
-  assert.ok(html.includes('id="exportBtn"'), 'viewer should have export button');
-  assert.ok(html.includes('window.showImport'), 'viewer should expose showImport');
-  assert.ok(html.includes('window.showExport'), 'viewer should expose showExport');
+  assert.ok(html.includes('id="importExportBtn"'), 'viewer should have unified import/export button');
+  assert.ok(html.includes('onclick="window.showImportExport()"'), 'import/export button should open the panel');
+  assert.ok(html.includes('window.showImportExport'), 'viewer should expose showImportExport');
+  assert.ok(html.includes('window.renderImportExport'), 'viewer should expose renderImportExport');
   assert.ok(html.includes('window.performImport'), 'viewer should expose performImport');
   assert.ok(html.includes('window.performExport'), 'viewer should expose performExport');
+  assert.ok(html.includes('window.performExportAll'), 'viewer should expose performExportAll');
+  assert.ok(html.includes('window.performExportRaw'), 'viewer should expose performExportRaw');
   assert.ok(html.includes('window.pickImportFile'), 'viewer should expose pickImportFile');
   assert.ok(html.includes('window.onImportFileSelected'), 'viewer should expose onImportFileSelected');
   assert.ok(html.includes('window.exportCurrentArticle'), 'viewer should expose exportCurrentArticle');
@@ -74,17 +77,23 @@ function request(port, reqPath, method = 'GET', body = null) {
   assert.ok(html.includes('id="importFileInput"'), 'viewer should have hidden file input');
   assert.ok(html.includes('id="exportKeySelect"'), 'viewer should have export key select');
   assert.ok(html.includes('id="exportModeSelect"'), 'viewer should have export mode select');
+  assert.ok(html.includes('id="allExportModeSelect"'), 'viewer should have all-export mode select');
+  assert.ok(html.includes('id="rawIdInput"'), 'viewer should have raw id input');
+  assert.ok(html.includes('id="importDryRun"'), 'viewer should have dry-run toggle');
+  assert.ok(html.includes('window.setImportDryRun'), 'viewer should expose setImportDryRun');
+  assert.ok(html.includes('window.setImportExportTab'), 'viewer should expose setImportExportTab');
+  assert.ok(html.includes('Metadata summary'), 'viewer should show metadata summary before import');
+  assert.ok(html.includes('Import report'), 'viewer should render inline import report');
   assert.ok(html.includes("params.set('view', viewMode)"), 'buildUrlState should encode view');
-  assert.ok(html.includes("viewMode === 'import'"), 'buildUrlState should handle import view');
-  assert.ok(html.includes("viewMode === 'export'"), 'buildUrlState should handle export view');
+  assert.ok(html.includes("viewMode === 'import-export'"), 'buildUrlState should handle import-export view');
+  assert.ok(html.includes("params.set('importTab'"), 'buildUrlState should encode importTab');
   assert.ok(html.includes("params.set('exportKey'"), 'buildUrlState should encode exportKey');
   assert.ok(html.includes("params.set('exportMode'"), 'buildUrlState should encode exportMode');
-  assert.ok(html.includes("'import','export'"), 'applyUrlState should allow import/export views');
-  assert.ok(html.includes('bootState.view === \'import\''), 'boot should restore import view');
-  assert.ok(html.includes('bootState.view === \'export\''), 'boot should restore export view');
+  assert.ok(html.includes("'import-export'"), 'applyUrlState should allow import-export view');
+  assert.ok(html.includes("bootState.view === 'import-export'"), 'boot should restore import-export view');
 }
 
-// --- local API bundle and history endpoints work and round-trip ---
+// --- local API bundle, history, export-all, and raw endpoints round-trip ---
 {
   const home = makeTempHome();
   await resetApi(home);
@@ -106,6 +115,15 @@ function request(port, reqPath, method = 'GET', body = null) {
     key: 'subject/viewer-import-export'
   });
   await api.attest('subject/viewer-import-export', { opinion: 'valid', confidence: 0.9, reason: 'Looks good' });
+  // Publish a second article so export-all contains multiple keys.
+  const second = await api.publish({
+    content: '# Second article',
+    kind: 'subject',
+    topic: 'viewer-import-export',
+    sourceUrl: 'https://example.com/second',
+    title: 'Second Article',
+    key: 'subject/viewer-import-export-second'
+  });
 
   const { server, port } = await startServer({ port: 0, home });
   try {
@@ -124,6 +142,20 @@ function request(port, reqPath, method = 'GET', body = null) {
     assert.ok(Array.isArray(historyRes.json.entries), 'history bundle should have entries');
     const articleCount = historyRes.json.entries.filter((e) => e.type === 'article').length;
     assert.ok(articleCount >= 2, 'history bundle should contain at least two article versions');
+
+    // Export all
+    const exportAllRes = await request(port, '/api/v1/export-all');
+    assert.equal(exportAllRes.status, 200, 'export-all should return 200');
+    assert.ok(Array.isArray(exportAllRes.json.articles), 'export-all should have articles array');
+    assert.ok(exportAllRes.json.articles.length >= 1, 'export-all should contain at least one article');
+    assert.ok(Array.isArray(exportAllRes.json.meta.keys), 'export-all should list keys');
+
+    // Raw DataItem export
+    const rawId = second.summary && second.summary.id;
+    assert.ok(rawId, 'second article should have an id');
+    const rawRes = await request(port, '/api/v1/raw/' + encodeURIComponent(rawId));
+    assert.equal(rawRes.status, 200, 'raw DataItem export should return 200');
+    assert.ok(rawRes.body.length > 0, 'raw export should have bytes');
 
     // Import bundle into a fresh node
     const importHome = makeTempHome();

@@ -371,8 +371,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
     <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
-    <button class="btn-icon" id="exportBtn" onclick="window.showExport()" title="Export bundle/history">&#128228;</button>
-    <button class="btn-icon" id="importBtn" onclick="window.showImport()" title="Import bundle">&#128229;</button>
+    <button class="btn-icon" id="importExportBtn" onclick="window.showImportExport()" title="Import / Export">&#128260;</button>
     <button class="btn-icon" id="composeBtn" onclick="window.showCompose()" title="Compose article">&#9998;</button>
     <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
@@ -529,9 +528,9 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import' | 'export' | 'publish' | 'compose'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose'
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
-  var exportImportState = { view: 'export', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importResult: null };
+  var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
   var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
   var composeState = { content: '', title: '', topic: 'general', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', apiKey: '', loading: false, error: null, result: null, lastSaved: null };
   var dashboardData = null;
@@ -1424,12 +1423,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (settings.pageSize && settings.pageSize !== 100) params.set('pageSize', String(settings.pageSize));
     if (settings.liveTail === false) params.set('liveTail', 'false');
     if (viewMode && viewMode !== 'home') params.set('view', viewMode);
-    if (viewMode === 'import') {
-      if (exportImportState.importFile && exportImportState.importFile.name) params.set('importName', exportImportState.importFile.name);
-    }
-    if (viewMode === 'export') {
+    if (viewMode === 'import-export') {
+      if (exportImportState.activeTab) params.set('importTab', exportImportState.activeTab);
       if (exportImportState.exportKey) params.set('exportKey', exportImportState.exportKey);
       if (exportImportState.exportMode && exportImportState.exportMode !== 'bundle') params.set('exportMode', exportImportState.exportMode);
+      if (exportImportState.importFile && exportImportState.importFile.name) params.set('importName', exportImportState.importFile.name);
     }
     if (viewMode === 'audit') {
       if (auditFilters.method) params.set('auditMethod', auditFilters.method);
@@ -1478,7 +1476,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       compareHead: params.get('compareHead') || '',
       exportKey: params.get('exportKey') || '',
       exportMode: params.get('exportMode') || 'bundle',
-      importName: params.get('importName') || ''
+      importName: params.get('importName') || '',
+      importTab: params.get('importTab') || ''
     };
   }
 
@@ -1518,7 +1517,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import','export','admin','publish','compose'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1527,6 +1526,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (state.exportKey) exportImportState.exportKey = state.exportKey;
     if (state.exportMode) exportImportState.exportMode = state.exportMode;
     if (state.importName) exportImportState.importFile = { name: state.importName };
+    if (state.importTab) exportImportState.activeTab = state.importTab;
     if (state.auditMethod) auditFilters.method = state.auditMethod;
     if (state.auditStatus) auditFilters.status = state.auditStatus;
     if (state.auditPath) auditFilters.path = state.auditPath;
@@ -1745,23 +1745,13 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     updateUrlState();
   };
 
-  window.showImport = async function() {
-    viewMode = 'import';
+  window.showImportExport = async function() {
+    viewMode = 'import-export';
     selectedKey = null;
     stopDashboardRefresh();
     stopAuditStream();
     renderList();
-    renderImport();
-    updateUrlState();
-  };
-
-  window.showExport = async function() {
-    viewMode = 'export';
-    selectedKey = null;
-    stopDashboardRefresh();
-    stopAuditStream();
-    renderList();
-    renderExport();
+    renderImportExport();
     updateUrlState();
   };
 
@@ -2219,6 +2209,21 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     exportImportState.includeVersions = !!v;
   };
 
+  window.setImportExportTab = function(tab) {
+    exportImportState.activeTab = tab || 'import';
+    renderImportExport();
+    updateUrlState();
+  };
+
+  window.setImportDryRun = function(v) {
+    exportImportState.importDryRun = !!v;
+    renderImportExport();
+  };
+
+  window.setImportExportApiKey = function(v) {
+    exportImportState.apiKey = v || '';
+  };
+
   window.pickImportFile = function() {
     var input = document.getElementById('importFileInput');
     if (input) input.click();
@@ -2228,6 +2233,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (!file) return;
     exportImportState.importFile = file;
     exportImportState.importResult = null;
+    exportImportState.importPreview = null;
     exportImportState.error = null;
     try {
       var text = await file.text();
@@ -2235,91 +2241,119 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     } catch(e) {
       exportImportState.error = e.message;
     }
-    renderImport();
+    renderImportExport();
     updateUrlState();
   };
+
+  function summarizeBundle(bundle) {
+    var type = bundle.type || (bundle.meta && bundle.meta.type) || 'bundle';
+    var entries = bundle.entries || [];
+    var counts = { article: 0, attestation: 0, history: 0, other: 0 };
+    var keys = [];
+    entries.forEach(function(e) {
+      var t = e.type;
+      if (t === 'article') counts.article++;
+      else if (t === 'attestation') counts.attestation++;
+      else if (t === 'history' || (e.meta && e.meta.type === 'history')) counts.history++;
+      else counts.other++;
+      if (e.key && !keys.includes(e.key)) keys.push(e.key);
+    });
+    return { type: type, total: entries.length, counts: counts, keys: keys };
+  }
 
   async function performImport() {
     if (!isLocalServer() || !exportImportState.importText) return;
     exportImportState.loading = true;
     exportImportState.error = null;
     exportImportState.importResult = null;
-    renderImport();
+    exportImportState.importPreview = null;
+    renderImportExport();
     try {
       var bundle = JSON.parse(exportImportState.importText);
       var isHistory = bundle.type === 'history' || (bundle.meta && bundle.meta.type === 'history');
-      var endpoint = isHistory ? '/api/v1/history-import' : '/api/v1/bundles';
-      var r = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ bundle: bundle })
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
-      exportImportState.importResult = await r.json();
+      if (exportImportState.importDryRun) {
+        var summary = summarizeBundle(bundle);
+        exportImportState.importPreview = summary;
+      } else {
+        var endpoint = isHistory ? '/api/v1/history-import' : '/api/v1/bundles';
+        var headers = { 'content-type': 'application/json' };
+        if (exportImportState.apiKey) headers['authorization'] = 'Bearer ' + exportImportState.apiKey;
+        var r = await fetch(endpoint, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({ bundle: bundle })
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+        exportImportState.importResult = await r.json();
+      }
     } catch(e) {
       exportImportState.error = e.message;
     } finally {
       exportImportState.loading = false;
     }
-    renderImport();
-    if (isLocalListMode()) fetchLocalList();
+    renderImportExport();
+    if (!exportImportState.importDryRun && isLocalListMode()) fetchLocalList();
   }
 
   window.performImport = performImport;
 
-  function renderImportResult() {
+  function renderImportReport() {
     var res = exportImportState.importResult;
     if (!res) return '';
     var imported = res.imported || res.importedArticles || 0;
     var skipped = res.skipped || res.skippedArticles || 0;
     var failed = res.failed || 0;
-    return '<div class="dashboard-section" style="margin-top:1rem">' +
-      '<h3>Import result</h3>' +
-      '<p>Imported: ' + imported + ' · Skipped: ' + skipped + ' · Failed: ' + failed + '</p>' +
-      (res.results ? '<p style="font-size:0.8rem;color:var(--muted)">' + res.results.length + ' entries processed</p>' : '') +
+    var rows = (res.results || []).map(function(r) {
+      var statusClass = r.status === 'ok' ? 'ok' : (r.status === 'skipped' ? 'dry' : 'err');
+      var statusLabel = r.status === 'ok' ? '✓' : (r.status === 'skipped' ? '~' : '✗');
+      return '<div class="publish-result-row">' +
+        '<span class="status ' + statusClass + '">' + statusLabel + ' ' + esc(r.status || 'unknown') + '</span>' +
+        '<span class="key">' + esc(r.key || '(no key)') + '</span>' +
+        '<span>' + esc(r.error || '') + '</span>' +
+        '</div>';
+    }).join('');
+    return '<div class="publish-report" style="margin-top:1rem"><h3>Import report</h3>' +
+      '<div class="publish-summary">' +
+      '<span>Imported: ' + imported + '</span>' +
+      '<span>Skipped: ' + skipped + '</span>' +
+      '<span>Failed: ' + failed + '</span>' +
+      '</div>' + rows + '</div>';
+  }
+
+  function renderImportPreview() {
+    var summary = exportImportState.importPreview;
+    if (!summary) return '';
+    return '<div class="publish-report" style="margin-top:1rem"><h3>Import preview (dry-run)</h3>' +
+      '<div class="publish-summary">' +
+      '<span>Type: ' + esc(summary.type) + '</span>' +
+      '<span>Total entries: ' + summary.total + '</span>' +
+      '<span>Articles: ' + summary.counts.article + '</span>' +
+      '<span>Attestations: ' + summary.counts.attestation + '</span>' +
+      '<span>Histories: ' + summary.counts.history + '</span>' +
+      '</div>' +
+      '<p style="font-size:0.8rem;color:var(--muted)">Keys: ' + (summary.keys.length ? esc(summary.keys.slice(0, 20).join(', ')) : 'none') + '</p>' +
       '</div>';
   }
-
-  function renderImport() {
-    var main = document.getElementById('main');
-    if (!isLocalServer()) {
-      main.innerHTML = '<div class="empty-state"><h2>Import unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to import bundles into the local node.</p></div>';
-      return;
-    }
-    var fileName = exportImportState.importFile ? esc(exportImportState.importFile.name) : 'No file selected';
-    var preview = exportImportState.importText ? '<pre style="max-height:10rem;overflow:auto;font-size:0.78rem;margin-top:0.5rem">' + esc(exportImportState.importText.substring(0, 2000)) + (exportImportState.importText.length > 2000 ? '…' : '') + '</pre>' : '';
-    var error = exportImportState.error ? '<div class="error-box">Import error: ' + esc(exportImportState.error) + '</div>' : '';
-    var loading = exportImportState.loading ? '<div class="loading"><div class="spinner"></div> Importing...</div>' : '';
-    main.innerHTML = '<div class="home">' +
-      '<h1>&#128229; <span>Import bundle</span></h1>' +
-      '<p class="home-subtitle">Import a PermaBrain bundle or history bundle from a JSON file</p>' +
-      '<div class="compare-panel">' +
-      '<div class="compare-toolbar">' +
-      '<button class="btn-icon" onclick="window.pickImportFile()">Select file</button>' +
-      '<span style="font-size:0.85rem;color:var(--muted)">' + fileName + '</span>' +
-      '<button class="btn-icon" onclick="window.performImport()" ' + (exportImportState.importText ? '' : 'disabled') + '>Import</button>' +
-      '</div>' + error + loading + preview + renderImportResult() + '</div></div>';
-  }
-
-  window.renderImport = renderImport;
 
   async function performExport() {
     if (!isLocalServer() || !exportImportState.exportKey) return;
     exportImportState.loading = true;
     exportImportState.error = null;
     exportImportState.result = null;
-    renderExport();
+    renderImportExport();
     try {
       var params = new URLSearchParams();
       params.set('key', exportImportState.exportKey);
       if (!exportImportState.includeAttestations) params.set('no-attestations', '1');
       if (!exportImportState.includeVersions) params.set('no-versions', '1');
       var endpoint = exportImportState.exportMode === 'history' ? '/api/v1/history-export' : '/api/v1/bundles';
-      var r = await fetch(endpoint + '?' + params.toString());
+      var headers = {};
+      if (exportImportState.apiKey) headers['authorization'] = 'Bearer ' + exportImportState.apiKey;
+      var r = await fetch(endpoint + '?' + params.toString(), { headers: headers });
       if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
       var bundle = await r.json();
       exportImportState.result = bundle;
-      var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' };
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
       a.href = url;
@@ -2333,48 +2367,183 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     } finally {
       exportImportState.loading = false;
     }
-    renderExport();
+    renderImportExport();
   }
 
   window.performExport = performExport;
 
-  function renderExport() {
-    var main = document.getElementById('main');
-    if (!isLocalServer()) {
-      main.innerHTML = '<div class="empty-state"><h2>Export unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to export bundles from the local node.</p></div>';
-      return;
+  async function performExportAll() {
+    if (!isLocalServer()) return;
+    exportImportState.loading = true;
+    exportImportState.error = null;
+    exportImportState.result = null;
+    renderImportExport();
+    try {
+      var params = new URLSearchParams();
+      if (!exportImportState.includeAttestations) params.set('no-attestations', '1');
+      var endpoint = exportImportState.allExportMode === 'history' ? '/api/v1/export-all?mode=history' : '/api/v1/export-all';
+      var headers = {};
+      if (exportImportState.apiKey) headers['authorization'] = 'Bearer ' + exportImportState.apiKey;
+      var r = await fetch(endpoint + '&' + params.toString(), { headers: headers });
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+      var bundle = await r.json();
+      exportImportState.result = bundle;
+      var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'permabrain-export-all-' + exportImportState.allExportMode + '-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      exportImportState.error = e.message;
+    } finally {
+      exportImportState.loading = false;
     }
-    var source = isLocalListMode() ? (localList.articles || []) : articles;
-    var options = source.map(function(a) {
-      return '<option value="' + esc(a.key) + '"' + (a.key === exportImportState.exportKey ? ' selected' : '') + '>' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
-    }).join('');
-    var error = exportImportState.error ? '<div class="error-box">Export error: ' + esc(exportImportState.error) + '</div>' : '';
-    var loading = exportImportState.loading ? '<div class="loading"><div class="spinner"></div> Exporting...</div>' : '';
-    var result = exportImportState.result ? '<div class="dashboard-section" style="margin-top:1rem"><h3>Exported bundle</h3><p>Entries: ' + (exportImportState.result.entries ? exportImportState.result.entries.length : 'n/a') + '</p></div>' : '';
-    main.innerHTML = '<div class="home">' +
-      '<h1>&#128228; <span>Export bundle</span></h1>' +
-      '<p class="home-subtitle">Export an article, fork, or full version history as a PermaBrain bundle</p>' +
-      '<div class="compare-panel">' +
-      '<div class="compare-toolbar">' +
-      '<label>Article <select id="exportKeySelect" onchange="window.setExportKey(this.value)" style="min-width:14rem"><option value="">Select article…</option>' + options + '</select></label>' +
-      '<label>Mode <select id="exportModeSelect" onchange="window.setExportMode(this.value)">' +
-      '<option value="bundle"' + (exportImportState.exportMode === 'bundle' ? ' selected' : '') + '>Bundle (article + attestations)</option>' +
-      '<option value="history"' + (exportImportState.exportMode === 'history' ? ' selected' : '') + '>History (version chain + attestations)</option>' +
-      '</select></label>' +
-      '<label><input type="checkbox" ' + (exportImportState.includeAttestations ? 'checked' : '') + ' onchange="window.setExportIncludeAttestations(this.checked)"> Attestations</label>' +
-      '<label><input type="checkbox" ' + (exportImportState.includeVersions ? 'checked' : '') + ' onchange="window.setExportIncludeVersions(this.checked)"> Versions</label>' +
-      '<button class="btn-icon" onclick="window.performExport()" ' + (exportImportState.exportKey ? '' : 'disabled') + '>Download JSON</button>' +
-      '</div>' + error + loading + result + '</div></div>';
+    renderImportExport();
   }
 
-  window.renderExport = renderExport;
+  window.performExportAll = performExportAll;
+
+  async function performExportRaw() {
+    if (!isLocalServer() || !exportImportState.rawId) return;
+    exportImportState.loading = true;
+    exportImportState.error = null;
+    renderImportExport();
+    try {
+      var headers = {};
+      if (exportImportState.apiKey) headers['authorization'] = 'Bearer ' + exportImportState.apiKey;
+      var r = await fetch('/api/v1/raw/' + encodeURIComponent(exportImportState.rawId), { headers: headers });
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + await r.text());
+      var blob = await r.blob();
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'permabrain-raw-' + exportImportState.rawId.replace(/[^a-zA-Z0-9\-_]/g, '_') + '.ans104';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      exportImportState.error = e.message;
+    } finally {
+      exportImportState.loading = false;
+    }
+    renderImportExport();
+  }
+
+  window.performExportRaw = performExportRaw;
+
+  function renderImportExport() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Import / Export unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to import or export bundles.</p></div>';
+      return;
+    }
+    var activeTab = exportImportState.activeTab || 'import';
+    var tabBar = '<div class="compare-toolbar" style="border-bottom:1px solid var(--border);padding-bottom:0.5rem;margin-bottom:1rem">' +
+      '<button class="btn-icon ' + (activeTab === 'import' ? 'active' : '') + '" onclick="window.setImportExportTab(\'import\')">Import</button>' +
+      '<button class="btn-icon ' + (activeTab === 'export' ? 'active' : '') + '" onclick="window.setImportExportTab(\'export\')">Export</button>' +
+      '</div>';
+
+    var commonApiKey = '<label style="font-size:0.78rem;color:var(--muted)">API key (if required) <input type="password" id="importExportApiKey" placeholder="Bearer token" value="' + esc(exportImportState.apiKey) + '" oninput="window.setImportExportApiKey(this.value)" style="min-width:14rem"></label>';
+
+    var importPanel = '';
+    if (activeTab === 'import') {
+      var fileName = exportImportState.importFile ? esc(exportImportState.importFile.name) : 'No file selected';
+      var preview = exportImportState.importText ? '<pre style="max-height:10rem;overflow:auto;font-size:0.78rem;margin-top:0.5rem">' + esc(exportImportState.importText.substring(0, 2000)) + (exportImportState.importText.length > 2000 ? '…' : '') + '</pre>' : '';
+      var summary = '';
+      if (exportImportState.importText) {
+        try {
+          var bundle = JSON.parse(exportImportState.importText);
+          var s = summarizeBundle(bundle);
+          summary = '<div class="dashboard-section" style="margin-top:0.75rem"><h3>Metadata summary</h3>' +
+            '<p style="font-size:0.85rem">Type: <code>' + esc(s.type) + '</code> · Total entries: ' + s.total + ' · Articles: ' + s.counts.article + ' · Attestations: ' + s.counts.attestation + ' · Histories: ' + s.counts.history + '</p>' +
+            '<p style="font-size:0.8rem;color:var(--muted)">Keys: ' + (s.keys.length ? esc(s.keys.slice(0, 10).join(', ')) : 'none') + '</p></div>';
+        } catch(e) {
+          summary = '<div class="error-box" style="margin-top:0.75rem">Invalid JSON: ' + esc(e.message) + '</div>';
+        }
+      }
+      importPanel = '<div class="compare-panel">' +
+        '<h2>&#128229; Import bundle / history</h2>' +
+        '<p class="home-subtitle">Import a PermaBrain bundle or history bundle from a JSON file</p>' +
+        '<div class="compare-toolbar">' +
+        '<button class="btn-icon" onclick="window.pickImportFile()">Select file</button>' +
+        '<span style="font-size:0.85rem;color:var(--muted)">' + fileName + '</span>' +
+        '</div>' +
+        '<div class="compare-toolbar">' +
+        '<label title="Preview the bundle metadata instead of importing"><input type="checkbox" id="importDryRun" ' + (exportImportState.importDryRun ? 'checked' : '') + ' onchange="window.setImportDryRun(this.checked)"> Dry-run / preview only</label>' +
+        commonApiKey +
+        '</div>' +
+        '<div style="display:flex;gap:0.5rem;margin:0.75rem 0">' +
+        '<button class="btn-icon" onclick="window.performImport()" ' + (exportImportState.importText ? '' : 'disabled') + '>' + (exportImportState.importDryRun ? 'Preview import' : 'Import') + '</button>' +
+        '</div>' + summary + preview + renderImportPreview() + renderImportReport() + '</div>';
+    }
+
+    var exportPanel = '';
+    if (activeTab === 'export') {
+      var source = isLocalListMode() ? (localList.articles || []) : articles;
+      var options = source.map(function(a) {
+        return '<option value="' + esc(a.key) + '"' + (a.key === exportImportState.exportKey ? ' selected' : '') + '>' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+      }).join('');
+      exportPanel = '<div class="compare-panel">' +
+        '<h2>&#128228; Export article bundle / history</h2>' +
+        '<p class="home-subtitle">Export a single article, full version history, all articles, or raw DataItem bytes</p>' +
+        '<div class="compare-toolbar">' +
+        '<label>Article <select id="exportKeySelect" onchange="window.setExportKey(this.value)" style="min-width:14rem"><option value="">Select article…</option>' + options + '</select></label>' +
+        '<label>Mode <select id="exportModeSelect" onchange="window.setExportMode(this.value)">' +
+        '<option value="bundle"' + (exportImportState.exportMode === 'bundle' ? ' selected' : '') + '>Bundle (article + attestations)</option>' +
+        '<option value="history"' + (exportImportState.exportMode === 'history' ? ' selected' : '') + '>History (version chain + attestations)</option>' +
+        '</select></label>' +
+        '<label><input type="checkbox" ' + (exportImportState.includeAttestations ? 'checked' : '') + ' onchange="window.setExportIncludeAttestations(this.checked)"> Attestations</label>' +
+        '<label><input type="checkbox" ' + (exportImportState.includeVersions ? 'checked' : '') + ' onchange="window.setExportIncludeVersions(this.checked)"> Versions</label>' +
+        commonApiKey +
+        '<button class="btn-icon" onclick="window.performExport()" ' + (exportImportState.exportKey ? '' : 'disabled') + '>Download JSON</button>' +
+        '</div>' +
+        '<div class="dashboard-section" style="margin-top:1rem"><h3>Export all articles</h3>' +
+        '<div class="compare-toolbar">' +
+        '<label>Mode <select id="allExportModeSelect" onchange="window.setAllExportMode(this.value)">' +
+        '<option value="bundle"' + (exportImportState.allExportMode === 'bundle' ? ' selected' : '') + '>Bundle</option>' +
+        '<option value="history"' + (exportImportState.allExportMode === 'history' ? ' selected' : '') + '>History</option>' +
+        '</select></label>' +
+        '<button class="btn-icon" onclick="window.performExportAll()">Download all</button>' +
+        '</div></div>' +
+        '<div class="dashboard-section" style="margin-top:1rem"><h3>Export raw DataItem</h3>' +
+        '<div class="compare-toolbar">' +
+        '<label>DataItem ID <input type="text" id="rawIdInput" placeholder="ans104 data item id" value="' + esc(exportImportState.rawId) + '" oninput="window.setRawId(this.value)" style="min-width:18rem"></label>' +
+        '<button class="btn-icon" onclick="window.performExportRaw()" ' + (exportImportState.rawId ? '' : 'disabled') + '>Download raw</button>' +
+        '</div></div></div>';
+    }
+
+    var error = exportImportState.error ? '<div class="error-box">' + esc(exportImportState.error) + '</div>' : '';
+    var loading = exportImportState.loading ? '<div class="loading"><div class="spinner"></div> Working...</div>' : '';
+    var result = exportImportState.result ? '<div class="dashboard-section" style="margin-top:1rem"><h3>Exported bundle</h3><p>Entries: ' + (exportImportState.result.entries ? exportImportState.result.entries.length : 'n/a') + '</p></div>' : '';
+
+    main.innerHTML = '<div class="home">' +
+      '<h1>&#128260; <span>Import / Export</span></h1>' +
+      '<p class="home-subtitle">Move PermaBrain bundles, histories, and raw DataItems between nodes</p>' +
+      tabBar + importPanel + exportPanel + error + loading + result + '</div>';
+  }
+
+  window.renderImportExport = renderImportExport;
+
+  window.setAllExportMode = function(mode) {
+    exportImportState.allExportMode = mode || 'bundle';
+  };
+
+  window.setRawId = function(id) {
+    exportImportState.rawId = id || '';
+  };
 
   window.exportCurrentArticle = function() {
     var key = modalArticle && modalArticle.key ? modalArticle.key : selectedKey;
     if (!key) return;
     exportImportState.exportKey = key;
     exportImportState.exportMode = 'bundle';
-    window.showExport();
+    exportImportState.activeTab = 'export';
+    window.showImportExport();
   };
 
   window.exportCurrentHistory = function() {
@@ -2382,7 +2551,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     if (!key) return;
     exportImportState.exportKey = key;
     exportImportState.exportMode = 'history';
-    window.showExport();
+    exportImportState.activeTab = 'export';
+    window.showImportExport();
   };
 
   window.setCompareBase = function(base) {
@@ -3556,11 +3726,11 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
         else if (bootState.view === 'stats') window.showStats();
         else if (bootState.view === 'audit') window.showAudit();
         else if (bootState.view === 'compare') window.showCompare();
-        else if (bootState.view === 'import') window.showImport();
-        else if (bootState.view === 'export') {
+        else if (bootState.view === 'import-export') {
           if (bootState.exportKey) exportImportState.exportKey = bootState.exportKey;
           if (bootState.exportMode) exportImportState.exportMode = bootState.exportMode;
-          window.showExport();
+          if (bootState.importTab) exportImportState.activeTab = bootState.importTab;
+          window.showImportExport();
         }
         else if (bootState.view === 'publish') window.showPublish();
         else if (bootState.view === 'compose') window.showCompose();
@@ -3576,8 +3746,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   // Pre-render dashboard/audit if already in that mode (e.g., page reload)
   if (viewMode === 'dashboard') window.showDashboard();
   else if (viewMode === 'audit') window.showAudit();
-  else if (viewMode === 'import') window.showImport();
-  else if (viewMode === 'export') window.showExport();
+  else if (viewMode === 'import-export') window.showImportExport();
   else if (viewMode === 'publish') window.showPublish();
   else if (viewMode === 'compose') window.showCompose();
   openDB().then(function() {
