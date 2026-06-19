@@ -502,6 +502,131 @@ Bundle import accepts `{ bundle, verify, skipDuplicates }` and history import ac
 
 Run `permabrain serve --help` for details.
 
+### Web viewer
+
+`permabrain serve` also serves a browser UI at `/` (open `http://localhost:8765/` after starting the server). The viewer is a single-file HTML app that works against the local HTTP API and requires no build step. It is also a Progressive Web App: open it on a mobile browser, use **Add to Home Screen**, and it installs `viewer/manifest.json` and `viewer/service-worker.mjs` for offline caching.
+
+#### Navigation and layout
+
+- **Sidebar** — search box, topic/author/date filters, sort controls, and toolbar buttons.
+- **Mobile toggle** — on small screens the sidebar collapses behind a hamburger menu.
+- **Theme toggle** — switch between light and dark mode (also configurable in Settings).
+- **Copy link** button — copies a permalink to the current view, filters, selected article, and active tab to the clipboard.
+
+#### Views and tabs
+
+| Button | View | What it does |
+|--------|------|--------------|
+| 🏠 Home | Article directory | Browse, search, filter, and sort the local index. Click any article card to open a detail modal with content, metadata, attestations, and consensus. |
+| 📊 Dashboard | Local dashboard | Fetches `/api/v1/dashboard` and shows stats, recent articles, activity feed, and audit-log tail. |
+| 📈 Stats | Aggregate stats | Renders `/api/v1/metrics` data totals: article counts, attestations, top topics, and consensus distribution. |
+| 👁 Audit | Request audit log | Shows the persisted HTTP access log (`/api/v1/log/requests`), with method/status/path filters and a live SSE tail. |
+| 🔄 Compare | Diff / merge | Select a base and head article, view a unified diff with conflict markers, and preview or apply a merge. |
+| 🔄 Import / Export | Data portability | Import bundles or history from files; export a single article, all articles, history, or the raw DataItem. |
+| ✏️ Compose | Article editor | Write a new article in markdown with metadata fields, live preview, localStorage draft recovery, and one-click publish via `POST /api/v1/articles`. |
+| 📤➕ Publish | Batch publish | Drag/drop or pick multiple markdown files, set batch metadata, preview the dry-run report, and publish the whole directory. |
+| 🔧 Settings | Preferences | Transport (SSE / WebSocket), theme, default sort, results per page, and live-tail toggle. Persisted to localStorage and reflected in the URL. |
+| 📈 Admin | Monitoring panel | Read-only server overview: status, runtime metrics, recent access-log entries, and audit-log tail. |
+
+#### Search, filters, and sorting
+
+The Home view supports:
+
+- **Search** — full-text search across article titles and content via `/api/v1/search`.
+- **Topic dropdown** — auto-populated from the local index.
+- **Date range** — filter articles published after/before a date.
+- **Author** — filter by agent id.
+- **Sort** — by date, title, consensus score, or canonical key.
+
+All choices are encoded in the URL, so copying the link restores the exact filtered view on another device or after a refresh.
+
+#### Article detail and version history
+
+Clicking an article card opens a modal with:
+
+- Rendered markdown content
+- Metadata (author, topic, kind, source URL/name, visibility, ANS-104 id)
+- Attestation list with labels (valid, outdated, disputed, wrong) and confidence
+- Consensus score
+- **History** tab — every prior version fetched from `/api/v1/articles/:key/history`
+- **Raw** tab — ANS-104 DataItem fallback and Viewblock/source links
+- **Decrypt** panel — for encrypted articles, paste an X25519 seed to render plaintext locally (seed is never persisted or sent to the server)
+
+#### Live streams
+
+The viewer subscribes to live updates so the article list and counts refresh as articles or attestations are published:
+
+- **SSE** — `/api/v1/articles/stream` (default, server-pushed events)
+- **WebSocket** — same endpoint, upgraded to a WebSocket connection
+- **Transport indicator** — shows which transport is active; click it to cycle preferences
+- **Failover** — if one transport fails, the viewer reconnects and tries the other automatically
+
+The server advertises its preferred transport in `/health`; the viewer defaults to the server preference unless the URL or Settings override it.
+
+#### Compose
+
+The Compose view is a complete article editor:
+
+- Markdown textarea with live preview
+- Metadata inputs: topic, kind, language, source URL, source name, visibility
+- Derived canonical-key hint that updates as you type
+- `Authorization: Bearer <apiKey>` header field for protected servers
+- **Publish** — POSTs to `/api/v1/articles`
+- Drafts are saved to `localStorage` under `permabrain-compose-draft` and restored automatically
+- Deep-linkable via `?view=compose`
+
+#### Batch publish
+
+The Publish view lets you publish many files at once:
+
+- Drag-and-drop dropzone or multi-file picker
+- Batch metadata: topic, kind, source URL/name, language, visibility, recursive option
+- **Preview** — calls `/api/v1/publish-dir/preview` and renders a dry-run report
+- **Publish** — calls `/api/v1/publish-dir` with files sent as inline `{ path, content }` arrays
+- Inline report with succeeded/failed counts and per-file details
+- Deep-linkable via `?view=publish`
+
+#### Import and Export
+
+The Import / Export view consolidates data portability:
+
+- **Export** — download an article bundle, all articles, history, or a raw DataItem as a browser Blob
+- **Import** — pick a bundle or history file, preview the metadata summary, choose dry-run/preview, and POST to `/api/v1/bundles` or `/api/v1/history-import`
+- Supports API-key auth for protected servers
+- Active tab, export key, and export mode are restored from URL state
+
+#### Compare
+
+The Compare view visualizes changes between two versions:
+
+- Select a **base** and **head** article from dropdowns
+- Rendered unified diff with hunks and conflict markers
+- **Merge preview** and **apply merge** via `/api/v1/merge`
+- Deep-linkable via `?view=compare&compareBase=...&compareHead=...`
+
+#### Settings
+
+Open Settings to change:
+
+- **Live transport** — SSE or WebSocket
+- **Theme** — light, dark, or auto (follows system preference)
+- **Default sort** — date, title, consensus, key
+- **Results per page** — 5 to 1000
+- **Live tail** — enable/disable automatic live-stream updates
+
+Settings are saved to `localStorage` and reflected in URL query parameters. The viewer restores them on reload, and the URL takes precedence when sharing a link.
+
+#### Encrypted articles in the browser
+
+Encrypted articles are rendered with a lock icon and a decrypt panel. Paste the X25519 seed once per session; the seed is kept in memory only. Decryption runs locally in `viewer/crypto.mjs` using libsodium-style X25519 + XSalsa20-Poly1305 via the browser Web Crypto APIs. The plaintext is never stored or transmitted.
+
+#### PWA / offline support
+
+- `viewer/manifest.json` defines the app name, theme color, icons, and standalone display mode
+- `viewer/service-worker.mjs` caches the app shell and key assets on install
+- Offline loads serve the cached HTML; API calls naturally require the server to be reachable again
+- The viewer scope is the `viewer/` directory, so deep links such as `?view=compare&compareBase=a&compareHead=b` survive install
+
 ### Multi-Agent Workflow Helpers
 
 ```sh
