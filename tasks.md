@@ -1,13 +1,10 @@
 # PermaBrain Build Tasks
 
-## In Progress
-- [ ] Seed next feature chunk when the queue is empty (backlog TBD).
-
 ## Next
 - [ ] Seed next feature chunk when the queue is empty (backlog TBD).
 
 ## Done
-- [x] Cron build loop checkpoint (2026-06-20 17:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `afa82b3`. Full sequential `npm test` suite passes in this environment (all 100+ test files). Left queue empty and recorded clean status.
+- [x] Cron build loop checkpoint (2026-06-20 18:34 UTC): picked the only unchecked task in the queue (`Add permabrain topics / api.topics() topic catalog`). Verified implementation already present in `permabrain/src/topics.mjs`, `agent-api.mjs`, `commands.mjs`, `scripts/cli.mjs`, `serve.mjs`, `client.mjs`, `route-registry.mjs`, `index.mjs`, `completion.mjs`, `package.json`, and `test/topics.mjs`/`test/module-import.mjs`. Ran full sequential `npm test` suite in this environment — all 100+ test files passed. Repo remains clean `main` at `759225b`. Marked task complete and moved it from Next to Done; queue is empty again.
 - [x] Cron build loop checkpoint (2026-06-20 17:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `afa82b3`. Full sequential `npm test` suite passes in this environment (all 100+ test files). Left queue empty and recorded clean status.
 - [x] Cron build loop checkpoint (2026-06-20 16:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `afa82b3`. Full sequential `npm test` suite passes in this environment (all 100+ test files). Focused test battery also passes (`module-import`, `watch-files`, `health`). Left queue empty and recorded clean status.
 - [x] Cron build loop checkpoint (2026-06-20 16:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `afa82b3`. Full sequential `npm test` suite passes in this environment (all 100+ test files). Left queue empty and recorded clean status.
