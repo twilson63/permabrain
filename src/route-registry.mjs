@@ -1012,6 +1012,47 @@ export const ROUTES = [
     response: { envelopeId: 'string' }
   },
   {
+    route: '/api/v1/peer/diff',
+    method: 'GET',
+    description: 'Compare local index against a remote peer and return pullable/pushable diff.',
+    public: false,
+    params: [
+      { name: 'remote', in: 'query', type: 'string', required: true },
+      { name: 'direction', in: 'query', type: 'string', required: false },
+      { name: 'includeAttestations', in: 'query', type: 'boolean', required: false },
+      { name: 'includeVersions', in: 'query', type: 'boolean', required: false }
+    ],
+    response: { peer: 'object', remoteBaseUrl: 'string', pulled: 'array', pushed: 'array', newer: 'array', missing: 'array', divergent: 'array', unchanged: 'number' }
+  },
+  {
+    route: '/api/v1/peer/pull',
+    method: 'POST',
+    description: 'Pull newer/missing articles from a remote PermaBrain node. Use ?dryRun=true for a preview.',
+    public: false,
+    params: [
+      { name: 'remoteUrl', in: 'body', type: 'string', required: true },
+      { name: 'remoteApiKey', in: 'body', type: 'string', required: false },
+      { name: 'includeAttestations', in: 'body', type: 'boolean', required: false },
+      { name: 'includeVersions', in: 'body', type: 'boolean', required: false },
+      { name: 'verify', in: 'body', type: 'boolean', required: false },
+      { name: 'skipDuplicates', in: 'body', type: 'boolean', required: false }
+    ],
+    response: { peer: 'object', remoteBaseUrl: 'string', pulled: 'array', imported: 'number', skipped: 'number', failed: 'number', diff: 'object', results: 'array' }
+  },
+  {
+    route: '/api/v1/peer/push',
+    method: 'POST',
+    description: 'Push newer/missing local articles to a remote PermaBrain node. Use ?dryRun=true for a preview.',
+    public: false,
+    params: [
+      { name: 'remoteUrl', in: 'body', type: 'string', required: true },
+      { name: 'remoteApiKey', in: 'body', type: 'string', required: false },
+      { name: 'includeAttestations', in: 'body', type: 'boolean', required: false },
+      { name: 'includeVersions', in: 'body', type: 'boolean', required: false }
+    ],
+    response: { peer: 'object', remoteBaseUrl: 'string', pushed: 'array', accepted: 'number', rejected: 'number', failed: 'number', diff: 'object', bundle: 'object', results: 'array' }
+  },
+  {
     route: '/api/v1/peer/info',
     method: 'GET',
     description: 'Return local peer information for gossip sync.',
@@ -1019,29 +1060,6 @@ export const ROUTES = [
     params: [],
     response: { agentId: 'string', keys: 'array' }
   },
-  {
-    route: '/api/v1/peer/pull',
-    method: 'POST',
-    description: 'Build a pull bundle for a remote peer.',
-    public: false,
-    params: [
-      { name: 'requests', in: 'body', type: 'array', required: true },
-      { name: 'includeAttestations', in: 'body', type: 'boolean', required: false }
-    ],
-    response: { type: 'string', articles: 'array', attestations: 'array' }
-  },
-  {
-    route: '/api/v1/peer/push',
-    method: 'POST',
-    description: 'Accept a push bundle from a remote peer.',
-    public: false,
-    params: [
-      { name: 'bundle', in: 'body', type: 'object', required: true },
-      { name: 'verify', in: 'body', type: 'boolean', required: false },
-      { name: 'skipDuplicates', in: 'body', type: 'boolean', required: false }
-    ],
-    response: { imported: 'number', skipped: 'number', failed: 'number', results: 'array' }
-  }
 ];
 
 function typeToOpenApi(type) {

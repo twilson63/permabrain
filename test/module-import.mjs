@@ -335,7 +335,7 @@ console.log('11. API completeness check');
 const expectedMethods = [
   'releaseNotes', 'repl', 'accessLog', 'tailAccessLog', 'accessLogToMarkdown', 'events', 'subscribeEventsRemote', 'subscribe', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard', 'whoami', 'health',
   'validateMetadata', 'validateDataItem',
-  'peerInfo', 'buildPeerPullBundle', 'pullFromPeer', 'pullFromPeerAsBundle', 'peerStatus',
+  'peerInfo', 'buildPeerPullBundle', 'pullFromPeer', 'pullFromPeerAsBundle', 'peerStatus', 'buildPeerPushBundle', 'pushToPeer', 'pushToPeerClient',
   'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
   'sync', 'localIndex', 'importWikipedia', 'attestForAgent', 'provisionAgent',
   'processProxyAttestation', 'parseAttestationRequest', 'buildAttestationRequest',

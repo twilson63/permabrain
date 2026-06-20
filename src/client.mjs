@@ -41,6 +41,10 @@ export function createClient(options = {}) {
     const headers = { ...defaultHeaders, ...extraHeaders };
     const hasBody = body !== undefined && body !== null;
     if (method === 'GET' || method === 'DELETE') delete headers['content-type'];
+    // Preserve authorization from extraHeaders when caller overrides (e.g. remote API key)
+    if (extraHeaders.authorization) headers['authorization'] = extraHeaders.authorization;
+    if (extraHeaders.Authorization) headers['authorization'] = extraHeaders.Authorization;
+    if (extraHeaders['x-api-key']) headers['x-api-key'] = extraHeaders['x-api-key'];
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -338,13 +342,34 @@ export function createClient(options = {}) {
     importThresholdEnvelope: (body) => request('POST', '/api/v1/threshold-attest/import', body),
 
     /** @returns {Promise<Object>} */
-    peerInfo: () => request('GET', '/api/v1/peer/info'),
-
-    /** @returns {Promise<Object>} */
     peerPull: (requests, opts = {}) => request('POST', '/api/v1/peer/pull', { requests, includeAttestations: opts.includeAttestations !== false }),
 
     /** @returns {Promise<Object>} */
+    peerPullDryRun: (remoteUrl, opts = {}) => request('POST', '/api/v1/peer/pull?dryRun=true', { remoteUrl, includeAttestations: opts.includeAttestations !== false, includeVersions: opts.includeVersions !== false, remoteApiKey: opts.remoteApiKey }),
+
+    /** @returns {Promise<Object>} */
+    peerPullFromRemote: (remoteUrl, opts = {}) => request('POST', '/api/v1/peer/pull', { remoteUrl, includeAttestations: opts.includeAttestations !== false, includeVersions: opts.includeVersions !== false, verify: opts.verify !== false, skipDuplicates: opts.skipDuplicates !== false, remoteApiKey: opts.remoteApiKey }),
+
+    /** @returns {Promise<Object>} */
     peerPush: (bundle, opts = {}) => request('POST', '/api/v1/peer/push', { bundle, verify: opts.verify !== false, skipDuplicates: opts.skipDuplicates !== false }),
+
+    /** @returns {Promise<Object>} */
+    peerPushDryRun: (remoteUrl, opts = {}) => request('POST', '/api/v1/peer/push?dryRun=true', { remoteUrl, includeAttestations: opts.includeAttestations !== false, includeVersions: opts.includeVersions !== false, remoteApiKey: opts.remoteApiKey }),
+
+    /** @returns {Promise<Object>} */
+    peerPushToRemote: (remoteUrl, opts = {}) => request('POST', '/api/v1/peer/push', { remoteUrl, includeAttestations: opts.includeAttestations !== false, includeVersions: opts.includeVersions !== false, remoteApiKey: opts.remoteApiKey }),
+
+    /** @returns {Promise<Object>} */
+    peerInfo: () => request('GET', '/api/v1/peer/info'),
+
+    /** @returns {Promise<Object>} */
+    peerDiff: (remoteBaseUrl, opts = {}) => {
+      const remoteClient = createClient({ ...options, baseUrl: remoteBaseUrl, apiKey: opts.remoteApiKey || options.apiKey });
+      return remoteClient.peerInfo().then((info) => ({ peer: info, remoteBaseUrl, articles: Object.keys(info.articles || {}), attestationCount: info.attestationCount || 0 }));
+    },
+
+    /** @returns {Promise<Object>} */
+    compareWithRemote: (remoteUrl, opts = {}) => request('GET', `/api/v1/peer/diff?remote=${encodeURIComponent(remoteUrl)}&direction=${opts.direction || 'pull'}&includeAttestations=${opts.includeAttestations !== false}&includeVersions=${opts.includeVersions !== false}`),
 
     /** @returns {Promise<Object>} */
     publishEvents: (events) => request('POST', '/api/v1/events/publish', { events }),

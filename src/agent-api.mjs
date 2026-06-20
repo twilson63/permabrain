@@ -2100,7 +2100,20 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     const { createClient } = await import('./client.mjs');
-    const client = createClient({ baseUrl });
+    const client = createClient({ baseUrl, apiKey: opts.remoteApiKey || opts.apiKey });
+    return pushToPeerClient(client, { ...opts, home: this._home });
+  },
+
+  /**
+   * Push local articles to a remote peer using an existing client.
+   *
+   * @param {Object} client - PermaBrain client created via createClient
+   * @param {Object} [opts]
+   * @returns {Promise<Object>}
+   */
+  async pushToPeerClient(client, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
     return pushToPeerClient(client, { ...opts, home: this._home });
   },
 

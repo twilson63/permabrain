@@ -148,13 +148,13 @@ export async function buildPeerPullBundle(requests, home, opts = {}) {
 
 export async function pullFromPeer(peerBaseUrl, opts = {}) {
   const home = opts.home || getHome();
-  const client = createClient({ baseUrl: peerBaseUrl });
+  const client = createClient({ baseUrl: peerBaseUrl, apiKey: opts.apiKey || opts.remoteApiKey });
   return pullFromPeerClient(client, { ...opts, home });
 }
 
 export async function pullFromPeerAsBundle(peerBaseUrl, opts = {}) {
   const home = opts.home || getHome();
-  const client = createClient({ baseUrl: peerBaseUrl });
+  const client = createClient({ baseUrl: peerBaseUrl, apiKey: opts.apiKey || opts.remoteApiKey });
   return pullFromPeerClientAsBundle(client, { ...opts, home });
 }
 
@@ -184,7 +184,8 @@ export async function pullFromPeerClient(client, opts = {}) {
   }
 
   const pullRequests = diff.pulled.map((p) => ({ key: p.key, sinceVersion: p.localVersion || 0 }));
-  const { requests: _, ...remoteBundle } = await client.peerPull(pullRequests, { includeAttestations: opts.includeAttestations });
+  const remoteBundle = await client.peerPull(pullRequests, { includeAttestations: opts.includeAttestations });
+  const bundle = remoteBundle?.bundle || remoteBundle;
 
   const results = await importBundle(remoteBundle, { home, verify, skipDuplicates });
   const imported = results.filter((r) => r.imported && r.ok).length;
@@ -217,7 +218,8 @@ export async function pullFromPeerClientAsBundle(client, opts = {}) {
   }
 
   const pullRequests = diff.pulled.map((p) => ({ key: p.key, sinceVersion: p.localVersion || 0 }));
-  const bundle = await client.peerPull(pullRequests, { includeAttestations: opts.includeAttestations });
+  const remoteBundle = await client.peerPull(pullRequests, { includeAttestations: opts.includeAttestations });
+  const bundle = remoteBundle?.bundle || remoteBundle;
 
   return { peer: info, bundle, diff };
 }
@@ -385,7 +387,7 @@ export async function pushToPeerClient(client, opts = {}) {
  */
 export async function pushToPeer(peerBaseUrl, opts = {}) {
   const home = opts.home || getHome();
-  const client = createClient({ baseUrl: peerBaseUrl });
+  const client = createClient({ baseUrl: peerBaseUrl, apiKey: opts.apiKey || opts.remoteApiKey });
   return pushToPeerClient(client, { ...opts, home });
 }
 

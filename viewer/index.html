@@ -413,6 +413,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
+    <button class="btn-icon" id="peerSyncBtn" onclick="window.showPeerSync()" title="Peer sync">&#128260;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -568,7 +569,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'attest' | 'batch-attest' | 'threshold-attest'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -576,6 +577,24 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', sourceUrl: '',
     threshold: 2, coSignerIds: '', apiKey: '', envelope: null, importText: '',
     loading: false, error: null, success: null, verifyResult: null
+  };
+  var peerSyncState = {
+    remoteUrl: '',
+    remoteApiKey: '',
+    direction: 'pull',      // 'pull' | 'push'
+    dryRun: true,
+    includeAttestations: true,
+    includeVersions: true,
+    apiKey: '',
+    info: null,
+    diff: null,
+    diffError: null,
+    result: null,
+    resultError: null,
+    loadingInfo: false,
+    loadingDiff: false,
+    loadingAction: false,
+    format: 'json'          // 'json' | 'markdown'
   };
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
@@ -1523,6 +1542,15 @@ function statCard(label, value, cls) {
       if (thresholdAttestState.threshold !== 2) params.set('thresholdCount', String(thresholdAttestState.threshold));
       if (thresholdAttestState.coSignerIds) params.set('thresholdCoSigners', thresholdAttestState.coSignerIds);
     }
+    if (viewMode === 'peer-sync') {
+      if (peerSyncState.remoteUrl) params.set('peerRemoteUrl', peerSyncState.remoteUrl);
+      if (peerSyncState.remoteApiKey) params.set('peerRemoteApiKey', peerSyncState.remoteApiKey);
+      if (peerSyncState.direction !== 'pull') params.set('peerDirection', peerSyncState.direction);
+      if (peerSyncState.dryRun !== true) params.set('peerDryRun', 'false');
+      if (peerSyncState.includeAttestations !== true) params.set('peerIncludeAttestations', 'false');
+      if (peerSyncState.includeVersions !== true) params.set('peerIncludeVersions', 'false');
+      if (peerSyncState.format !== 'json') params.set('peerFormat', peerSyncState.format);
+    }
     if (viewMode === 'activity') {
       if (activityState.filters.eventKind) params.set('activityKind', activityState.filters.eventKind);
       if (activityState.filters.topic) params.set('activityTopic', activityState.filters.topic);
@@ -1586,6 +1614,13 @@ function statCard(label, value, cls) {
       thresholdSourceUrl: params.get('thresholdSourceUrl') || '',
       thresholdCount: params.get('thresholdCount') || '',
       thresholdCoSigners: params.get('thresholdCoSigners') || '',
+      peerRemoteUrl: params.get('peerRemoteUrl') || '',
+      peerRemoteApiKey: params.get('peerRemoteApiKey') || '',
+      peerDirection: params.get('peerDirection') || '',
+      peerDryRun: params.get('peerDryRun') || '',
+      peerIncludeAttestations: params.get('peerIncludeAttestations') || '',
+      peerIncludeVersions: params.get('peerIncludeVersions') || '',
+      peerFormat: params.get('peerFormat') || '',
       exportKey: params.get('exportKey') || '',
       exportMode: params.get('exportMode') || 'bundle',
       importName: params.get('importName') || '',
@@ -1629,7 +1664,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','attest','batch-attest','threshold-attest'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1679,6 +1714,15 @@ function statCard(label, value, cls) {
       if (state.thresholdSourceUrl) thresholdAttestState.sourceUrl = state.thresholdSourceUrl;
       if (state.thresholdCount) { var tci = parseInt(state.thresholdCount, 10); if (!isNaN(tci) && tci >= 1) thresholdAttestState.threshold = tci; }
       if (state.thresholdCoSigners) thresholdAttestState.coSignerIds = state.thresholdCoSigners;
+    }
+    if (state.view === 'peer-sync') {
+      if (state.peerRemoteUrl) peerSyncState.remoteUrl = state.peerRemoteUrl;
+      if (state.peerRemoteApiKey) peerSyncState.remoteApiKey = state.peerRemoteApiKey;
+      if (state.peerDirection) peerSyncState.direction = state.peerDirection;
+      if (state.peerDryRun === 'false') peerSyncState.dryRun = false;
+      if (state.peerIncludeAttestations === 'false') peerSyncState.includeAttestations = false;
+      if (state.peerIncludeVersions === 'false') peerSyncState.includeVersions = false;
+      if (state.peerFormat) peerSyncState.format = state.peerFormat;
     }
     if (state.tab) activeTab = state.tab;
     return state;
@@ -2867,6 +2911,333 @@ function statCard(label, value, cls) {
   }
 
   window.renderThresholdAttest = renderThresholdAttest;
+
+  // --- Peer Sync panel ---
+  window.showPeerSync = async function() {
+    viewMode = 'peer-sync';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    renderPeerSync();
+    updateUrlState();
+  };
+
+  window.refreshPeerSync = function() {
+    renderPeerSync();
+    updateUrlState();
+  };
+
+  window.setPeerSyncRemoteUrl = function(url) {
+    peerSyncState.remoteUrl = url || '';
+    peerSyncState.info = null;
+    peerSyncState.diff = null;
+    peerSyncState.diffError = null;
+    peerSyncState.result = null;
+    peerSyncState.resultError = null;
+    updateUrlState();
+  };
+
+  window.setPeerSyncRemoteApiKey = function(key) {
+    peerSyncState.remoteApiKey = key || '';
+  };
+
+  window.setPeerSyncDirection = function(direction) {
+    peerSyncState.direction = direction === 'push' ? 'push' : 'pull';
+    peerSyncState.result = null;
+    peerSyncState.resultError = null;
+    updateUrlState();
+  };
+
+  window.setPeerSyncDryRun = function(value) {
+    peerSyncState.dryRun = value !== false && value !== 'false';
+    updateUrlState();
+  };
+
+  window.setPeerSyncIncludeAttestations = function(value) {
+    peerSyncState.includeAttestations = value !== false && value !== 'false';
+    updateUrlState();
+  };
+
+  window.setPeerSyncIncludeVersions = function(value) {
+    peerSyncState.includeVersions = value !== false && value !== 'false';
+    updateUrlState();
+  };
+
+  window.setPeerSyncApiKey = function(key) {
+    peerSyncState.apiKey = key || '';
+  };
+
+  window.setPeerSyncFormat = function(format) {
+    peerSyncState.format = format === 'markdown' ? 'markdown' : 'json';
+    renderPeerSync();
+    updateUrlState();
+  };
+
+  window.clearPeerSync = function() {
+    peerSyncState.remoteUrl = '';
+    peerSyncState.remoteApiKey = '';
+    peerSyncState.direction = 'pull';
+    peerSyncState.dryRun = true;
+    peerSyncState.includeAttestations = true;
+    peerSyncState.includeVersions = true;
+    peerSyncState.info = null;
+    peerSyncState.diff = null;
+    peerSyncState.diffError = null;
+    peerSyncState.result = null;
+    peerSyncState.resultError = null;
+    renderPeerSync();
+    updateUrlState();
+  };
+
+  function peerSyncHeaders() {
+    var headers = { 'content-type': 'application/json' };
+    if (peerSyncState.apiKey) headers['authorization'] = 'Bearer ' + peerSyncState.apiKey;
+    return headers;
+  }
+
+  window.fetchPeerInfo = async function() {
+    if (!isLocalServer()) return;
+    var url = peerSyncState.remoteUrl.trim();
+    if (!url) {
+      peerSyncState.diffError = 'Enter a remote permabrain URL (e.g. http://localhost:8765).';
+      peerSyncState.info = null;
+      peerSyncState.diff = null;
+      renderPeerSync();
+      return;
+    }
+    peerSyncState.loadingInfo = true;
+    peerSyncState.diffError = null;
+    peerSyncState.info = null;
+    peerSyncState.diff = null;
+    renderPeerSync();
+    try {
+      var target = url.replace(/\/$/, '');
+      var headers = {};
+      if (peerSyncState.remoteApiKey) headers['authorization'] = 'Bearer ' + peerSyncState.remoteApiKey;
+      var r = await fetch(target + '/api/v1/peer/info', { headers: headers });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      peerSyncState.info = body;
+    } catch(e) {
+      peerSyncState.diffError = e.message;
+      peerSyncState.info = null;
+    } finally {
+      peerSyncState.loadingInfo = false;
+    }
+    renderPeerSync();
+    updateUrlState();
+  };
+
+  window.fetchPeerDiff = async function() {
+    if (!isLocalServer()) return;
+    var url = peerSyncState.remoteUrl.trim();
+    if (!url) {
+      peerSyncState.diffError = 'Enter a remote permabrain URL.';
+      peerSyncState.diff = null;
+      renderPeerSync();
+      return;
+    }
+    peerSyncState.loadingDiff = true;
+    peerSyncState.diffError = null;
+    peerSyncState.diff = null;
+    renderPeerSync();
+    try {
+      var target = url.replace(/\/$/, '');
+      var headers = { 'content-type': 'application/json' };
+      if (peerSyncState.remoteApiKey) headers['authorization'] = 'Bearer ' + peerSyncState.remoteApiKey;
+      if (peerSyncState.apiKey) headers['authorization'] = 'Bearer ' + peerSyncState.apiKey;
+      var r = await fetch('/api/v1/peer/diff?remote=' + encodeURIComponent(target) + '&direction=' + peerSyncState.direction + '&includeAttestations=' + peerSyncState.includeAttestations + '&includeVersions=' + peerSyncState.includeVersions, { headers: headers });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      peerSyncState.diff = body;
+    } catch(e) {
+      peerSyncState.diffError = e.message;
+      peerSyncState.diff = null;
+    } finally {
+      peerSyncState.loadingDiff = false;
+    }
+    renderPeerSync();
+    updateUrlState();
+  };
+
+  window.runPeerSyncAction = async function() {
+    if (!isLocalServer()) return;
+    var url = peerSyncState.remoteUrl.trim();
+    if (!url) {
+      peerSyncState.resultError = 'Enter a remote permabrain URL.';
+      peerSyncState.result = null;
+      renderPeerSync();
+      return;
+    }
+    peerSyncState.loadingAction = true;
+    peerSyncState.resultError = null;
+    peerSyncState.result = null;
+    renderPeerSync();
+    try {
+      var target = url.replace(/\/$/, '');
+      var direction = peerSyncState.direction;
+      var dryRun = peerSyncState.dryRun;
+      var body = { remoteUrl: target, direction: direction, dryRun: dryRun, includeAttestations: peerSyncState.includeAttestations, includeVersions: peerSyncState.includeVersions };
+      if (peerSyncState.remoteApiKey) body.remoteApiKey = peerSyncState.remoteApiKey;
+      var r = await fetch('/api/v1/peer/' + direction + (dryRun ? '?dryRun=true' : ''), {
+        method: 'POST',
+        headers: peerSyncHeaders(),
+        body: JSON.stringify(body)
+      });
+      var resBody = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(resBody.message || resBody.error || 'HTTP ' + r.status);
+      peerSyncState.result = resBody;
+    } catch(e) {
+      peerSyncState.resultError = e.message;
+      peerSyncState.result = null;
+    } finally {
+      peerSyncState.loadingAction = false;
+    }
+    renderPeerSync();
+    updateUrlState();
+  };
+
+  window.copyPeerSyncResult = function() {
+    var payload = peerSyncState.result || peerSyncState.diff || peerSyncState.info;
+    if (!payload) return;
+    var text = peerSyncState.format === 'markdown' ? peerSyncState._markdownText : JSON.stringify(payload, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        peerSyncState._copied = true;
+        renderPeerSync();
+        setTimeout(function() { peerSyncState._copied = false; renderPeerSync(); }, 1200);
+      }).catch(function() {});
+    }
+  };
+
+  window.downloadPeerSyncResult = function() {
+    var payload = peerSyncState.result || peerSyncState.diff || peerSyncState.info;
+    if (!payload) return;
+    var isMarkdown = peerSyncState.format === 'markdown';
+    var text = isMarkdown ? peerSyncState._markdownText : JSON.stringify(payload, null, 2);
+    var blob = new Blob([text], { type: isMarkdown ? 'text/markdown' : 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'peer-sync-' + (peerSyncState.direction || 'result') + '-' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + (isMarkdown ? '.md' : '.json');
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  function renderPeerSync() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Peer sync panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to pull or push articles from a remote peer.</p></div>';
+      return;
+    }
+
+    var successHtml = peerSyncState.result && !peerSyncState.resultError ? '<div class="success-box" style="margin-bottom:1rem">' + esc(peerSyncState.direction === 'pull' ? 'Pull completed' : 'Push completed') + '</div>' : '';
+    var errorHtml = (peerSyncState.diffError || peerSyncState.resultError) ? '<div class="error-box" style="margin-bottom:1rem">' + esc(peerSyncState.diffError || peerSyncState.resultError) + '</div>' : '';
+
+    var infoHtml = '';
+    if (peerSyncState.info) {
+      var info = peerSyncState.info;
+      var articleCount = Object.keys(info.articles || {}).length;
+      infoHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Remote peer info</h3>' +
+        '<p style="font-size:0.85rem;color:var(--muted)">Agent: <code>' + esc(info.agentId || '') + '</code> · Transport: ' + esc(info.transport || '') + ' · Articles: ' + articleCount + ' · Attestations: ' + (info.attestationCount || 0) + '</p>' +
+        '</div>';
+    }
+
+    var diffHtml = '';
+    if (peerSyncState.diff) {
+      var d = peerSyncState.diff;
+      var diffDirection = peerSyncState.direction;
+      var list = diffDirection === 'push' ? (d.pushed || []) : (d.pulled || []);
+      var diffSummary = '<p style="font-size:0.85rem;color:var(--muted)">' + (diffDirection === 'push' ? 'Pushable' : 'Pullable') + ': ' + (list.length || 0) + ' (newer: ' + (d.newer || []).length + ', missing: ' + (d.missing || []).length + ', divergent: ' + (d.divergent || []).length + ', unchanged: ' + (d.unchanged || 0) + ')</p>';
+      var diffList = list.length ? '<ul style="font-size:0.82rem">' + list.slice(0, 50).map(function(item) {
+        return '<li><code>' + esc(item.key) + '</code> · ' + esc(item.reason || '') + '</li>';
+      }).join('') + '</ul>' + (list.length > 50 ? '<p style="font-size:0.8rem;color:var(--muted)">... and ' + (list.length - 50) + ' more</p>' : '') : '<p style="color:var(--muted)">Nothing to ' + diffDirection + '.</p>';
+      diffHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Dry-run diff preview</h3>' + diffSummary + diffList + '</div>';
+    }
+
+    var resultHtml = '';
+    if (peerSyncState.result) {
+      var res = peerSyncState.result;
+      var resultSummary = '';
+      if (peerSyncState.direction === 'pull') {
+        resultSummary = 'Imported: ' + (res.imported || 0) + ' · Skipped: ' + (res.skipped || 0) + ' · Failed: ' + (res.failed || 0);
+      } else {
+        resultSummary = 'Accepted: ' + (res.accepted || 0) + ' · Rejected: ' + (res.rejected || 0) + ' · Failed: ' + (res.failed || 0);
+      }
+      resultHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Sync result</h3>' +
+        '<p style="font-size:0.85rem;color:var(--muted)">' + esc(resultSummary) + '</p>' +
+        (Array.isArray(res.results) && res.results.length ? '<ul style="font-size:0.82rem">' + res.results.slice(0, 20).map(function(r) {
+          return '<li><code>' + esc(r.key || r.id || '') + '</code> · ' + (r.imported ? 'imported' : r.ok ? 'skipped' : 'failed') + '</li>';
+        }).join('') + '</ul>' : '') +
+        '</div>';
+    }
+
+    var formatOptions = '<option value="json"' + (peerSyncState.format === 'json' ? ' selected' : '') + '>JSON</option>' +
+      '<option value="markdown"' + (peerSyncState.format === 'markdown' ? ' selected' : '') + '>Markdown</option>';
+
+    var html = '<div class="home"><h1>&#128260; <span>Peer Sync</span></h1><p class="home-subtitle">Compare, pull, and push articles with a remote PermaBrain node</p>' +
+      '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.fetchPeerInfo()" ' + (peerSyncState.loadingInfo ? 'disabled' : '') + '>&#x21BB; Fetch peer info</button> ' +
+      '<button class="btn-icon" onclick="window.fetchPeerDiff()" ' + (peerSyncState.loadingDiff ? 'disabled' : '') + '>Show diff</button> ' +
+      '<button class="btn-icon" onclick="window.runPeerSyncAction()" ' + (peerSyncState.loadingAction ? 'disabled' : '') + '>Run ' + esc(peerSyncState.direction) + '</button> ' +
+      '<button class="btn-icon" onclick="window.clearPeerSync()">Reset</button> ' +
+      '<span class="last-updated">Format: <select onchange="window.setPeerSyncFormat(this.value)">' + formatOptions + '</select></span>' +
+      '</div>' +
+      successHtml + errorHtml +
+      '<div class="dashboard-section">' +
+      '<div class="form-row"><label>Remote URL</label><input type="text" id="peerSyncRemoteUrl" value="' + esc(peerSyncState.remoteUrl) + '" placeholder="http://localhost:8765" oninput="window.setPeerSyncRemoteUrl(this.value)"></div>' +
+      '<div class="form-row"><label>Remote API key (optional)</label><input type="password" id="peerSyncRemoteApiKey" value="' + esc(peerSyncState.remoteApiKey) + '" placeholder="Bearer token for remote permabrain serve" oninput="window.setPeerSyncRemoteApiKey(this.value)"></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">' +
+      '<div class="form-row"><label>Direction</label><select onchange="window.setPeerSyncDirection(this.value)">' +
+      '<option value="pull"' + (peerSyncState.direction === 'pull' ? ' selected' : '') + '>Pull from remote</option>' +
+      '<option value="push"' + (peerSyncState.direction === 'push' ? ' selected' : '') + '>Push to remote</option>' +
+      '</select></div>' +
+      '<div class="form-row"><label>Dry run</label><input type="checkbox" ' + (peerSyncState.dryRun ? 'checked' : '') + ' onchange="window.setPeerSyncDryRun(this.checked)"></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">' +
+      '<div class="form-row"><label>Include attestations</label><input type="checkbox" ' + (peerSyncState.includeAttestations ? 'checked' : '') + ' onchange="window.setPeerSyncIncludeAttestations(this.checked)"></div>' +
+      '<div class="form-row"><label>Include version history</label><input type="checkbox" ' + (peerSyncState.includeVersions ? 'checked' : '') + ' onchange="window.setPeerSyncIncludeVersions(this.checked)"></div>' +
+      '</div>' +
+      '<div class="form-row"><label>Local API key (optional)</label><input type="password" id="peerSyncApiKey" value="' + esc(peerSyncState.apiKey) + '" placeholder="Bearer token for local permabrain serve" oninput="window.setPeerSyncApiKey(this.value)"></div>' +
+      '</div>' +
+      infoHtml + diffHtml + resultHtml +
+      '</div>';
+
+    main.innerHTML = html;
+
+    // Cache markdown rendering for copy/download
+    var payload = peerSyncState.result || peerSyncState.diff || peerSyncState.info;
+    if (payload) {
+      if (peerSyncState.format === 'markdown') {
+        var lines = ['# Peer Sync Report'];
+        if (peerSyncState.info) {
+          lines.push('## Peer: ' + (peerSyncState.info.agentId || ''));
+          lines.push('- Transport: ' + (peerSyncState.info.transport || ''));
+          lines.push('- Articles: ' + Object.keys(peerSyncState.info.articles || {}).length);
+          lines.push('- Attestations: ' + (peerSyncState.info.attestationCount || 0));
+        }
+        if (peerSyncState.diff) {
+          var dd = peerSyncState.diff;
+          lines.push('## Diff (' + peerSyncState.direction + ')');
+          lines.push('- Pullable: ' + (dd.pulled || []).length + ' · Newer: ' + (dd.newer || []).length + ' · Missing: ' + (dd.missing || []).length + ' · Divergent: ' + (dd.divergent || []).length + ' · Unchanged: ' + (dd.unchanged || 0));
+        }
+        if (peerSyncState.result) {
+          var rr = peerSyncState.result;
+          lines.push('## Result (' + peerSyncState.direction + ')');
+          if (peerSyncState.direction === 'pull') {
+            lines.push('- Imported: ' + (rr.imported || 0) + ' · Skipped: ' + (rr.skipped || 0) + ' · Failed: ' + (rr.failed || 0));
+          } else {
+            lines.push('- Accepted: ' + (rr.accepted || 0) + ' · Rejected: ' + (rr.rejected || 0) + ' · Failed: ' + (rr.failed || 0));
+          }
+        }
+        peerSyncState._markdownText = lines.join('\n') + '\n';
+      } else {
+        peerSyncState._markdownText = '';
+      }
+    }
+  }
+
+  window.renderPeerSync = renderPeerSync;
 
   // --- Activity / notifications panel ---
   window.showActivity = async function() {

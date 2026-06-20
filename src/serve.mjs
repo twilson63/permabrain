@@ -94,6 +94,7 @@ import { buildOpenApiDocument, listRoutes } from './route-registry.mjs';
 import { createRateLimiter, DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS, DEFAULT_RATE_LIMIT_BURST } from './rate-limit.mjs';
 import { requestLogger } from './request-log.mjs';
 import { buildIdentityReport, identityReportToMarkdown, identityReportToHtml } from './identity-report.mjs';
+import { loadIndex } from './cache.mjs';
 import { createRuntimeMetrics, stopRuntimeMetrics, buildMetricsReport, formatPrometheus } from './metrics-runtime.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -211,6 +212,14 @@ async function readBody(req) {
   try { return JSON.parse(text); } catch (err) { throw new Error(`Invalid JSON body: ${err.message}`); }
 }
 
+function extractApiKey(req) {
+  const auth = req.headers['authorization'] || req.headers['Authorization'];
+  if (auth && auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
+  const key = req.headers['x-api-key'] || req.headers['X-Api-Key'];
+  if (key) return String(key).trim();
+  return undefined;
+}
+
 function setApiHome(home) {
   api._home = home;
   try { api._config = loadConfig(home); } catch { api._config = defaultConfig(); }
@@ -310,6 +319,7 @@ function activityOptions(query) {
 
 async function handleRequest(req, res, home, options = {}) {
   const url = new URL(req.url, `http://localhost`);
+  const parsedUrl = url;
   const method = req.method;
   const pathname = url.pathname;
   const runtimeMetrics = options.runtimeMetrics;
@@ -362,8 +372,12 @@ async function handleRequest(req, res, home, options = {}) {
       }
     }
 
-    const bodyOrRead = body ?? (method === 'POST' || method === 'PUT' || method === 'PATCH' ? await readBody(req) : null);
-    body = bodyOrRead;
+    const bodyOrRead = body || (method === 'POST' || method === 'PUT' || method === 'PATCH' ? await readBody(req) : null);
+    // body may have been read for auth; avoid re-reading when empty
+    let requestBody = bodyOrRead || {};
+    if (typeof requestBody === 'string' && requestBody.trim()) {
+      try { requestBody = JSON.parse(requestBody); } catch {}
+    }
     if (method === 'GET' && route === '/health') {
       const transport = api._config?.transport || process.env.PERMABRAIN_TRANSPORT || 'local';
       const streamTransport = options.streamTransport || process.env.PERMABRAIN_STREAM_TRANSPORT || 'sse';
@@ -1299,21 +1313,96 @@ async function handleRequest(req, res, home, options = {}) {
       return sendJson(res, 200, info);
     }
 
+    if (method === 'GET' && route === '/api/v1/peer/diff') {
+      const remote = parsedUrl.searchParams.get('remote');
+      if (!remote) return sendError(res, 400, 'remote query parameter is required');
+      const direction = parsedUrl.searchParams.get('direction') || 'pull';
+      const includeAttestations = parsedUrl.searchParams.get('includeAttestations') !== 'false';
+      const includeVersions = parsedUrl.searchParams.get('includeVersions') !== 'false';
+      const { createClient } = await import('./client.mjs');
+      const remoteClient = createClient({ baseUrl: remote, apiKey: parsedUrl.searchParams.get('remoteApiKey') || extractApiKey(req) });
+      if (direction === 'push') {
+        const { diffKeysForPush } = await import('./peer.mjs');
+        const localIndex = loadIndex(currentHome);
+        const remoteInfo = await remoteClient.peerInfo();
+        const diff = diffKeysForPush(localIndex, remoteInfo, { includePrivate: false });
+        return sendJson(res, 200, { ...diff, peer: remoteInfo, remoteBaseUrl: remote });
+      }
+      const { diffPeerKeys } = await import('./peer.mjs');
+      const localIndex = loadIndex(currentHome);
+      const remoteInfo = await remoteClient.peerInfo();
+      const diff = diffPeerKeys(localIndex, remoteInfo);
+      return sendJson(res, 200, { ...diff, peer: remoteInfo, remoteBaseUrl: remote });
+    }
+
     if (method === 'POST' && route === '/api/v1/peer/pull') {
-      const body = bodyOrRead || await readBody(req);
-      if (!Array.isArray(body.requests)) return sendError(res, 400, 'requests array is required');
-      const includeAttestations = body.includeAttestations !== false;
-      const { buildPeerPullBundle } = await import('./peer.mjs');
-      const result = await buildPeerPullBundle(body.requests, currentHome, { includeAttestations });
-      return sendJson(res, 200, result);
+      const dryRun = parsedUrl.searchParams.get('dryRun') === 'true';
+      const body = requestBody;
+      if (body.remoteUrl != null) {
+        const { pullFromPeer, pullFromPeerClientAsBundle } = await import('./peer.mjs');
+        const { createClient } = await import('./client.mjs');
+        const remoteClient = createClient({ baseUrl: body.remoteUrl, apiKey: body.remoteApiKey || extractApiKey(req) });
+        if (dryRun) {
+          const { bundle, diff } = await pullFromPeerClientAsBundle(remoteClient, {
+            home: currentHome,
+            includeAttestations: body.includeAttestations !== false,
+            includeVersions: body.includeVersions !== false
+          });
+          return sendJson(res, 200, { dryRun: true, peer: diff.peer, remoteBaseUrl: body.remoteUrl, diff, pulled: diff.pulled || [], bundleMeta: bundle?.meta || {} });
+        }
+        const result = await pullFromPeer(body.remoteUrl, {
+          home: currentHome,
+          apiKey: body.remoteApiKey || extractApiKey(req),
+          includeAttestations: body.includeAttestations !== false,
+          includeVersions: body.includeVersions !== false,
+          verify: body.verify !== false,
+          skipDuplicates: body.skipDuplicates !== false
+        });
+        return sendJson(res, 200, { ...result, remoteBaseUrl: body.remoteUrl });
+      }
+      if (Array.isArray(body.requests)) {
+        const includeAttestations = body.includeAttestations !== false;
+        const { buildPeerPullBundle } = await import('./peer.mjs');
+        const result = await buildPeerPullBundle(body.requests, currentHome, { includeAttestations });
+        return sendJson(res, 200, result);
+      }
+      return sendError(res, 400, 'remoteUrl or requests array is required');
     }
 
     if (method === 'POST' && route === '/api/v1/peer/push') {
-      const body = bodyOrRead || await readBody(req);
-      if (!body.bundle && !Array.isArray(body.entries)) return sendError(res, 400, 'bundle object with entries is required');
-      const bundle = body.bundle || body;
-      const result = await api.importBundle(bundle, { home: currentHome, verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false });
-      return sendJson(res, 200, normalizeImportResult(result));
+      const dryRun = parsedUrl.searchParams.get('dryRun') === 'true';
+      const body = requestBody;
+      if (body.remoteUrl != null) {
+        const { pushToPeerClient, buildPeerPushBundle, diffKeysForPush } = await import('./peer.mjs');
+        const { createClient } = await import('./client.mjs');
+        const remoteClient = createClient({ baseUrl: body.remoteUrl, apiKey: body.remoteApiKey || extractApiKey(req) });
+        if (dryRun) {
+          const remoteInfo = await remoteClient.peerInfo();
+          const localIndex = loadIndex(currentHome);
+          const diff = diffKeysForPush(localIndex, remoteInfo, { includePrivate: false });
+          const pushKeys = diff.pushed.map((p) => p.key);
+          const bundle = pushKeys.length
+            ? await buildPeerPushBundle(pushKeys, currentHome, {
+                includeAttestations: body.includeAttestations !== false,
+                includeVersions: body.includeVersions !== false
+              })
+            : { type: 'bundle', version: 1, entries: [], meta: { pushed: 0 } };
+          return sendJson(res, 200, { dryRun: true, peer: remoteInfo, remoteBaseUrl: body.remoteUrl, diff, pushed: pushKeys, bundleMeta: bundle?.meta || {} });
+        }
+        const result = await pushToPeerClient(remoteClient, {
+          home: currentHome,
+          includeAttestations: body.includeAttestations !== false,
+          includeVersions: body.includeVersions !== false,
+          includePrivate: false
+        });
+        return sendJson(res, 200, { ...result, remoteBaseUrl: body.remoteUrl });
+      }
+      if (body.bundle || Array.isArray(body.entries)) {
+        const bundle = body.bundle || body;
+        const result = await api.importBundle(bundle, { home: currentHome, verify: body.verify !== false, skipDuplicates: body.skipDuplicates !== false });
+        return sendJson(res, 200, normalizeImportResult(result));
+      }
+      return sendError(res, 400, 'remoteUrl or bundle/entries is required');
     }
 
     return sendError(res, 404, `Unknown route: ${method} ${pathname}`);
