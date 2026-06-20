@@ -210,5 +210,16 @@ export {
 // Batch directory publishing
 export { publishDirectory, publishDirectoryToMarkdown, deriveKeyFromPath, findMarkdownFiles } from './publish-dir.mjs';
 
+// Release notes / changelog helpers
+export {
+  parseChangelog,
+  validateChangelog,
+  buildReleaseNotes,
+  generateDraftFromGitCommits,
+  releaseNotesToMarkdown,
+  releaseNotesToJson,
+  categorizeCommitMessage
+} from './release-notes.mjs';
+
 // Interactive REPL
 export { createRepl, readHistory, writeHistory, buildApiCompleter } from './repl.mjs';

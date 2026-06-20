@@ -45,6 +45,7 @@ import { renderTemplate, createArticleFromTemplate } from './template.mjs';
 import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } from './log.mjs';
 import { accessLogResultToMarkdown } from './request-log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
+import { buildReleaseNotes, generateDraftFromGitCommits, validateChangelog as validateReleaseChangelog } from './release-notes.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from './admin-panel.mjs';
 import { buildSupportBundle, supportBundleToMarkdown, redactSecrets } from './support-bundle.mjs';
@@ -2125,6 +2126,35 @@ const api = {
     requireInit(this._home);
     const { createRepl } = await import('./repl.mjs');
     return createRepl({ api: this, home: this._home, ...opts });
+  },
+
+  /**
+   * Build or validate release notes from CHANGELOG.md.
+   *
+   * @param {Object} opts
+   * @param {string} [opts.text] - Full CHANGELOG.md text (takes precedence over path)
+   * @param {string} [opts.path] - Path to CHANGELOG.md (default ./CHANGELOG.md)
+   * @param {string} [opts.version] - Release version to build notes for
+   * @param {boolean} [opts.unreleased] - Build notes for the [Unreleased] section
+   * @param {boolean} [opts.draft] - Generate a draft from recent git commits
+   * @param {number} [opts.limit] - Max commits for --draft (default 50)
+   * @param {string} [opts.since] - Git --since date for --draft
+   * @returns {Promise<{markdown, json, release, parsed?}|{valid, errors}|{markdown, json, release}>}
+   */
+  async releaseNotes(opts = {}) {
+    const { buildReleaseNotes, generateDraftFromGitCommits, validateChangelog } = await import('./release-notes.mjs');
+    if (opts.validate) {
+      const text = opts.text ?? fs.readFileSync(opts.path || './CHANGELOG.md', 'utf8');
+      return validateChangelog(text);
+    }
+    if (opts.draft) {
+      return generateDraftFromGitCommits({
+        limit: opts.limit || 50,
+        since: opts.since || undefined,
+        path: process.cwd()
+      });
+    }
+    return buildReleaseNotes(opts);
   },
 
   /**

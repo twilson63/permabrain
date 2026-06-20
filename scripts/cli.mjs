@@ -69,6 +69,7 @@ const COMMANDS = [
   'template',
   'dashboard',
   'support-bundle',
+  'release-notes',
   'client',
   'completion',
   'threshold-attest',
@@ -173,6 +174,7 @@ Commands:
   template <file>              Publish an article from a markdown template
   dashboard                    Build a self-contained web dashboard snapshot
   support-bundle               Build a self-contained diagnostics bundle
+  release-notes [options]      Print release notes from CHANGELOG.md
   client [action] [args]         HTTP client SDK for a permabrain serve instance
   completion <shell>           Generate shell completion script (bash|zsh|fish)
   validate <type> [path]         Validate article/attestation metadata against JSON Schema
@@ -1132,6 +1134,28 @@ Examples:
   permabrain publish-dir ./docs --topic ai --kind subject
   permabrain publish-dir ./notes --recursive --topic notes --dry-run
   permabrain publish-dir ./share --visibility encrypted --for pubkey1,pubkey2
+`,
+    'release-notes': `Usage: permabrain release-notes [--version <version>] [--unreleased] [--draft] [--limit <n>] [--since <date>] [--file <path>] [--output <path>] [--json] [--validate]
+
+Print release notes from CHANGELOG.md.
+
+Options:
+  --version <version>    Show release notes for a specific version
+  --unreleased           Show the [Unreleased] section
+  --draft                Generate a draft Unreleased entry from recent git commits
+  --limit <n>            Max number of git commits to inspect for --draft (default 50)
+  --since <date>         Git --since date for --draft commits (e.g. 2026-06-01)
+  --file <path>          Path to CHANGELOG.md (default ./CHANGELOG.md)
+  --output <path>        Write output to a file instead of stdout
+  --json                 Output structured JSON instead of markdown
+  --validate             Validate CHANGELOG.md format and print result
+
+Examples:
+  permabrain release-notes
+  permabrain release-notes --version 0.2.0
+  permabrain release-notes --unreleased
+  permabrain release-notes --draft --json
+  permabrain release-notes --validate
 `
   };
   console.log(help[command] || `Unknown command: ${command}`);

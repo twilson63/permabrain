@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `permabrain release-notes` CLI command, `api.releaseNotes()` programmatic API, and `src/release-notes.mjs` helpers to parse, validate, build, and draft Keep-a-Changelog release notes.
+
+### Added
 - GitHub Actions `release.yml` workflow to run tests and publish to npm on `v*` tags.
 
 ## [0.2.0] - 2026-06-17

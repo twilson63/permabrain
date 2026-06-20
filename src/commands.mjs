@@ -33,6 +33,7 @@ import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, p
 import { buildSupportBundle, supportBundleToMarkdown } from './support-bundle.mjs';
 import { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage } from './share-encrypted.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
+import { buildReleaseNotes, generateDraftFromGitCommits, validateChangelog as validateReleaseChangelog } from './release-notes.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
 import { startServer, stopServer } from './serve.mjs';
@@ -139,6 +140,7 @@ export async function runCommand(command, args) {
   if (command === 'template') return templateCommand(args);
   if (command === 'dashboard') return dashboardCommand(args);
   if (command === 'support-bundle') return supportBundleCommand(args);
+  if (command === 'release-notes') return releaseNotesCommand(args);
   if (command === 'client') return clientCommand(args);
   if (command === 'completion') return completionCommand(args);
   if (command === 'validate') return validateCommand(args);
@@ -2972,4 +2974,47 @@ Examples:
     console.log(`Routes: ${bundle.routes?.length ?? 0}`);
   }
   return bundle;
+}
+
+async function releaseNotesCommand(args) {
+  const { buildReleaseNotes, generateDraftFromGitCommits, validateChangelog } = await import('./release-notes.mjs');
+  if (args.help || args.h) return { ok: true, help: true };
+  const opts = {
+    path: args.file || './CHANGELOG.md',
+    text: args.text || undefined,
+    version: args.version || undefined,
+    unreleased: args.unreleased === true || args.unreleased === 'true'
+  };
+  if (args.validate) {
+    const { valid, errors } = validateChangelog(fs.readFileSync(opts.path, 'utf8'));
+    if (args.json) printJson({ valid, errors });
+    else console.log(`CHANGELOG.md: ${valid ? 'valid' : 'invalid'}` + (errors.length ? `\n${errors.map((e) => `- ${e.path}: ${e.message}`).join('\n')}` : ''));
+    return { valid, errors };
+  }
+  if (args.draft) {
+    const draft = generateDraftFromGitCommits({
+      limit: Number(args.limit) || 50,
+      since: args.since || undefined,
+      path: process.cwd()
+    });
+    const output = args.output;
+    const content = args.json ? JSON.stringify(draft.json, null, 2) : draft.markdown;
+    if (output) {
+      fs.writeFileSync(output, content, 'utf8');
+      console.log(`Draft release notes written to ${output}`);
+    } else {
+      console.log(content);
+    }
+    return draft;
+  }
+  const result = buildReleaseNotes(opts);
+  const output = args.output;
+  const content = args.json ? JSON.stringify(result.json, null, 2) : result.markdown;
+  if (output) {
+    fs.writeFileSync(output, content, 'utf8');
+    console.log(`Release notes written to ${output}`);
+  } else {
+    console.log(content);
+  }
+  return result;
 }
