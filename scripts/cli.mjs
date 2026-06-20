@@ -47,6 +47,7 @@ const COMMANDS = [
   'reference',
   'transport-status',
   'watch',
+  'watch-files',
   'history',
   'diff',
   'status',
@@ -145,6 +146,7 @@ Commands:
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
   transport-status             Show transport metrics and circuit breaker state
   watch                        Poll transport for new articles/attestations
+  watch-files <dir>            Watch directory and auto-publish changed markdown files
   history                      Lists the full version chain and attestation timeline for an article key
   diff                         Compare two article versions or local vs remote
   status                       Show working-state overview (articles, divergences, forks, merges)
@@ -204,6 +206,7 @@ Common examples:
   permabrain serve --stream-transport sse
   permabrain events --events publish,attest --duration 30000
   permabrain validate article ./tags.json
+  permabrain watch-files ./notes --topic research --kind subject
 
 Run 'permabrain <command> --help' for detailed command help.
 
@@ -354,6 +357,26 @@ Options:
   --key <key>        Filter articles/attestations by canonical key
   --interval <sec>   Seconds between polls (default 30)
   --once             Run a single poll and exit
+  --json             Output events as newline-delimited JSON`,
+  'watch-files': `Usage: permabrain watch-files [dir] [--recursive] [--topic <topic>] [--kind <kind>] [--source-name <name>] [--source-url <url>] [--language <lang>] [--visibility public|encrypted|private] [--for <pubkey-1>[,<pubkey-2>...]] [--dry-run] [--initial-publish] [--debounce-ms <ms>] [--json]
+
+Watches a directory for added or changed markdown files and auto-publishes
+them as PermaBrain articles. Metadata is read from YAML frontmatter when
+present; otherwise it is derived from the file path (topic from the first
+subdirectory, kind from options or 'subject', key from the remaining path).
+
+Options:
+  --recursive        Watch subdirectories (default true)
+  --topic <topic>    Default topic for path-derived metadata
+  --kind <kind>      Default article kind (default 'subject')
+  --source-name <n>  Default source name (default 'File Watch')
+  --source-url <url> Override source URL
+  --language <lang>  Language tag (default 'en')
+  --visibility       public (default), encrypted, or private
+  --for <keys>       Comma-separated X25519 public keys for encrypted articles
+  --dry-run          Print what would be published without publishing
+  --initial-publish  Publish existing markdown files on startup
+  --debounce-ms <ms> Wait this long after a change before publishing (default 300)
   --json             Output events as newline-delimited JSON`,
   'reference': `Usage: permabrain reference <subcommand> [args] [--url http://localhost:10000] [--json]
 

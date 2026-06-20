@@ -6,6 +6,7 @@ import { attestArticle, opinionFromArgs } from './attestation.mjs';
 import { attestForAgent, provisionAgentIdentity, parseAttestationRequest, processProxyAttestation, buildAttestationRequestBody, listKnownAgents, getKnownAgent } from './multi-agent.mjs';
 import { consensusForArticle } from './consensus.mjs';
 import { watch, watchOnce } from './watch.mjs';
+import { watchFiles, publishFilesOnce, watchFilesToMarkdown } from './watch-files.mjs';
 import { getTransport, HyperbeamTransport, ArweaveTransport, LocalTransport, probeTransport } from './transport.mjs';
 import { HyperbeamQuery } from './hb-query.mjs';
 import { HyperbeamConsensus } from './hb-consensus.mjs';
@@ -116,6 +117,7 @@ export async function runCommand(command, args) {
   if (command === 'publish-dir') return publishDirectoryCommand(args);
   if (command === 'transport-status') return transportStatusCommand(args);
   if (command === 'watch') return watchCommand(args);
+  if (command === 'watch-files') return watchFilesCommand(args);
   if (command === 'history') return historyCommand(args);
   if (command === 'fork') return forkCommand(args);
   if (command === 'list-forks') return listForksCommand(args);
@@ -849,6 +851,44 @@ async function watchCommand(args) {
     process.exit(0);
   });
   return { status: 'watching' };
+}
+
+async function watchFilesCommand(args) {
+  const dir = args._[0] || process.cwd();
+  const opts = {
+    dir,
+    recursive: args.recursive !== false && args.recursive !== 'false',
+    dryRun: args['dry-run'] === true || args['dry-run'] === 'true',
+    initialPublish: args['initial-publish'] === true || args['initial-publish'] === 'true',
+    topic: args.topic,
+    kind: args.kind || 'subject',
+    sourceName: args['source-name'],
+    sourceUrl: args['source-url'],
+    language: args.language || 'en',
+    visibility: args.visibility || 'public',
+    encryptedFor: args.for ? String(args.for).split(',').map(s => s.trim()).filter(Boolean) : [],
+    debounceMs: Number(args['debounce-ms'] || 300),
+    json: args.json === true || args.json === 'true'
+  };
+
+  if (args.once === true || args.once === 'true') {
+    const results = await publishFilesOnce(opts);
+    if (args.json) printJson(results);
+    else if (results.length) console.log(watchFilesToMarkdown(results));
+    else console.log('No markdown files found.');
+    return { status: 'watched-once', count: results.length };
+  }
+
+  const { cancel } = await watchFiles(opts);
+  process.once('SIGINT', () => {
+    cancel();
+    process.exit(0);
+  });
+  process.once('SIGTERM', () => {
+    cancel();
+    process.exit(0);
+  });
+  return { status: 'watching-files' };
 }
 
 async function verifyCommand(args) {

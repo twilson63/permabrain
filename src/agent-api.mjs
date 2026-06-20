@@ -53,6 +53,7 @@ import { buildIdentityReport, identityReportToMarkdown, identityReportToHtml } f
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from './admin-panel.mjs';
 import { buildSupportBundle, supportBundleToMarkdown, redactSecrets } from './support-bundle.mjs';
+import { watchFiles, publishFilesOnce, watchFilesToMarkdown } from './watch-files.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
@@ -2257,6 +2258,55 @@ const api = {
       report.markdown = lines.join('\n');
     }
     return report;
+  },
+
+  /**
+   * Watch a directory and auto-publish markdown articles as files change.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.dir] - Directory to watch (defaults to cwd)
+   * @param {boolean} [opts.recursive=true] - Watch subdirectories
+   * @param {boolean} [opts.dryRun=false] - Print without publishing
+   * @param {boolean} [opts.initialPublish=false] - Publish existing files on startup
+   * @param {string} [opts.topic] - Default topic
+   * @param {string} [opts.kind='subject'] - Default kind
+   * @param {string} [opts.sourceName='File Watch'] - Default source name
+   * @param {string} [opts.language='en'] - Default language
+   * @param {string} [opts.visibility='public'] - public|encrypted|private
+   * @param {Array<string>} [opts.encryptedFor] - Recipient fingerprints for encrypted articles
+   * @param {number} [opts.debounceMs=300] - Debounce window
+   * @param {Function} [opts.onEvent] - Event callback
+   * @returns {Promise<{cancel: Function, watched: string[]}>}
+   */
+  async watchFiles(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return watchFiles({ home: this._home, ...opts });
+  },
+
+  /**
+   * One-shot scan and publish of markdown files in a directory.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.dir]
+   * @param {boolean} [opts.recursive=true]
+   * @param {boolean} [opts.dryRun=false]
+   * @returns {Promise<Array<{file, key, status, id?, version?, error?}>>}
+   */
+  async watchFilesOnce(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return publishFilesOnce({ home: this._home, ...opts });
+  },
+
+  /**
+   * Render a watch-files publish result as markdown.
+   *
+   * @param {Array} result
+   * @returns {string}
+   */
+  watchFilesToMarkdown(result) {
+    return watchFilesToMarkdown(result);
   },
 
   /**

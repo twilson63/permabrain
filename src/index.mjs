@@ -210,6 +210,9 @@ export {
 // Batch directory publishing
 export { publishDirectory, publishDirectoryToMarkdown, deriveKeyFromPath, findMarkdownFiles } from './publish-dir.mjs';
 
+// File-system watch auto-publisher
+export { watchFiles, publishFilesOnce, watchFilesToMarkdown } from './watch-files.mjs';
+
 // Release notes / changelog helpers
 export {
   parseChangelog,

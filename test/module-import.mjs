@@ -222,6 +222,7 @@ assert.equal(typeof summarizeThresholdAttestation, 'function', 'summarizeThresho
 import { createClient } from '../src/index.mjs';
 import { generateCompletion, listSupportedShells } from '../src/index.mjs';
 import { publishDirectory, publishDirectoryToMarkdown, deriveKeyFromPath, findMarkdownFiles } from '../src/index.mjs';
+import { watchFiles, publishFilesOnce, watchFilesToMarkdown } from '../src/index.mjs';
 
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
@@ -236,7 +237,10 @@ assert.equal(typeof publishDirectory, 'function', 'publishDirectory');
 assert.equal(typeof publishDirectoryToMarkdown, 'function', 'publishDirectoryToMarkdown');
 assert.equal(typeof deriveKeyFromPath, 'function', 'deriveKeyFromPath');
 assert.equal(typeof findMarkdownFiles, 'function', 'findMarkdownFiles');
-console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client + rate limit + publish-dir)');
+assert.equal(typeof watchFiles, 'function', 'watchFiles');
+assert.equal(typeof publishFilesOnce, 'function', 'publishFilesOnce');
+assert.equal(typeof watchFilesToMarkdown, 'function', 'watchFilesToMarkdown');
+console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client + rate limit + publish-dir + watch-files)');
 
 // --- 5. package.json exports field ---
 console.log('5. package.json exports field');
@@ -340,12 +344,13 @@ const expectedMethods = [
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
   'verify', 'exportBundle', 'exportAll', 'importBundle', 'importBundleAutoDetect', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
   'createThresholdAttestation', 'addThresholdSigner', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope', 'shareEncrypted',
-  'adminPanel', 'adminPanelHTML', 'adminPanelMarkdown'
+  'adminPanel', 'adminPanelHTML', 'adminPanelMarkdown',
+  'watchFiles', 'watchFilesOnce', 'watchFilesToMarkdown'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 100 API methods present');
+console.log('   ✓ All 101 API methods present');
 
 // --- 11a. Admin panel API methods ---
 console.log('11a. Admin panel API methods');
