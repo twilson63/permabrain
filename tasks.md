@@ -1,10 +1,17 @@
 # PermaBrain Build Tasks
 
+## Done
+- [x] Web viewer Attest panel: add a dedicated attestation form for selecting an article, choosing an opinion/confidence/reason, POSTing to `/api/v1/articles/:key/attest`, and displaying the resulting consensus from `/api/v1/articles/:key/consensus`. Include toolbar button, URL deep-link state, localStorage API-key support, and `test/viewer-attest.mjs` wired into `npm test`.
+- [x] Web viewer Batch Attest panel: add a panel for submitting multiple attestations at once via `POST /api/v1/batch-attest`. Include a per-row form (key, opinion, confidence, reason, source URL), JSON paste/upload of a batch array, API-key input, result report rendering, toolbar button, URL deep-link state (`?view=batch-attest`), and `test/viewer-batch-attest.mjs` wired into `npm test`.
+
+## In Progress
+_(none)_
+
 ## Next
 - [ ] Seed next feature chunk when the queue is empty (backlog TBD).
 
 ## Done
-- [x] Cron build loop checkpoint (2026-06-20 18:34 UTC): picked the only unchecked task in the queue (`Add permabrain topics / api.topics() topic catalog`). Verified implementation already present in `permabrain/src/topics.mjs`, `agent-api.mjs`, `commands.mjs`, `scripts/cli.mjs`, `serve.mjs`, `client.mjs`, `route-registry.mjs`, `index.mjs`, `completion.mjs`, `package.json`, and `test/topics.mjs`/`test/module-import.mjs`. Ran full sequential `npm test` suite in this environment — all 100+ test files passed. Repo remains clean `main` at `759225b`. Marked task complete and moved it from Next to Done; queue is empty again.
+- [x] Cron build loop checkpoint (2026-06-20 19:04 UTC): queue was empty at start. Seeded and implemented a **web viewer Topics catalog panel** to surface the existing `/api/v1/topics` endpoint. Added a Topics toolbar button in `viewer/index.html`, `topicsState`, `window.showTopics()`, `window.refreshTopics()`, `window.fetchTopics()`, `window.renderTopics()`, plus `setTopicsSort()`/`setTopicsLimit()` controls; renders a sortable/limitable table with topic name, article count, unique keys, latest timestamp, kind/language breakdown, and links back to the home search by topic. Wired `viewMode === 'topics'` into URL state (`?view=topics`), boot-time restoration, and the startup view dispatch; keeps local-only behavior consistent with admin/health/activity panels. Added `test/viewer-topics.mjs` (HTML wiring checks and HTTP round-trip tests for `/api/v1/topics`, including sort/limit query params), wired it into `npm test` and `test:viewer-topics`. Full sequential `npm test` suite passes. Committed to `main` as `6eeb67d` and pushed to `origin/main` as `fd03f69` after rebasing onto upstream.
 - [x] Cron build loop checkpoint (2026-06-20 17:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `afa82b3`. Full sequential `npm test` suite passes in this environment (all 100+ test files). Left queue empty and recorded clean status.
 - [x] Cron build loop checkpoint (2026-06-20 16:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `afa82b3`. Full sequential `npm test` suite passes in this environment (all 100+ test files). Focused test battery also passes (`module-import`, `watch-files`, `health`). Left queue empty and recorded clean status.
 - [x] Cron build loop checkpoint (2026-06-20 16:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `afa82b3`. Full sequential `npm test` suite passes in this environment (all 100+ test files). Left queue empty and recorded clean status.
