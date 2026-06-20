@@ -15,6 +15,9 @@
  *   await api.sync();
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
 import { loadIndex } from './cache.mjs';
 import { ensureIdentity, loadIdentity } from './keys.mjs';
@@ -2178,6 +2181,81 @@ const api = {
     const report = buildIdentityReport({ home: this._home, config: this._config });
     if (opts.html) return identityReportToHtml(report);
     if (opts.markdown) return { ...report, markdown: identityReportToMarkdown(report) };
+    return report;
+  },
+
+  /**
+   * Return a health report for the local node and optionally a remote server.
+   *
+   * Without `opts.url`, this probes the configured transport via `api.probe()`
+   * and returns local identity metadata. With `opts.url`, it also fetches the
+   * remote `/health` endpoint via the HTTP SDK.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.url] - Remote PermaBrain serve base URL to check
+   * @param {boolean} [opts.useHyperbeam] - Force HyperbeamTransport probe locally
+   * @param {boolean} [opts.markdown] - Include a markdown rendering of the report
+   * @returns {Promise<{ok: boolean, agentId: string, home: string, transport: string, version: string, checks: Array, remote?: Object, markdown?: string}>}
+   */
+  async health(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
+    const transport = this._config?.transport || 'local';
+    let probe;
+    try {
+      probe = await this.probe({ useHyperbeam: opts.useHyperbeam });
+    } catch (e) {
+      probe = { ok: false, url: null, transport, checks: [{ name: 'transport-probe', ok: false, error: e.message }] };
+    }
+    const report = {
+      ok: probe.ok,
+      agentId: this._identity?.agentId || null,
+      home: this._home,
+      transport,
+      version: pkg.version || 'unknown',
+      checks: probe.checks || []
+    };
+    if (opts.url) {
+      const { createClient } = await import('./client.mjs');
+      const client = createClient({ baseUrl: opts.url });
+      try {
+        report.remote = await client.health();
+        report.ok = report.ok && report.remote.ok;
+      } catch (e) {
+        report.remote = { ok: false, error: e.message };
+        report.ok = false;
+      }
+    }
+    if (opts.markdown) {
+      const lines = [
+        `# PermaBrain health`,
+        '',
+        `- **ok**: ${report.ok ? 'yes' : 'no'}`,
+        `- **agentId**: ${report.agentId || '(unknown)'}`,
+        `- **home**: ${report.home}`,
+        `- **transport**: ${report.transport}`,
+        `- **version**: ${report.version}`,
+        ''
+      ];
+      if (report.remote) {
+        lines.push(`## Remote: ${opts.url}`, '');
+        lines.push(`- **ok**: ${report.remote.ok ? 'yes' : 'no'}`);
+        if (report.remote.error) lines.push(`- **error**: ${report.remote.error}`);
+        else {
+          lines.push(`- **agentId**: ${report.remote.agentId || '(unknown)'}`);
+          lines.push(`- **home**: ${report.remote.home || '(unknown)'}`);
+          lines.push(`- **transport**: ${report.remote.transport || '(unknown)'}`);
+        }
+        lines.push('');
+      }
+      lines.push('## Checks', '');
+      for (const check of report.checks) {
+        lines.push(`- ${check.ok ? '✓' : '✗'} ${check.name}${check.error ? `: ${check.error}` : ''}`);
+      }
+      report.markdown = lines.join('\n');
+    }
     return report;
   },
 

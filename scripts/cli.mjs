@@ -50,6 +50,7 @@ const COMMANDS = [
   'history',
   'diff',
   'status',
+  'health',
   'search',
   'topic',
   'activity',
@@ -147,6 +148,7 @@ Commands:
   history                      Lists the full version chain and attestation timeline for an article key
   diff                         Compare two article versions or local vs remote
   status                       Show working-state overview (articles, divergences, forks, merges)
+  health                       Show local node health and optionally check a remote server
   export-articles              Export a filtered article directory to JSON or markdown
   metrics                      Show aggregate article/attestation metrics
   stats                        Show dashboard-style aggregate overview
@@ -427,6 +429,21 @@ and transport metrics.
 Options:
   --use-hyperbeam      Query remote state via HyperBEAM transport
   --json               Output structured status report`,
+  'health': `Usage: permabrain health [--url <base-url>] [--use-hyperbeam] [--json] [--markdown] [--output <path>]
+
+Show a health report for the local PermaBrain node and optionally a remote
+permabrain serve instance.
+
+The local report probes the configured transport, lists identity metadata,
+and includes per-check availability details. With --url, the command also
+fetches the remote /health endpoint and merges the result.
+
+Options:
+  --url <base-url>     Also check a remote permabrain serve instance
+  --use-hyperbeam      Probe the HyperBEAM transport locally
+  --json               Output structured JSON report
+  --markdown           Output markdown report
+  --output <path>      Write the JSON/markdown report to a file`,
   'export-bundle': `Usage: permabrain export-bundle <canonical-key> [--id <id>] [--no-attestations] [--no-versions] [--output <path>] [--json]
 
 Exports a single article, its version chain, and attestations into a

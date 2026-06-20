@@ -153,6 +153,7 @@ export async function runCommand(command, args) {
   if (command === 'shell') return shellCommand(args);
   if (command === 'version' || command === '--version' || command === '-v') return versionCommand(args);
   if (command === 'whoami') return whoamiCommand(args);
+  if (command === 'health') return healthCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -3048,6 +3049,79 @@ Examples:
     console.log(script);
   }
   return { ok: true, shell, script };
+}
+
+async function healthCommand(args) {
+  if (args.help || args.h) {
+    console.log(`Usage: permabrain health [options]
+
+Show a health report for the local PermaBrain node and optionally a remote server.
+
+Options:
+  --url <base-url>   Also fetch /health from a remote permabrain serve instance
+  --use-hyperbeam    Probe HyperBEAM transport locally
+  --json             Output structured JSON
+  --markdown         Output markdown report
+  --output <path>    Write output to file
+
+Examples:
+  permabrain health
+  permabrain health --url http://localhost:8765
+  permabrain health --json
+  permabrain health --url http://localhost:8765 --markdown
+`);
+    return { ok: true, help: true };
+  }
+  const { api } = await import('./agent-api.mjs');
+  await api.init();
+  const result = await api.health({
+    url: args.url,
+    useHyperbeam: args['use-hyperbeam'],
+    markdown: args.markdown
+  });
+
+  if (args.markdown) {
+    const md = result.markdown || '';
+    if (args.output) {
+      fs.writeFileSync(args.output, md, 'utf8');
+      console.log(`Health report written to ${args.output}`);
+    } else {
+      console.log(md);
+    }
+    return result;
+  }
+
+  if (args.json) {
+    const content = JSON.stringify(result, null, 2);
+    if (args.output) {
+      fs.writeFileSync(args.output, content, 'utf8');
+      console.log(`Health report written to ${args.output}`);
+    } else {
+      console.log(content);
+    }
+    return result;
+  }
+
+  console.log(`PermaBrain health: ${result.ok ? 'ok' : 'degraded'}`);
+  console.log(`  Agent: ${result.agentId || '(unknown)'}`);
+  console.log(`  Home: ${result.home}`);
+  console.log(`  Transport: ${result.transport}`);
+  console.log(`  Version: ${result.version}`);
+  if (result.remote) {
+    console.log(`\nRemote: ${args.url}`);
+    console.log(`  ok: ${result.remote.ok ? 'yes' : 'no'}`);
+    if (result.remote.error) console.log(`  error: ${result.remote.error}`);
+    else {
+      console.log(`  agentId: ${result.remote.agentId || '(unknown)'}`);
+      console.log(`  home: ${result.remote.home || '(unknown)'}`);
+      console.log(`  transport: ${result.remote.transport || '(unknown)'}`);
+    }
+  }
+  console.log('\nChecks:');
+  for (const check of result.checks) {
+    console.log(`  ${check.ok ? '✓' : '✗'} ${check.name}${check.error ? `: ${check.error}` : ''}`);
+  }
+  return result;
 }
 
 async function whoamiCommand(args) {

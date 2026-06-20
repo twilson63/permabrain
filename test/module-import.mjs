@@ -329,7 +329,7 @@ console.log('   ✓ autoImport validates input');
 // --- 11. deriveTitleFromUrl helper (indirect test via autoImport input validation) ---
 console.log('11. API completeness check');
 const expectedMethods = [
-  'releaseNotes', 'repl', 'accessLog', 'tailAccessLog', 'accessLogToMarkdown', 'events', 'subscribeEventsRemote', 'subscribe', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard', 'whoami',
+  'releaseNotes', 'repl', 'accessLog', 'tailAccessLog', 'accessLogToMarkdown', 'events', 'subscribeEventsRemote', 'subscribe', 'renderTemplate', 'template', 'dashboard', 'dashboardHTML', 'dashboardMarkdown', 'writeDashboard', 'publishDashboard', 'whoami', 'health',
   'validateMetadata', 'validateDataItem',
   'peerInfo', 'buildPeerPullBundle', 'pullFromPeer', 'pullFromPeerAsBundle', 'peerStatus',
   'init', 'ensureInit', 'publish', 'query', 'get', 'attest', 'consensus',
@@ -345,7 +345,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 99 API methods present');
+console.log('   ✓ All 100 API methods present');
 
 // --- 11a. Admin panel API methods ---
 console.log('11a. Admin panel API methods');
