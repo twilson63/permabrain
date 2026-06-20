@@ -64,8 +64,8 @@
 ## Done
 - [x] Cron build loop checkpoint (2026-06-19 18:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `d8fcac2`. No implementation work picked. Seeded next chunk: web viewer dedicated "History" panel with visual timeline, version selection, and diff against prior versions, deep-linked via `?view=history`/`key`.
 
-## In Progress
-- [ ] (none)
+## Done
+- [x] Add `permabrain whoami` / `api.whoami()` local identity introspection: CLI command, agent API method, HTTP `GET /api/v1/identity/report` route, SDK `client.whoami()`, and tests. Report includes agent id, key type, public signing key, derived X25519 encryption public key (ed25519), home directory, transport, and config summary. Committed to `main` as `059d288` on 2026-06-20 02:17 UTC; full `npm test` suite passes.
 
 ## Done
 - [x] Add `permabrain release-notes` / `api.releaseNotes()` command: parse CHANGELOG.md sections, validate Keep-a-Changelog format, print markdown or JSON, and generate a draft entry from recent git commits. Added `src/release-notes.mjs` with `parseChangelog`, `validateChangelog`, `buildReleaseNotes`, `generateDraftFromGitCommits`, `releaseNotesToMarkdown`, `releaseNotesToJson`, and `categorizeCommitMessage`; exposed `api.releaseNotes()` in `src/agent-api.mjs`; wired `permabrain release-notes` CLI command in `src/commands.mjs` and `scripts/cli.mjs` with `--version`, `--unreleased`, `--draft`, `--limit`, `--since`, `--file`, `--output`, `--json`, and `--validate` options; re-exported helpers from `src/index.mjs`; added `test/release-notes.mjs` (15 tests) covering parser, validator, builder, draft generation from git commits, CLI help/output/validate/draft, API wrapper, and index exports; wired it into `npm test` plus `test:release-notes`. Updated `CHANGELOG.md` and `test/module-import.mjs` to expect 98 API methods. Full `npm test` suite passes; committed to `main` as `e5c0d2b`.
