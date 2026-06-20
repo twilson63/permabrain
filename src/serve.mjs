@@ -594,6 +594,23 @@ async function handleRequest(req, res, home, options = {}) {
     }
 
     const topicMatch = route.match(/^\/api\/v1\/topics\/(.+)$/);
+    if (method === 'GET' && route === '/api/v1/topics') {
+      const opts = {
+        kind: url.searchParams.get('kind'),
+        after: url.searchParams.get('after'),
+        before: url.searchParams.get('before'),
+        sort: url.searchParams.get('sort') || 'count',
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined
+      };
+      const accept = req.headers.accept || '';
+      const result = await api.topics(opts);
+      if (accept.includes('text/markdown')) {
+        const markdown = await api.topicsToMarkdown(opts);
+        res.setHeader('content-type', 'text/markdown');
+        return res.end(markdown);
+      }
+      return sendJson(res, 200, result);
+    }
     if (topicMatch && method === 'GET') {
       const topic = decodeURIComponent(topicMatch[1]);
       const opts = {

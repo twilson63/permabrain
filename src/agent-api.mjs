@@ -40,6 +40,7 @@ import { listArticles } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { computeStats, statsToMarkdown } from './stats.mjs';
+import { listTopics, topicsToMarkdown } from './topics.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
@@ -1324,6 +1325,33 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     return computeStats({ ...opts, home: this._home });
+  },
+
+  /**
+   * List unique article topics from the local cache with counts and metadata.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.kind] - Filter by article kind
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {string} [opts.sort='count'] - Sort by 'count', 'name', or 'latest'
+   * @param {number} [opts.limit] - Maximum topics to return
+   * @returns {Promise<Object>} Topics catalog report
+   */
+  async topics(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return listTopics({ ...opts, home: this._home });
+  },
+
+  /**
+   * Render the topics catalog as Markdown.
+   * @param {Object} [opts]
+   * @returns {Promise<string>} Markdown report
+   */
+  async topicsToMarkdown(opts = {}) {
+    const report = await this.topics(opts);
+    return topicsToMarkdown(report);
   },
 
   /**

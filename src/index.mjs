@@ -86,6 +86,7 @@ export { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, qu
 // Article-level metrics and dashboard stats
 export { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 export { computeStats, statsToMarkdown } from './stats.mjs';
+export { listTopics, topicsToMarkdown } from './topics.mjs';
 
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

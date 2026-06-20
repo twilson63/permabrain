@@ -228,6 +228,20 @@ export const ROUTES = [
     response: { events: 'array', count: 'number' }
   },
   {
+    route: '/api/v1/topics',
+    method: 'GET',
+    description: 'List unique article topics from the local cache with counts and metadata.',
+    public: false,
+    params: [
+      { name: 'kind', in: 'query', type: 'string', required: false },
+      { name: 'after', in: 'query', type: 'string', required: false },
+      { name: 'before', in: 'query', type: 'string', required: false },
+      { name: 'sort', in: 'query', type: 'string', required: false },
+      { name: 'limit', in: 'query', type: 'integer', required: false }
+    ],
+    response: { generatedAt: 'string', home: 'string', totals: 'object', topics: 'array' }
+  },
+  {
     route: '/api/v1/topics/:topic',
     method: 'GET',
     description: 'List articles for a topic.',

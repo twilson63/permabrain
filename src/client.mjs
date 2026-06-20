@@ -172,6 +172,12 @@ export function createClient(options = {}) {
     stats: (opts = {}) => request('GET', `/api/v1/stats${toQuery(opts)}`),
 
     /** @returns {Promise<Object>} */
+    topics: (opts = {}) => request('GET', `/api/v1/topics${toQuery(opts)}`),
+
+    /** @returns {Promise<string>} Markdown topics catalog. */
+    topicsMarkdown: (opts = {}) => request('GET', `/api/v1/topics${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
+
+    /** @returns {Promise<Object>} */
     batchAttest: (body) => request('POST', '/api/v1/batch-attest', body),
 
     /** @returns {Promise<Object>} */

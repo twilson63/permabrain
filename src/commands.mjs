@@ -30,6 +30,7 @@ import { listArticles, listToMarkdown } from './list.mjs';
 import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { computeStats, statsToMarkdown } from './stats.mjs';
+import { listTopics, topicsToMarkdown } from './topics.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import { buildSupportBundle, supportBundleToMarkdown } from './support-bundle.mjs';
 import { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage } from './share-encrypted.mjs';
@@ -132,6 +133,7 @@ export async function runCommand(command, args) {
   if (command === 'config') return configCommand(args);
   if (command === 'metrics') return metricsCommand(args);
   if (command === 'stats') return statsCommand(args);
+  if (command === 'topics') return topicsCommand(args);
   if (command === 'remote') return remoteCommand(args);
   if (command === 'archive') return archiveCommand(args);
   if (command === 'restore') return restoreCommand(args);
@@ -1594,6 +1596,24 @@ async function statsCommand(args) {
     printJson(result);
   } else {
     console.log(statsToMarkdown(result));
+  }
+  return result;
+}
+
+async function topicsCommand(args) {
+  const opts = {
+    home: getHome(),
+    kind: args.kind,
+    after: args.after,
+    before: args.before,
+    sort: args.sort || 'count',
+    limit: args.limit ? Number(args.limit) : undefined
+  };
+  const result = listTopics(opts);
+  if (args.json) {
+    printJson(result);
+  } else {
+    console.log(topicsToMarkdown(result));
   }
   return result;
 }

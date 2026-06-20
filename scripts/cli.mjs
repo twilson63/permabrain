@@ -55,6 +55,7 @@ const COMMANDS = [
   'search',
   'topic',
   'activity',
+  'topics',
   'list',
   'export-articles',
   'metrics',
@@ -154,6 +155,7 @@ Commands:
   export-articles              Export a filtered article directory to JSON or markdown
   metrics                      Show aggregate article/attestation metrics
   stats                        Show dashboard-style aggregate overview
+  topics                       List unique article topics with counts
   config                       Get, set, validate, or inspect PermaBrain config
   remote                       Manage named remote endpoints
   archive                      Create an encrypted snapshot of the local PermaBrain home
@@ -716,6 +718,21 @@ Options:
   --after <date>       Only articles updated on or after this ISO date
   --before <date>      Only articles updated on or before this ISO date
   --top N              Number of top entries per leaderboard (default 10)
+  --json               Output structured JSON instead of markdown`,
+    'topics': `Usage: permabrain topics [--kind <kind>] [--after <iso-date>] [--before <iso-date>] [--sort count|name|latest] [--limit N] [--json]
+
+List unique article topics from the local cache with counts and metadata.
+
+For each topic the output shows the number of articles, unique canonical
+keys, latest update timestamp, kind breakdown, and language breakdown.
+Useful for discovering what categories exist in a home directory.
+
+Options:
+  --kind <kind>        Filter by article kind
+  --after <date>       Only articles updated on or after this ISO date
+  --before <date>      Only articles updated on or before this ISO date
+  --sort <mode>        Sort by count (default), name, or latest update
+  --limit N            Return at most N topics
   --json               Output structured JSON instead of markdown`,
     'config': `Usage: permabrain config [get|set|validate|env|reset] [path] [value] [--json]
 
