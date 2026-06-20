@@ -1,6 +1,7 @@
 # PermaBrain Build Tasks
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-20 12:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `5b3e048`. Full sequential `npm test` suite passes in this environment (all 100+ test files including `test/transport-probe.mjs`). Left queue empty and recorded clean status.
 - [x] Cron build loop checkpoint (2026-06-20 12:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `5b3e048`. Full sequential `npm test` suite passes in this environment (all 100+ test files including `test/transport-probe.mjs`). Left queue empty and recorded clean status.
 - [x] Cron build loop checkpoint (2026-06-20 11:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `5b3e048`. Full sequential `npm test` suite passes in this environment (all 100+ test files including `test/transport-probe.mjs`). Left queue empty and recorded clean status.
 - [x] Cron build loop checkpoint (2026-06-20 11:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `5b3e048`. Full sequential `npm test` suite passes in this environment (all 100+ test files including `test/transport-probe.mjs`). Left queue empty and recorded clean status.
