@@ -67,7 +67,7 @@
 - [ ] (none)
 
 ## Next
-- [ ] (none)
+- [ ] Add `permabrain release-notes` / `api.releaseNotes()` command: parse CHANGELOG.md sections, validate Keep-a-Changelog format, print markdown or JSON, and generate a draft entry from recent git commits. Add `test/release-notes.mjs` and wire into `npm test` + `test:release-notes`.
 
 ## Done
 - [x] Cron build loop checkpoint (2026-06-19 23:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `4a3cfcd`. No implementation work picked. Queue remains empty; no new chunk seeded (no obvious next feature in backlog).
