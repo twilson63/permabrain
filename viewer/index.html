@@ -403,6 +403,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="composeBtn" onclick="window.showCompose()" title="Compose article">&#9998;</button>
     <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
+    <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -558,7 +559,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
@@ -571,6 +572,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var dashboardInterval = null;
   var adminState = { data: null, loading: false, error: null, accessLogLimit: 25, auditLogLimit: 25 };
   var healthState = { data: null, routes: null, admin: null, loading: false, error: null, format: 'json' };
+  var topicsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var historyData = {};       // key -> history payload from local API (used by article tab + modal)
   var historyLoading = false;
   var historyError = null;
@@ -1581,7 +1583,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1895,6 +1897,119 @@ function statCard(label, value, cls) {
   }
 
   window.renderHealth = renderHealth;
+
+  // --- Topics catalog panel ---
+  window.showTopics = async function() {
+    viewMode = 'topics';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchTopics();
+    updateUrlState();
+  };
+
+  window.refreshTopics = async function() {
+    await fetchTopics();
+    updateUrlState();
+  };
+
+  window.setTopicsSort = async function(sort) {
+    topicsState.sort = sort || 'count';
+    await fetchTopics();
+    updateUrlState();
+  };
+
+  window.setTopicsLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    topicsState.limit = (!isNaN(n) && n > 0) ? n : 100;
+    await fetchTopics();
+    updateUrlState();
+  };
+
+  async function fetchTopics() {
+    if (!isLocalServer()) return;
+    topicsState.loading = true;
+    topicsState.error = null;
+    if (viewMode === 'topics') renderTopics();
+    try {
+      var params = new URLSearchParams();
+      params.set('sort', topicsState.sort || 'count');
+      if (topicsState.limit && topicsState.limit !== 100) params.set('limit', String(topicsState.limit));
+      var r = await fetch('/api/v1/topics?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      topicsState.data = await r.json();
+      topicsState.loading = false;
+    } catch(e) {
+      topicsState.error = e.message;
+      topicsState.loading = false;
+    }
+    if (viewMode === 'topics') renderTopics();
+  }
+
+  window.fetchTopics = fetchTopics;
+
+  function renderTopics() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Topics catalog unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to browse article topics.</p></div>';
+      return;
+    }
+    if (topicsState.loading && !topicsState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading topics catalog...</div>';
+      return;
+    }
+    if (topicsState.error && !topicsState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Topics catalog error</h2><p>' + esc(topicsState.error) + '</p><button class="btn-icon" onclick="window.refreshTopics()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = topicsState.data || {};
+    var topics = data.topics || [];
+    var totals = data.totals || {};
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshTopics()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Sort ' +
+      '<select onchange="window.setTopicsSort(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="count"' + (topicsState.sort === 'count' ? ' selected' : '') + '>Count</option>' +
+      '<option value="name"' + (topicsState.sort === 'name' ? ' selected' : '') + '>Name</option>' +
+      '<option value="latest"' + (topicsState.sort === 'latest' ? ' selected' : '') + '>Latest</option>' +
+      '</select></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
+      '<input type="number" min="1" max="1000" value="' + esc(String(topicsState.limit)) + '" onchange="window.setTopicsLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '</div>';
+
+    var stats = '<div class="stats-grid">' +
+      statCard('Topics', String(totals.topics || 0), 'topics') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      '</div>';
+
+    if (!topics.length) {
+      main.innerHTML = '<div class="home"><h1>&#128218; <span>Topics</span></h1><p class="home-subtitle">Browse article topics from the local catalog</p>' + toolbar + stats + '<p class="dashboard-empty">No topics found.</p></div>';
+      return;
+    }
+
+    var rows = topics.map(function(t) {
+      var kinds = Object.entries(t.byKind || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var languages = Object.entries(t.byLanguage || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      return '<tr><td class="mono"><a href="?view=home&topic=' + encodeURIComponent(t.name) + '" style="color:var(--accent);text-decoration:none">' + esc(t.name) + '</a></td>' +
+        '<td style="text-align:center">' + esc(String(t.count)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(t.uniqueKeys)) + '</td>' +
+        '<td>' + esc(t.latestAt ? fmtDate(t.latestAt) : '—') + '</td>' +
+        '<td>' + (kinds || '—') + '</td>' +
+        '<td>' + (languages || '—') + '</td></tr>';
+    }).join('');
+
+    var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+      '<th>Topic</th><th>Articles</th><th>Unique keys</th><th>Latest</th><th>Kinds</th><th>Languages</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#128218; <span>Topics</span></h1><p class="home-subtitle">Browse article topics from the local catalog</p>' + toolbar + stats + table + '</div>';
+  }
+
+  window.renderTopics = renderTopics;
 
   // --- Activity / notifications panel ---
   window.showActivity = async function() {
@@ -4401,6 +4516,7 @@ function statCard(label, value, cls) {
           if (bootState.historyKey) historyPanelState.key = bootState.historyKey;
           window.showHistory();
         }
+        else if (bootState.view === 'topics') window.showTopics();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -4418,6 +4534,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'compose') window.showCompose();
   else if (viewMode === 'support') window.showSupportBundle();
   else if (viewMode === 'health') window.showHealth();
+  else if (viewMode === 'topics') window.showTopics();
   else if (viewMode === 'activity') window.showActivity();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
