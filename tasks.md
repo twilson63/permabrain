@@ -1,6 +1,7 @@
 # PermaBrain Build Tasks
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-20 02:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start. No implementation work picked. Queue remains empty; no new chunk seeded (no obvious next feature in backlog). Full sequential `npm test` suite hangs in this environment (consistent with the pre-existing `test/transport-probe.mjs` hang noted in earlier checkpoints); focused suites (`module-import`, `identity-report`, `release-notes`, `publish-dir`, `client-sdk`, `serve-admin`, `viewer-history`, `viewer-live`, `client-sdk-advanced`, `serve-auth`, `serve-request-log`) all pass individually. Clean `main` at `059d288`.
 - [x] Cron build loop checkpoint (2026-06-20 01:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `b89c10a`. No implementation work picked. Queue remains empty; no new chunk seeded (no obvious next feature in backlog).
 - [x] Cron build loop checkpoint (2026-06-19 21:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `5db9ecc`. No implementation work picked. Queue remains empty; no new chunk seeded (no obvious next feature in backlog).
 - [x] Cron build loop checkpoint (2026-06-19 20:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; full `npm test` suite passes; clean `main` at `b568c53`. No implementation work picked. Queue remains empty.
