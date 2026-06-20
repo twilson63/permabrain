@@ -307,6 +307,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .compose-form textarea{min-height:18rem;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;line-height:1.5;resize:vertical}
 .compose-form input:focus,.compose-form select:focus,.compose-form textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(9,105,218,0.2)}
 [data-theme="dark"] .compose-form input:focus,[data-theme="dark"] .compose-form select:focus,[data-theme="dark"] .compose-form textarea:focus{box-shadow:0 0 0 2px rgba(88,166,255,0.2)}
+.form-row{display:flex;flex-direction:column;gap:0.35rem;margin-bottom:0.85rem}
+.form-row label{font-size:0.8rem;color:var(--muted);font-weight:500}
+.dashboard-section .form-row input,.dashboard-section .form-row select,.dashboard-section .form-row textarea{padding:0.45rem 0.65rem;border:1px solid var(--border);border-radius:6px;font-size:0.9rem;background:var(--bg);color:var(--text)}
+.dashboard-section .form-row input:focus,.dashboard-section .form-row select:focus,.dashboard-section .form-row textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(9,105,218,0.2)}
+.dashboard-section .form-row input[type="range"]{padding:0.2rem 0}
+.success-box{background:rgba(26,127,55,0.1);border:1px solid var(--green);color:var(--green);border-radius:var(--radius);padding:0.75rem 1rem;font-size:0.9rem}
 .compose-preview{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;min-height:18rem;max-height:70vh;overflow:auto}
 .compose-preview h3{margin:0 0 0.75rem;font-size:1rem;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:0.4rem}
 .compose-actions{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem}
@@ -404,6 +410,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
+    <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -559,8 +566,9 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'attest'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
+  var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
   var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
@@ -1489,6 +1497,12 @@ function statCard(label, value, cls) {
     if (viewMode === 'history') {
       if (historyPanelState.key) params.set('historyKey', historyPanelState.key);
     }
+    if (viewMode === 'attest') {
+      if (attestState.selectedKey) params.set('attestKey', attestState.selectedKey);
+      if (attestState.opinion && attestState.opinion !== 'valid') params.set('attestOpinion', attestState.opinion);
+      if (attestState.confidence !== undefined && attestState.confidence !== 0.9) params.set('attestConfidence', String(attestState.confidence));
+      if (attestState.reason) params.set('attestReason', attestState.reason);
+    }
     if (viewMode === 'activity') {
       if (activityState.filters.eventKind) params.set('activityKind', activityState.filters.eventKind);
       if (activityState.filters.topic) params.set('activityTopic', activityState.filters.topic);
@@ -1540,6 +1554,10 @@ function statCard(label, value, cls) {
       compareBase: params.get('compareBase') || '',
       compareHead: params.get('compareHead') || '',
       historyKey: params.get('historyKey') || '',
+      attestKey: params.get('attestKey') || '',
+      attestOpinion: params.get('attestOpinion') || '',
+      attestConfidence: params.get('attestConfidence') || '',
+      attestReason: params.get('attestReason') || '',
       exportKey: params.get('exportKey') || '',
       exportMode: params.get('exportMode') || 'bundle',
       importName: params.get('importName') || '',
@@ -1583,7 +1601,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','attest'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1616,6 +1634,12 @@ function statCard(label, value, cls) {
     if (state.compareBase) compareState.base = state.compareBase;
     if (state.compareHead) compareState.head = state.compareHead;
     if (state.view === 'history' && state.historyKey) historyPanelState.key = state.historyKey;
+    if (state.view === 'attest') {
+      if (state.attestKey) attestState.selectedKey = state.attestKey;
+      if (state.attestOpinion) attestState.opinion = state.attestOpinion;
+      if (state.attestConfidence) { var ac = parseFloat(state.attestConfidence); if (!isNaN(ac) && ac >= 0 && ac <= 1) attestState.confidence = ac; }
+      if (state.attestReason) attestState.reason = state.attestReason;
+    }
     if (state.tab) activeTab = state.tab;
     return state;
   }
@@ -2010,6 +2034,198 @@ function statCard(label, value, cls) {
   }
 
   window.renderTopics = renderTopics;
+
+  // --- Attest panel ---
+  window.showAttest = async function() {
+    viewMode = 'attest';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchAttestArticles();
+    if (attestState.selectedKey) await fetchConsensus();
+    renderAttest();
+    updateUrlState();
+  };
+
+  window.refreshAttest = async function() {
+    await fetchAttestArticles();
+    if (attestState.selectedKey) await fetchConsensus();
+    renderAttest();
+    updateUrlState();
+  };
+
+  async function fetchAttestArticles() {
+    if (!isLocalServer()) return;
+    attestState.loading = true;
+    attestState.error = null;
+    renderAttest();
+    try {
+      var r = await fetch('/api/v1/list?limit=1000');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      attestState.articles = data.articles || [];
+    } catch(e) {
+      attestState.error = e.message;
+    } finally {
+      attestState.loading = false;
+    }
+    if (viewMode === 'attest') renderAttest();
+  }
+
+  window.fetchAttestArticles = fetchAttestArticles;
+
+  window.selectAttestKey = async function(key) {
+    attestState.selectedKey = key || '';
+    attestState.consensus = null;
+    attestState.success = null;
+    attestState.error = null;
+    if (attestState.selectedKey) await fetchConsensus();
+    renderAttest();
+    updateUrlState();
+  };
+
+  async function fetchConsensus() {
+    if (!isLocalServer() || !attestState.selectedKey) return;
+    try {
+      var r = await fetch('/api/v1/articles/' + encodeURIComponent(attestState.selectedKey) + '/consensus');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      attestState.consensus = await r.json();
+    } catch(e) {
+      attestState.consensus = { error: e.message };
+    }
+    if (viewMode === 'attest') renderAttest();
+  }
+
+  window.fetchConsensus = fetchConsensus;
+
+  window.setAttestOpinion = function(opinion) {
+    attestState.opinion = opinion || 'valid';
+    updateUrlState();
+  };
+
+  window.setAttestConfidence = function(value) {
+    var n = parseFloat(value);
+    if (!isNaN(n) && n >= 0 && n <= 1) attestState.confidence = n;
+    updateUrlState();
+  };
+
+  window.setAttestReason = function(reason) {
+    attestState.reason = reason || '';
+    updateUrlState();
+  };
+
+  window.setAttestApiKey = function(key) {
+    attestState.apiKey = key || '';
+  };
+
+  window.submitAttest = async function() {
+    if (!isLocalServer()) return;
+    if (!attestState.selectedKey) {
+      attestState.error = 'Select an article to attest.';
+      attestState.success = null;
+      renderAttest();
+      return;
+    }
+    if (!attestState.reason.trim()) {
+      attestState.error = 'A reason is required.';
+      attestState.success = null;
+      renderAttest();
+      return;
+    }
+    attestState.loading = true;
+    attestState.error = null;
+    attestState.success = null;
+    renderAttest();
+    try {
+      var headers = { 'content-type': 'application/json' };
+      if (attestState.apiKey) headers['authorization'] = 'Bearer ' + attestState.apiKey;
+      var r = await fetch('/api/v1/articles/' + encodeURIComponent(attestState.selectedKey) + '/attest', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          opinion: attestState.opinion,
+          confidence: attestState.confidence,
+          reason: attestState.reason.trim()
+        })
+      });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      attestState.success = 'Attestation published for ' + attestState.selectedKey + '.';
+      await fetchConsensus();
+    } catch(e) {
+      attestState.error = e.message;
+    } finally {
+      attestState.loading = false;
+    }
+    renderAttest();
+    updateUrlState();
+  };
+
+  function renderAttest() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Attest panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to attest articles.</p></div>';
+      return;
+    }
+    if (attestState.loading && !attestState.articles.length) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading articles...</div>';
+      return;
+    }
+    if (attestState.error && !attestState.articles.length) {
+      main.innerHTML = '<div class="empty-state"><h2>Attest error</h2><p>' + esc(attestState.error) + '</p><button class="btn-icon" onclick="window.refreshAttest()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var options = '<option value="">— Select an article —</option>' +
+      attestState.articles.map(function(a) {
+        return '<option value="' + esc(a.key) + '"' + (a.key === attestState.selectedKey ? ' selected' : '') + '>' + esc(a.key) + (a.title ? ' · ' + esc(a.title) : '') + '</option>';
+      }).join('');
+
+    var consensusHtml = '';
+    if (attestState.selectedKey && attestState.consensus) {
+      var c = attestState.consensus;
+      if (c.error) {
+        consensusHtml = '<div class="error-box" style="margin-top:1rem">Consensus error: ' + esc(c.error) + '</div>';
+      } else {
+        var score = typeof c.score === 'number' ? c.score.toFixed(2) : '—';
+        var attCount = Array.isArray(c.attestations) ? c.attestations.length : (c.totalAttestations || 0);
+        consensusHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Current consensus</h3>' +
+          '<div class="stats-grid">' +
+          statCard('Score', String(score), 'score') +
+          statCard('Attestations', String(attCount), 'attestations') +
+          '</div>' +
+          '<p style="font-size:0.85rem;color:var(--muted);margin-top:0.5rem">Status: ' + esc(c.status || 'unknown') + '</p></div>';
+      }
+    }
+
+    var successHtml = attestState.success ? '<div class="success-box" style="margin-bottom:1rem">' + esc(attestState.success) + '</div>' : '';
+    var errorHtml = attestState.error ? '<div class="error-box" style="margin-bottom:1rem">' + esc(attestState.error) + '</div>' : '';
+
+    var html = '<div class="home"><h1>&#9997; <span>Attest</span></h1><p class="home-subtitle">Publish a signed attestation for an article</p>' +
+      '<div class="dashboard-toolbar"><button class="btn-icon" onclick="window.refreshAttest()">&#x21BB; Refresh</button></div>' +
+      successHtml + errorHtml +
+      '<div class="dashboard-section">' +
+      '<div class="form-row"><label for="attestKeySelect">Article</label><select id="attestKeySelect" onchange="window.selectAttestKey(this.value)">' + options + '</select></div>' +
+      '<div class="form-row"><label for="attestOpinion">Opinion</label><select id="attestOpinion" onchange="window.setAttestOpinion(this.value)">' +
+      '<option value="valid"' + (attestState.opinion === 'valid' ? ' selected' : '') + '>valid</option>' +
+      '<option value="invalid"' + (attestState.opinion === 'invalid' ? ' selected' : '') + '>invalid</option>' +
+      '<option value="partially-valid"' + (attestState.opinion === 'partially-valid' ? ' selected' : '') + '>partially-valid</option>' +
+      '<option value="outdated"' + (attestState.opinion === 'outdated' ? ' selected' : '') + '>outdated</option>' +
+      '<option value="disputed"' + (attestState.opinion === 'disputed' ? ' selected' : '') + '>disputed</option>' +
+      '</select></div>' +
+      '<div class="form-row"><label for="attestConfidence">Confidence ' + esc(String(attestState.confidence)) + '</label><input type="range" id="attestConfidence" min="0" max="1" step="0.05" value="' + esc(String(attestState.confidence)) + '" oninput="window.setAttestConfidence(this.value)"></div>' +
+      '<div class="form-row"><label for="attestReason">Reason</label><textarea id="attestReason" rows="4" placeholder="Why are you attesting this way?" oninput="window.setAttestReason(this.value)">' + esc(attestState.reason) + '</textarea></div>' +
+      '<div class="form-row"><label for="attestApiKey">API key (optional)</label><input type="password" id="attestApiKey" placeholder="Bearer token for permabrain serve" value="' + esc(attestState.apiKey) + '" oninput="window.setAttestApiKey(this.value)"></div>' +
+      '<div class="btn-row"><button class="btn-primary" onclick="window.submitAttest()" ' + (attestState.loading ? 'disabled' : '') + '>Publish attestation</button></div>' +
+      '</div>' +
+      consensusHtml +
+      '</div>';
+
+    main.innerHTML = html;
+  }
+
+  window.renderAttest = renderAttest;
 
   // --- Activity / notifications panel ---
   window.showActivity = async function() {
@@ -3748,7 +3964,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest';
   }
 
   function readFiltersFromDom() {
@@ -4517,6 +4733,7 @@ function statCard(label, value, cls) {
           window.showHistory();
         }
         else if (bootState.view === 'topics') window.showTopics();
+        else if (bootState.view === 'attest') window.showAttest();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -4536,6 +4753,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'health') window.showHealth();
   else if (viewMode === 'topics') window.showTopics();
   else if (viewMode === 'activity') window.showActivity();
+  else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
