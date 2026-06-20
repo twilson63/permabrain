@@ -411,6 +411,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
+    <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -566,9 +567,10 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'attest'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'attest' | 'batch-attest'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
+  var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
   var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
@@ -1503,6 +1505,9 @@ function statCard(label, value, cls) {
       if (attestState.confidence !== undefined && attestState.confidence !== 0.9) params.set('attestConfidence', String(attestState.confidence));
       if (attestState.reason) params.set('attestReason', attestState.reason);
     }
+    if (viewMode === 'batch-attest') {
+      if (batchAttestState.jsonText) params.set('batchJson', batchAttestState.jsonText);
+    }
     if (viewMode === 'activity') {
       if (activityState.filters.eventKind) params.set('activityKind', activityState.filters.eventKind);
       if (activityState.filters.topic) params.set('activityTopic', activityState.filters.topic);
@@ -1558,6 +1563,7 @@ function statCard(label, value, cls) {
       attestOpinion: params.get('attestOpinion') || '',
       attestConfidence: params.get('attestConfidence') || '',
       attestReason: params.get('attestReason') || '',
+      batchJson: params.get('batchJson') || '',
       exportKey: params.get('exportKey') || '',
       exportMode: params.get('exportMode') || 'bundle',
       importName: params.get('importName') || '',
@@ -1601,7 +1607,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','attest'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','attest','batch-attest'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1639,6 +1645,9 @@ function statCard(label, value, cls) {
       if (state.attestOpinion) attestState.opinion = state.attestOpinion;
       if (state.attestConfidence) { var ac = parseFloat(state.attestConfidence); if (!isNaN(ac) && ac >= 0 && ac <= 1) attestState.confidence = ac; }
       if (state.attestReason) attestState.reason = state.attestReason;
+    }
+    if (state.view === 'batch-attest' && state.batchJson) {
+      batchAttestState.jsonText = state.batchJson;
     }
     if (state.tab) activeTab = state.tab;
     return state;
@@ -2226,6 +2235,209 @@ function statCard(label, value, cls) {
   }
 
   window.renderAttest = renderAttest;
+
+  // --- Batch attest panel ---
+  window.showBatchAttest = async function() {
+    viewMode = 'batch-attest';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    if (!batchAttestState.rows.length) window.addBatchAttestRow();
+    renderBatchAttest();
+    updateUrlState();
+  };
+
+  window.refreshBatchAttest = async function() {
+    renderBatchAttest();
+    updateUrlState();
+  };
+
+  window.addBatchAttestRow = function() {
+    batchAttestState.rows.push({ key: '', opinion: 'valid', confidence: 0.9, reason: '', sourceUrl: '' });
+    renderBatchAttest();
+    updateUrlState();
+  };
+
+  window.removeBatchAttestRow = function(idx) {
+    batchAttestState.rows.splice(idx, 1);
+    if (!batchAttestState.rows.length) window.addBatchAttestRow();
+    renderBatchAttest();
+    updateUrlState();
+  };
+
+  window.setBatchAttestKey = function(idx, value) {
+    if (batchAttestState.rows[idx]) batchAttestState.rows[idx].key = value || '';
+    updateUrlState();
+  };
+
+  window.setBatchAttestOpinion = function(idx, value) {
+    if (batchAttestState.rows[idx]) batchAttestState.rows[idx].opinion = value || 'valid';
+    updateUrlState();
+  };
+
+  window.setBatchAttestConfidence = function(idx, value) {
+    var n = parseFloat(value);
+    if (batchAttestState.rows[idx] && !isNaN(n) && n >= 0 && n <= 1) batchAttestState.rows[idx].confidence = n;
+    updateUrlState();
+  };
+
+  window.setBatchAttestReason = function(idx, value) {
+    if (batchAttestState.rows[idx]) batchAttestState.rows[idx].reason = value || '';
+    updateUrlState();
+  };
+
+  window.setBatchAttestSourceUrl = function(idx, value) {
+    if (batchAttestState.rows[idx]) batchAttestState.rows[idx].sourceUrl = value || '';
+    updateUrlState();
+  };
+
+  window.setBatchAttestApiKey = function(value) {
+    batchAttestState.apiKey = value || '';
+  };
+
+  window.setBatchAttestJson = function(value) {
+    batchAttestState.jsonText = value || '';
+    updateUrlState();
+  };
+
+  window.clearBatchAttestResult = function() {
+    batchAttestState.result = null;
+    batchAttestState.successCount = 0;
+    batchAttestState.failedCount = 0;
+    batchAttestState.error = null;
+    renderBatchAttest();
+  };
+
+  window.loadBatchAttestFromJson = function() {
+    try {
+      var parsed = JSON.parse(batchAttestState.jsonText || '[]');
+      if (!Array.isArray(parsed)) throw new Error('JSON must be an array of attestations.');
+      batchAttestState.rows = parsed.map(function(a) {
+        return {
+          key: a.key || a.targetKey || '',
+          opinion: a.opinion || 'valid',
+          confidence: typeof a.confidence === 'number' ? a.confidence : 0.9,
+          reason: a.reason || '',
+          sourceUrl: a.sourceUrl || ''
+        };
+      });
+      if (!batchAttestState.rows.length) window.addBatchAttestRow();
+      batchAttestState.error = null;
+    } catch(e) {
+      batchAttestState.error = 'JSON parse error: ' + e.message;
+    }
+    renderBatchAttest();
+    updateUrlState();
+  };
+
+  window.exportBatchAttestJson = function() {
+    var arr = batchAttestState.rows.map(function(r) {
+      return { key: r.key, opinion: r.opinion, confidence: r.confidence, reason: r.reason, sourceUrl: r.sourceUrl };
+    });
+    batchAttestState.jsonText = JSON.stringify(arr, null, 2);
+    renderBatchAttest();
+    updateUrlState();
+  };
+
+  window.submitBatchAttest = async function() {
+    if (!isLocalServer()) return;
+    var attestations = batchAttestState.rows.filter(function(r) { return r.key.trim(); }).map(function(r) {
+      return {
+        key: r.key.trim(),
+        opinion: r.opinion || 'valid',
+        confidence: typeof r.confidence === 'number' ? r.confidence : parseFloat(r.confidence) || 0,
+        reason: r.reason.trim(),
+        sourceUrl: r.sourceUrl.trim()
+      };
+    });
+    if (!attestations.length) {
+      batchAttestState.error = 'Add at least one attestation with a key.';
+      renderBatchAttest();
+      return;
+    }
+    batchAttestState.loading = true;
+    batchAttestState.error = null;
+    batchAttestState.result = null;
+    batchAttestState.successCount = 0;
+    batchAttestState.failedCount = 0;
+    renderBatchAttest();
+    try {
+      var headers = { 'content-type': 'application/json' };
+      if (batchAttestState.apiKey) headers['authorization'] = 'Bearer ' + batchAttestState.apiKey;
+      var r = await fetch('/api/v1/batch-attest', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ attestations: attestations })
+      });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      batchAttestState.result = body.results || [];
+      batchAttestState.successCount = typeof body.succeeded === 'number' ? body.succeeded : batchAttestState.result.filter(function(x) { return x.status === 'ok'; }).length;
+      batchAttestState.failedCount = typeof body.failed === 'number' ? body.failed : batchAttestState.result.filter(function(x) { return x.status === 'error'; }).length;
+    } catch(e) {
+      batchAttestState.error = e.message;
+    } finally {
+      batchAttestState.loading = false;
+    }
+    renderBatchAttest();
+    updateUrlState();
+  };
+
+  function renderBatchAttest() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Batch attest panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to submit attestations in batches.</p></div>';
+      return;
+    }
+    var errorHtml = batchAttestState.error ? '<div class="error-box" style="margin-bottom:1rem">' + esc(batchAttestState.error) + '</div>' : '';
+    var resultHtml = '';
+    if (batchAttestState.result) {
+      var rows = batchAttestState.result.map(function(res) {
+        var cls = res.status === 'ok' ? 'good' : 'low';
+        var summary = res.status === 'ok' ? (res.summary ? ' (' + esc(res.summary) + ')' : '') : (' — ' + esc(res.error || 'failed'));
+        return '<tr><td>' + esc(res.key) + '</td><td style="color:' + (cls === 'good' ? 'var(--green)' : 'var(--red)') + '">' + esc(res.status) + '</td><td>' + esc(summary) + '</td></tr>';
+      }).join('');
+      resultHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Results: ' + batchAttestState.successCount + ' succeeded, ' + batchAttestState.failedCount + ' failed</h3>' +
+        '<table class="data-table"><thead><tr><th>Key</th><th>Status</th><th>Detail</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+    var rowHtml = batchAttestState.rows.map(function(row, i) {
+      return '<div class="dashboard-section" style="margin-bottom:0.75rem;padding:0.75rem">' +
+        '<div class="form-row"><label>Article key</label><input type="text" value="' + esc(row.key) + '" oninput="window.setBatchAttestKey(' + i + ', this.value)" placeholder="subject/article"></div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">' +
+        '<div class="form-row"><label>Opinion</label><select onchange="window.setBatchAttestOpinion(' + i + ', this.value)">' +
+        '<option value="valid"' + (row.opinion === 'valid' ? ' selected' : '') + '>valid</option>' +
+        '<option value="invalid"' + (row.opinion === 'invalid' ? ' selected' : '') + '>invalid</option>' +
+        '<option value="partially-valid"' + (row.opinion === 'partially-valid' ? ' selected' : '') + '>partially-valid</option>' +
+        '<option value="outdated"' + (row.opinion === 'outdated' ? ' selected' : '') + '>outdated</option>' +
+        '<option value="disputed"' + (row.opinion === 'disputed' ? ' selected' : '') + '>disputed</option>' +
+        '</select></div>' +
+        '<div class="form-row"><label>Confidence ' + esc(String(row.confidence)) + '</label><input type="range" min="0" max="1" step="0.05" value="' + esc(String(row.confidence)) + '" oninput="window.setBatchAttestConfidence(' + i + ', this.value)"></div>' +
+        '</div>' +
+        '<div class="form-row"><label>Reason</label><textarea rows="2" placeholder="Why are you attesting this way?" oninput="window.setBatchAttestReason(' + i + ', this.value)">' + esc(row.reason) + '</textarea></div>' +
+        '<div class="form-row"><label>Source URL (optional)</label><input type="text" value="' + esc(row.sourceUrl) + '" oninput="window.setBatchAttestSourceUrl(' + i + ', this.value)" placeholder="https://example.com/source"></div>' +
+        '<div class="btn-row"><button class="btn-icon" onclick="window.removeBatchAttestRow(' + i + ')">Remove</button></div>' +
+        '</div>';
+    }).join('');
+    var html = '<div class="home"><h1>&#9997;&#10133; <span>Batch Attest</span></h1><p class="home-subtitle">Submit multiple attestations at once</p>' +
+      '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.addBatchAttestRow()">Add row</button>' +
+      '<button class="btn-icon" onclick="window.exportBatchAttestJson()">Export JSON</button>' +
+      '<button class="btn-icon" onclick="window.clearBatchAttestResult()">Clear results</button>' +
+      '</div>' +
+      errorHtml +
+      '<div class="dashboard-section"><h3>Batch JSON</h3>' +
+      '<textarea id="batchAttestJson" rows="6" placeholder="[{&quot;key&quot;:&quot;subject/article&quot;,&quot;opinion&quot;:&quot;valid&quot;,&quot;confidence&quot;:0.9,&quot;reason&quot;:&quot;...&quot;}]" oninput="window.setBatchAttestJson(this.value)">' + esc(batchAttestState.jsonText) + '</textarea>' +
+      '<div class="btn-row"><button class="btn-icon" onclick="window.loadBatchAttestFromJson()">Load JSON into rows</button></div></div>' +
+      rowHtml +
+      '<div class="dashboard-section"><div class="form-row"><label for="batchAttestApiKey">API key (optional)</label><input type="password" id="batchAttestApiKey" placeholder="Bearer token for permabrain serve" value="' + esc(batchAttestState.apiKey) + '" oninput="window.setBatchAttestApiKey(this.value)"></div>' +
+      '<div class="btn-row"><button class="btn-primary" onclick="window.submitBatchAttest()" ' + (batchAttestState.loading ? 'disabled' : '') + '>Submit batch attestation' + (batchAttestState.rows.length > 1 ? 's' : '') + '</button></div></div>' +
+      resultHtml +
+      '</div>';
+    main.innerHTML = html;
+  }
+
+  window.renderBatchAttest = renderBatchAttest;
 
   // --- Activity / notifications panel ---
   window.showActivity = async function() {
@@ -4734,6 +4946,7 @@ function statCard(label, value, cls) {
         }
         else if (bootState.view === 'topics') window.showTopics();
         else if (bootState.view === 'attest') window.showAttest();
+        else if (bootState.view === 'batch-attest') window.showBatchAttest();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -4754,6 +4967,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'topics') window.showTopics();
   else if (viewMode === 'activity') window.showActivity();
   else if (viewMode === 'attest') window.showAttest();
+  else if (viewMode === 'batch-attest') window.showBatchAttest();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
