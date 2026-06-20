@@ -46,6 +46,7 @@ import { logAction, queryLog, logToMarkdown, tailLog, exportLog, importLog } fro
 import { accessLogResultToMarkdown } from './request-log.mjs';
 import { generateCompletion, listSupportedShells } from './completion.mjs';
 import { buildReleaseNotes, generateDraftFromGitCommits, validateChangelog as validateReleaseChangelog } from './release-notes.mjs';
+import { buildIdentityReport, identityReportToMarkdown, identityReportToHtml } from './identity-report.mjs';
 import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, publishDashboard } from './dashboard.mjs';
 import { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from './admin-panel.mjs';
 import { buildSupportBundle, supportBundleToMarkdown, redactSecrets } from './support-bundle.mjs';
@@ -115,7 +116,9 @@ const api = {
    */
   async init(options = {}) {
     const keyType = options.keyType || process.env.PERMABRAIN_KEY_TYPE || 'ed25519';
-    const { home, createdConfig } = initState({ env: { ...process.env, PERMABRAIN_KEY_TYPE: keyType } });
+    const env = { ...process.env, PERMABRAIN_KEY_TYPE: keyType };
+    if (options.home) env.PERMABRAIN_HOME = options.home;
+    const { home, createdConfig } = initState({ env });
     const { identity, created } = await ensureIdentity(home, { keyType });
 
     // Update config if transport specified
@@ -2155,6 +2158,27 @@ const api = {
       });
     }
     return buildReleaseNotes(opts);
+  },
+
+  /**
+   * Build a detailed local identity introspection report.
+   *
+   * Includes the public signing identity, derived X25519 encryption key
+   * (for ed25519 identities), home directory, transport, and a redacted
+   * config summary.
+   *
+   * @param {Object} [opts]
+   * @param {boolean} [opts.markdown=false]
+   * @param {boolean} [opts.html=false]
+   * @returns {Promise<Object|string>}
+   */
+  async whoami(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const report = buildIdentityReport({ home: this._home, config: this._config });
+    if (opts.html) return identityReportToHtml(report);
+    if (opts.markdown) return { ...report, markdown: identityReportToMarkdown(report) };
+    return report;
   },
 
   /**

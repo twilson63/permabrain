@@ -209,6 +209,15 @@ export function createClient(options = {}) {
     identity: () => request('GET', '/api/v1/identity'),
 
     /** @returns {Promise<Object>} */
+    whoami: () => request('GET', '/api/v1/identity/report'),
+
+    /** @returns {Promise<Object>} */
+    whoamiHTML: () => request('GET', '/api/v1/identity/report.html', undefined, { accept: 'text/html' }),
+
+    /** @returns {Promise<Object>} */
+    whoamiMarkdown: () => request('GET', '/api/v1/identity/report.md', undefined, { accept: 'text/markdown' }),
+
+    /** @returns {Promise<Object>} */
     goal: (body) => request('POST', '/api/v1/goal', body),
 
     /** @returns {Promise<Object>} */

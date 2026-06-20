@@ -449,6 +449,30 @@ export const ROUTES = [
     response: { agentId: 'string', type: 'string', publicKey: 'string' }
   },
   {
+    route: '/api/v1/identity/report',
+    method: 'GET',
+    description: 'Return a structured identity and configuration introspection report.',
+    public: false,
+    params: [],
+    response: { agentId: 'string', keyType: 'string', home: 'string', transport: 'string', hyperbeamUrl: 'string|null', publicKey: 'string|null', encryptionPublicKey: 'string|null' }
+  },
+  {
+    route: '/api/v1/identity/report.md',
+    method: 'GET',
+    description: 'Return the identity report rendered as Markdown.',
+    public: false,
+    params: [],
+    response: { markdown: 'string' }
+  },
+  {
+    route: '/api/v1/identity/report.html',
+    method: 'GET',
+    description: 'Return the identity report rendered as a self-contained HTML page.',
+    public: false,
+    params: [],
+    response: { html: 'string' }
+  },
+  {
     route: '/api/v1/raw/:id',
     method: 'GET',
     description: 'Fetch raw ANS-104 DataItem bytes by DataItem id.',

@@ -47,6 +47,10 @@ function normalizeImportResult(result) {
  *   POST /api/v1/articles/:key/attest → attest
  *   GET  /api/v1/articles/:key/consensus → consensus
  *   GET  /api/v1/articles/:key/history   → version history
+ *   GET  /api/v1/identity            → basic public identity
+ *   GET  /api/v1/identity/report      → full identity introspection report (JSON)
+ *   GET  /api/v1/identity/report.md   → markdown identity report
+ *   GET  /api/v1/identity/report.html → HTML identity report
  *   GET  /api/v1/raw/:id                → raw ANS-104 DataItem bytes
  *   POST /api/v1/sync                  → sync
  *   GET  /api/v1/search?q=...          → search
@@ -84,6 +88,7 @@ import { createApiKeyAuth, generateApiKey } from './auth.mjs';
 import { buildOpenApiDocument, listRoutes } from './route-registry.mjs';
 import { createRateLimiter, DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS, DEFAULT_RATE_LIMIT_BURST } from './rate-limit.mjs';
 import { requestLogger } from './request-log.mjs';
+import { buildIdentityReport, identityReportToMarkdown, identityReportToHtml } from './identity-report.mjs';
 import { createRuntimeMetrics, stopRuntimeMetrics, buildMetricsReport, formatPrometheus } from './metrics-runtime.mjs';
 
 const DEFAULT_PORT = 8765;
@@ -956,6 +961,25 @@ async function handleRequest(req, res, home, options = {}) {
     if (method === 'GET' && route === '/api/v1/identity') {
       const id = publicIdentity(api._identity);
       return sendJson(res, 200, id);
+    }
+
+    if (method === 'GET' && (route === '/api/v1/identity/report' || route === '/api/v1/identity/report.json')) {
+      const report = buildIdentityReport({ home: currentHome, config: api._config });
+      return sendJson(res, 200, report);
+    }
+
+    if (method === 'GET' && route === '/api/v1/identity/report.md') {
+      const report = buildIdentityReport({ home: currentHome, config: api._config });
+      const markdown = identityReportToMarkdown(report);
+      res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+      return res.end(markdown);
+    }
+
+    if (method === 'GET' && route === '/api/v1/identity/report.html') {
+      const report = buildIdentityReport({ home: currentHome, config: api._config });
+      const html = identityReportToHtml(report);
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(html);
     }
 
     const rawMatch = route.match(/^\/api\/v1\/raw\/(.+)$/);

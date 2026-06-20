@@ -78,7 +78,8 @@ const COMMANDS = [
   'query-stream',
   'subscribe',
   'shell',
-  'version'
+  'version',
+  'whoami'
 ];
 
 // Alias support: map legacy/import-export subcommands to canonical names.
@@ -185,6 +186,7 @@ Commands:
   subscribe <remote-url> [options]  Forward local events to a remote PermaBrain peer
   shell                        Start an interactive REPL for live agent API exploration
   version                      Print PermaBrain CLI and package version
+  whoami                       Show local PermaBrain identity and config summary
 
 Common examples:
   permabrain init
@@ -1156,6 +1158,21 @@ Examples:
   permabrain release-notes --unreleased
   permabrain release-notes --draft --json
   permabrain release-notes --validate
+`,
+    'whoami': `Usage: permabrain whoami [options]
+
+Show the local PermaBrain identity and configuration summary.
+
+Options:
+  --json      Output structured JSON
+  --markdown  Output markdown report
+  --html      Output self-contained HTML report
+  --output <path>  Write output to file
+
+Examples:
+  permabrain whoami
+  permabrain whoami --json
+  permabrain whoami --html --output identity.html
 `
   };
   console.log(help[command] || `Unknown command: ${command}`);

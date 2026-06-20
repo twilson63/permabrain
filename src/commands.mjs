@@ -33,6 +33,7 @@ import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, p
 import { buildSupportBundle, supportBundleToMarkdown } from './support-bundle.mjs';
 import { shareEncryptedArticle, publishEncryptedShare, buildEncryptedSharePage } from './share-encrypted.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
+import { buildIdentityReport, identityReportToMarkdown, identityReportToHtml } from './identity-report.mjs';
 import { buildReleaseNotes, generateDraftFromGitCommits, validateChangelog as validateReleaseChangelog } from './release-notes.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, remotesToMarkdown } from './remotes.mjs';
 import { createBackup, listBackups, restoreBackup, pruneBackups, backupsToMarkdown } from './backup.mjs';
@@ -151,6 +152,7 @@ export async function runCommand(command, args) {
   if (command === 'peer') return peerCommand(args);
   if (command === 'shell') return shellCommand(args);
   if (command === 'version' || command === '--version' || command === '-v') return versionCommand(args);
+  if (command === 'whoami') return whoamiCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -3017,4 +3019,102 @@ async function releaseNotesCommand(args) {
     console.log(content);
   }
   return result;
+}
+
+async function completionCommand(args) {
+  if (args.help || args.h) {
+    console.log(`Usage: permabrain completion <shell>
+
+Generate a shell completion script for bash, zsh, or fish.
+
+Examples:
+  permabrain completion bash
+  permabrain completion zsh --output ~/.zsh/completions/_permabrain
+  permabrain completion fish --output ~/.config/fish/completions/permabrain.fish
+`);
+    return { ok: true, help: true };
+  }
+  const shell = args._[0] || args.shell || 'bash';
+  const supported = listSupportedShells();
+  if (!supported.includes(shell)) {
+    console.error(`Unsupported shell: ${shell}. Supported: ${supported.join(', ')}`);
+    return { ok: false, error: `Unsupported shell: ${shell}` };
+  }
+  const script = generateCompletion(shell);
+  if (args.output) {
+    fs.writeFileSync(args.output, script, 'utf8');
+    console.log(`Completion script written to ${args.output}`);
+  } else {
+    console.log(script);
+  }
+  return { ok: true, shell, script };
+}
+
+async function whoamiCommand(args) {
+  if (args.help || args.h) {
+    console.log(`Usage: permabrain whoami [options]
+
+Show the local PermaBrain identity and configuration summary.
+
+Options:
+  --json      Output structured JSON
+  --markdown  Output markdown report
+  --html      Output self-contained HTML report
+  --output <path>  Write output to file
+
+Examples:
+  permabrain whoami
+  permabrain whoami --json
+  permabrain whoami --html --output identity.html
+`);
+    return { ok: true, help: true };
+  }
+  const home = getHome();
+  const config = loadConfig(home);
+  const report = buildIdentityReport({ home, config });
+
+  if (args.html) {
+    const html = identityReportToHtml(report);
+    if (args.output) {
+      fs.writeFileSync(args.output, html, 'utf8');
+      console.log(`Identity report written to ${args.output}`);
+    } else {
+      console.log(html);
+    }
+    return { ...report, html };
+  }
+
+  if (args.markdown) {
+    const markdown = identityReportToMarkdown(report);
+    if (args.output) {
+      fs.writeFileSync(args.output, markdown, 'utf8');
+      console.log(`Identity report written to ${args.output}`);
+    } else {
+      console.log(markdown);
+    }
+    return { ...report, markdown };
+  }
+
+  if (args.json) {
+    const content = JSON.stringify(report, null, 2);
+    if (args.output) {
+      fs.writeFileSync(args.output, content, 'utf8');
+      console.log(`Identity report written to ${args.output}`);
+    } else {
+      console.log(content);
+    }
+    return report;
+  }
+
+  console.log(`PermaBrain identity (${report.agentId})`);
+  console.log(`Key type: ${report.keyType}`);
+  console.log(`Home: ${report.home}`);
+  console.log(`Transport: ${report.transport}`);
+  if (report.hyperbeamUrl) console.log(`HyperBEAM URL: ${report.hyperbeamUrl}`);
+  if (report.publicKey) console.log(`Public key: ${report.publicKey}`);
+  if (report.encryptionPublicKey) {
+    console.log(`Encryption key type: ${report.encryptionKeyType || 'x25519'}`);
+    console.log(`Encryption public key: ${report.encryptionPublicKey}`);
+  }
+  return report;
 }

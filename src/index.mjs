@@ -221,5 +221,8 @@ export {
   categorizeCommitMessage
 } from './release-notes.mjs';
 
+// Identity introspection report
+export { buildIdentityReport, identityReportToMarkdown, identityReportToHtml } from './identity-report.mjs';
+
 // Interactive REPL
 export { createRepl, readHistory, writeHistory, buildApiCompleter } from './repl.mjs';
