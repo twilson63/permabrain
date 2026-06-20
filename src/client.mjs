@@ -326,6 +326,9 @@ export function createClient(options = {}) {
     },
 
     /** @returns {Promise<Object>} */
+    signLocalThresholdAttestation: (envelopeId) => request('POST', '/api/v1/threshold-attest/sign-local', { envelopeId }),
+
+    /** @returns {Promise<Object>} */
     finalizeThresholdAttestation: (body) => request('POST', '/api/v1/threshold-attest/finalize', body),
 
     /** @returns {Promise<Object>} */

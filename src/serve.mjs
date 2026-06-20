@@ -1200,6 +1200,13 @@ async function handleRequest(req, res, home, options = {}) {
       return sendJson(res, 200, updated);
     }
 
+    if (method === 'POST' && route === '/api/v1/threshold-attest/sign-local') {
+      const body = bodyOrRead || await readBody(req);
+      if (!body.envelopeId) return sendError(res, 400, 'envelopeId is required');
+      const updated = await api.signThresholdEnvelope(body.envelopeId);
+      return sendJson(res, 200, updated);
+    }
+
     if (method === 'POST' && route === '/api/v1/threshold-attest/finalize') {
       const body = bodyOrRead || await readBody(req);
       if (!body.envelopeId) return sendError(res, 400, 'envelopeId is required');

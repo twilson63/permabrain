@@ -951,6 +951,16 @@ export const ROUTES = [
     response: { envelopeId: 'string', signers: 'array' }
   },
   {
+    route: '/api/v1/threshold-attest/sign-local',
+    method: 'POST',
+    description: 'Sign a pending threshold envelope with the local identity and add it as a co-signer.',
+    public: false,
+    params: [
+      { name: 'envelopeId', in: 'body', type: 'string', required: true }
+    ],
+    response: { envelopeId: 'string', signers: 'array' }
+  },
+  {
     route: '/api/v1/threshold-attest/finalize',
     method: 'POST',
     description: 'Finalize and publish a threshold attestation.',

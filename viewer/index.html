@@ -412,6 +412,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
+    <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -567,10 +568,15 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'attest' | 'batch-attest'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'attest' | 'batch-attest' | 'threshold-attest'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
+  var thresholdAttestState = {
+    articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', sourceUrl: '',
+    threshold: 2, coSignerIds: '', apiKey: '', envelope: null, importText: '',
+    loading: false, error: null, success: null, verifyResult: null
+  };
   var compareState = { base: '', head: '', loading: false, error: null, result: null, mergePreview: null, pendingMerge: null };
   var exportImportState = { activeTab: 'import', exportKey: '', exportMode: 'bundle', includeAttestations: true, includeVersions: true, loading: false, error: null, result: null, importFile: null, importText: '', importResult: null, importPreview: null, importDryRun: true, apiKey: '', rawId: '', allExportMode: 'bundle' };
   var publishState = { files: [], loading: false, error: null, report: null, topic: '', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', visibility: 'public', recursive: false, apiKey: '' };
@@ -1508,6 +1514,15 @@ function statCard(label, value, cls) {
     if (viewMode === 'batch-attest') {
       if (batchAttestState.jsonText) params.set('batchJson', batchAttestState.jsonText);
     }
+    if (viewMode === 'threshold-attest') {
+      if (thresholdAttestState.selectedKey) params.set('thresholdKey', thresholdAttestState.selectedKey);
+      if (thresholdAttestState.opinion && thresholdAttestState.opinion !== 'valid') params.set('thresholdOpinion', thresholdAttestState.opinion);
+      if (thresholdAttestState.confidence !== undefined && thresholdAttestState.confidence !== 0.9) params.set('thresholdConfidence', String(thresholdAttestState.confidence));
+      if (thresholdAttestState.reason) params.set('thresholdReason', thresholdAttestState.reason);
+      if (thresholdAttestState.sourceUrl) params.set('thresholdSourceUrl', thresholdAttestState.sourceUrl);
+      if (thresholdAttestState.threshold !== 2) params.set('thresholdCount', String(thresholdAttestState.threshold));
+      if (thresholdAttestState.coSignerIds) params.set('thresholdCoSigners', thresholdAttestState.coSignerIds);
+    }
     if (viewMode === 'activity') {
       if (activityState.filters.eventKind) params.set('activityKind', activityState.filters.eventKind);
       if (activityState.filters.topic) params.set('activityTopic', activityState.filters.topic);
@@ -1564,6 +1579,13 @@ function statCard(label, value, cls) {
       attestConfidence: params.get('attestConfidence') || '',
       attestReason: params.get('attestReason') || '',
       batchJson: params.get('batchJson') || '',
+      thresholdKey: params.get('thresholdKey') || '',
+      thresholdOpinion: params.get('thresholdOpinion') || '',
+      thresholdConfidence: params.get('thresholdConfidence') || '',
+      thresholdReason: params.get('thresholdReason') || '',
+      thresholdSourceUrl: params.get('thresholdSourceUrl') || '',
+      thresholdCount: params.get('thresholdCount') || '',
+      thresholdCoSigners: params.get('thresholdCoSigners') || '',
       exportKey: params.get('exportKey') || '',
       exportMode: params.get('exportMode') || 'bundle',
       importName: params.get('importName') || '',
@@ -1607,7 +1629,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','attest','batch-attest'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','attest','batch-attest','threshold-attest'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1648,6 +1670,15 @@ function statCard(label, value, cls) {
     }
     if (state.view === 'batch-attest' && state.batchJson) {
       batchAttestState.jsonText = state.batchJson;
+    }
+    if (state.view === 'threshold-attest') {
+      if (state.thresholdKey) thresholdAttestState.selectedKey = state.thresholdKey;
+      if (state.thresholdOpinion) thresholdAttestState.opinion = state.thresholdOpinion;
+      if (state.thresholdConfidence) { var tc = parseFloat(state.thresholdConfidence); if (!isNaN(tc) && tc >= 0 && tc <= 1) thresholdAttestState.confidence = tc; }
+      if (state.thresholdReason) thresholdAttestState.reason = state.thresholdReason;
+      if (state.thresholdSourceUrl) thresholdAttestState.sourceUrl = state.thresholdSourceUrl;
+      if (state.thresholdCount) { var tci = parseInt(state.thresholdCount, 10); if (!isNaN(tci) && tci >= 1) thresholdAttestState.threshold = tci; }
+      if (state.thresholdCoSigners) thresholdAttestState.coSignerIds = state.thresholdCoSigners;
     }
     if (state.tab) activeTab = state.tab;
     return state;
@@ -2438,6 +2469,404 @@ function statCard(label, value, cls) {
   }
 
   window.renderBatchAttest = renderBatchAttest;
+
+  // --- Threshold / multi-sig attestation panel ---
+  window.showThresholdAttest = async function() {
+    viewMode = 'threshold-attest';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchThresholdArticles();
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  window.refreshThresholdAttest = async function() {
+    await fetchThresholdArticles();
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  async function fetchThresholdArticles() {
+    if (!isLocalServer()) return;
+    thresholdAttestState.loading = true;
+    thresholdAttestState.error = null;
+    renderThresholdAttest();
+    try {
+      var r = await fetch('/api/v1/list?limit=1000');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      thresholdAttestState.articles = data.articles || [];
+    } catch(e) {
+      thresholdAttestState.error = e.message;
+    } finally {
+      thresholdAttestState.loading = false;
+    }
+    if (viewMode === 'threshold-attest') renderThresholdAttest();
+  }
+
+  window.fetchThresholdArticles = fetchThresholdArticles;
+
+  window.selectThresholdKey = function(key) {
+    thresholdAttestState.selectedKey = key || '';
+    thresholdAttestState.envelope = null;
+    thresholdAttestState.verifyResult = null;
+    thresholdAttestState.success = null;
+    thresholdAttestState.error = null;
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  window.setThresholdOpinion = function(opinion) {
+    thresholdAttestState.opinion = opinion || 'valid';
+    updateUrlState();
+  };
+
+  window.setThresholdConfidence = function(value) {
+    var n = parseFloat(value);
+    if (!isNaN(n) && n >= 0 && n <= 1) thresholdAttestState.confidence = n;
+    updateUrlState();
+  };
+
+  window.setThresholdReason = function(reason) {
+    thresholdAttestState.reason = reason || '';
+    updateUrlState();
+  };
+
+  window.setThresholdSourceUrl = function(url) {
+    thresholdAttestState.sourceUrl = url || '';
+    updateUrlState();
+  };
+
+  window.setThresholdCount = function(value) {
+    var n = parseInt(value, 10);
+    if (!isNaN(n) && n >= 1) thresholdAttestState.threshold = n;
+    updateUrlState();
+  };
+
+  window.setThresholdCoSignerIds = function(ids) {
+    thresholdAttestState.coSignerIds = ids || '';
+    updateUrlState();
+  };
+
+  window.setThresholdApiKey = function(key) {
+    thresholdAttestState.apiKey = key || '';
+  };
+
+  window.setThresholdImportText = function(text) {
+    thresholdAttestState.importText = text || '';
+  };
+
+  function thresholdHeaders() {
+    var headers = { 'content-type': 'application/json' };
+    if (thresholdAttestState.apiKey) headers['authorization'] = 'Bearer ' + thresholdAttestState.apiKey;
+    return headers;
+  }
+
+  window.createThresholdEnvelope = async function() {
+    if (!isLocalServer()) return;
+    if (!thresholdAttestState.selectedKey) {
+      thresholdAttestState.error = 'Select an article to attest.';
+      thresholdAttestState.success = null;
+      renderThresholdAttest();
+      return;
+    }
+    if (!thresholdAttestState.reason.trim()) {
+      thresholdAttestState.error = 'A reason is required.';
+      thresholdAttestState.success = null;
+      renderThresholdAttest();
+      return;
+    }
+    var ids = thresholdAttestState.coSignerIds.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+    if (!ids.length) {
+      thresholdAttestState.error = 'At least one co-signer agent id is required.';
+      thresholdAttestState.success = null;
+      renderThresholdAttest();
+      return;
+    }
+    if (thresholdAttestState.threshold > ids.length) {
+      thresholdAttestState.error = 'Threshold cannot exceed the number of co-signers.';
+      thresholdAttestState.success = null;
+      renderThresholdAttest();
+      return;
+    }
+    thresholdAttestState.loading = true;
+    thresholdAttestState.error = null;
+    thresholdAttestState.success = null;
+    thresholdAttestState.envelope = null;
+    thresholdAttestState.verifyResult = null;
+    renderThresholdAttest();
+    try {
+      var r = await fetch('/api/v1/threshold-attest', {
+        method: 'POST',
+        headers: thresholdHeaders(),
+        body: JSON.stringify({
+          key: thresholdAttestState.selectedKey,
+          opinion: thresholdAttestState.opinion,
+          confidence: thresholdAttestState.confidence,
+          reason: thresholdAttestState.reason.trim(),
+          sourceUrl: thresholdAttestState.sourceUrl.trim(),
+          policy: { threshold: thresholdAttestState.threshold, coSignerAgentIds: ids }
+        })
+      });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      thresholdAttestState.envelope = body;
+      thresholdAttestState.success = 'Threshold envelope created: ' + (body.envelopeId || '').substring(0, 8) + '…';
+    } catch(e) {
+      thresholdAttestState.error = e.message;
+    } finally {
+      thresholdAttestState.loading = false;
+    }
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  window.importThresholdEnvelope = async function() {
+    if (!isLocalServer()) return;
+    var text = thresholdAttestState.importText.trim();
+    if (!text) {
+      thresholdAttestState.error = 'Paste an envelope JSON to import.';
+      thresholdAttestState.success = null;
+      renderThresholdAttest();
+      return;
+    }
+    thresholdAttestState.loading = true;
+    thresholdAttestState.error = null;
+    thresholdAttestState.success = null;
+    thresholdAttestState.verifyResult = null;
+    renderThresholdAttest();
+    try {
+      var envelope = JSON.parse(text);
+      var r = await fetch('/api/v1/threshold-attest/import', {
+        method: 'POST',
+        headers: thresholdHeaders(),
+        body: JSON.stringify({ envelope: envelope })
+      });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      thresholdAttestState.envelope = body;
+      thresholdAttestState.importText = '';
+      thresholdAttestState.success = 'Envelope imported: ' + (body.envelopeId || '').substring(0, 8) + '…';
+    } catch(e) {
+      thresholdAttestState.error = e.message;
+    } finally {
+      thresholdAttestState.loading = false;
+    }
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  window.signThresholdEnvelopeLocal = async function() {
+    if (!isLocalServer()) return;
+    if (!thresholdAttestState.envelope || !thresholdAttestState.envelope.envelopeId) {
+      thresholdAttestState.error = 'Create or import an envelope before signing.';
+      thresholdAttestState.success = null;
+      renderThresholdAttest();
+      return;
+    }
+    thresholdAttestState.loading = true;
+    thresholdAttestState.error = null;
+    thresholdAttestState.success = null;
+    renderThresholdAttest();
+    try {
+      var r = await fetch('/api/v1/threshold-attest/sign-local', {
+        method: 'POST',
+        headers: thresholdHeaders(),
+        body: JSON.stringify({ envelopeId: thresholdAttestState.envelope.envelopeId })
+      });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      thresholdAttestState.envelope = body;
+      thresholdAttestState.success = 'Local identity signed as co-signer.';
+    } catch(e) {
+      thresholdAttestState.error = e.message;
+    } finally {
+      thresholdAttestState.loading = false;
+    }
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  window.verifyThresholdEnvelope = async function() {
+    if (!isLocalServer()) return;
+    if (!thresholdAttestState.envelope) {
+      thresholdAttestState.error = 'No envelope to verify.';
+      thresholdAttestState.success = null;
+      renderThresholdAttest();
+      return;
+    }
+    thresholdAttestState.loading = true;
+    thresholdAttestState.error = null;
+    thresholdAttestState.success = null;
+    thresholdAttestState.verifyResult = null;
+    renderThresholdAttest();
+    try {
+      var r = await fetch('/api/v1/threshold-attest/verify', {
+        method: 'POST',
+        headers: thresholdHeaders(),
+        body: JSON.stringify({ envelope: thresholdAttestState.envelope })
+      });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      thresholdAttestState.verifyResult = body;
+    } catch(e) {
+      thresholdAttestState.error = e.message;
+    } finally {
+      thresholdAttestState.loading = false;
+    }
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  window.finalizeThresholdEnvelope = async function() {
+    if (!isLocalServer()) return;
+    if (!thresholdAttestState.envelope || !thresholdAttestState.envelope.envelopeId) {
+      thresholdAttestState.error = 'Create or import an envelope before finalizing.';
+      thresholdAttestState.success = null;
+      renderThresholdAttest();
+      return;
+    }
+    thresholdAttestState.loading = true;
+    thresholdAttestState.error = null;
+    thresholdAttestState.success = null;
+    renderThresholdAttest();
+    try {
+      var r = await fetch('/api/v1/threshold-attest/finalize', {
+        method: 'POST',
+        headers: thresholdHeaders(),
+        body: JSON.stringify({ envelopeId: thresholdAttestState.envelope.envelopeId })
+      });
+      var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
+      if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
+      thresholdAttestState.success = 'Threshold attestation published. id: ' + ((body.item && body.item.id) || (body.summary && body.summary.id) || '').substring(0, 12) + '…';
+      thresholdAttestState.envelope = body.envelope || thresholdAttestState.envelope;
+    } catch(e) {
+      thresholdAttestState.error = e.message;
+    } finally {
+      thresholdAttestState.loading = false;
+    }
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  window.copyThresholdEnvelope = function() {
+    if (!thresholdAttestState.envelope) return;
+    var json = JSON.stringify(thresholdAttestState.envelope, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(json).then(function() {
+        thresholdAttestState.success = 'Envelope JSON copied to clipboard.';
+        renderThresholdAttest();
+      }).catch(function() {});
+    }
+  };
+
+  window.downloadThresholdEnvelope = function() {
+    if (!thresholdAttestState.envelope) return;
+    var blob = new Blob([JSON.stringify(thresholdAttestState.envelope, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'threshold-envelope-' + (thresholdAttestState.envelope.envelopeId || 'draft') + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  window.clearThresholdEnvelope = function() {
+    thresholdAttestState.envelope = null;
+    thresholdAttestState.verifyResult = null;
+    thresholdAttestState.success = null;
+    thresholdAttestState.error = null;
+    thresholdAttestState.importText = '';
+    renderThresholdAttest();
+    updateUrlState();
+  };
+
+  function renderThresholdAttest() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Threshold attestation panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to create multi-sig attestation envelopes.</p></div>';
+      return;
+    }
+    if (thresholdAttestState.loading && !thresholdAttestState.articles.length) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading articles...</div>';
+      return;
+    }
+    if (thresholdAttestState.error && !thresholdAttestState.articles.length) {
+      main.innerHTML = '<div class="empty-state"><h2>Threshold attestation error</h2><p>' + esc(thresholdAttestState.error) + '</p><button class="btn-icon" onclick="window.refreshThresholdAttest()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var options = '<option value="">— Select an article —</option>' +
+      thresholdAttestState.articles.map(function(a) {
+        return '<option value="' + esc(a.key) + '"' + (a.key === thresholdAttestState.selectedKey ? ' selected' : '') + '>' + esc(a.key) + (a.title ? ' · ' + esc(a.title) : '') + '</option>';
+      }).join('');
+
+    var successHtml = thresholdAttestState.success ? '<div class="success-box" style="margin-bottom:1rem">' + esc(thresholdAttestState.success) + '</div>' : '';
+    var errorHtml = thresholdAttestState.error ? '<div class="error-box" style="margin-bottom:1rem">' + esc(thresholdAttestState.error) + '</div>' : '';
+
+    var envelopeHtml = '';
+    if (thresholdAttestState.envelope) {
+      var env = thresholdAttestState.envelope;
+      var sigStatus = (env.signers || []).length + ' signer(s)';
+      envelopeHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Active envelope</h3>' +
+        '<p style="font-size:0.85rem;color:var(--muted)">ID: <code>' + esc(env.envelopeId || '') + '</code> · Policy ' + (env.policy && env.policy.threshold || '—') + '-of-' + ((env.policy && env.policy.coSignerAgentIds && env.policy.coSignerAgentIds.length) || 0) + ' · ' + sigStatus + '</p>' +
+        '<textarea id="thresholdEnvelopeJson" rows="8" readonly>' + esc(JSON.stringify(env, null, 2)) + '</textarea>' +
+        '<div class="btn-row">' +
+        '<button class="btn-icon" onclick="window.copyThresholdEnvelope()">Copy JSON</button> ' +
+        '<button class="btn-icon" onclick="window.downloadThresholdEnvelope()">Download JSON</button> ' +
+        '<button class="btn-icon" onclick="window.clearThresholdEnvelope()">Clear</button>' +
+        '</div></div>';
+    }
+
+    var verifyHtml = '';
+    if (thresholdAttestState.verifyResult) {
+      var vr = thresholdAttestState.verifyResult;
+      var verifyClass = vr.ok ? 'good' : 'low';
+      verifyHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Verification</h3>' +
+        '<p style="color:' + (vr.ok ? 'var(--green)' : 'var(--red)') + '">' + (vr.ok ? '✓ Threshold met' : '✗ Threshold not met') + ' — ' + (vr.valid || 0) + ' of ' + (vr.required || 0) + ' valid signatures</p>' +
+        (vr.invalid && vr.invalid.length ? '<p style="color:var(--red);font-size:0.85rem">Invalid: ' + esc(vr.invalid.join(', ')) + '</p>' : '') +
+        '</div>';
+    }
+
+    var importHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Import envelope</h3>' +
+      '<textarea rows="4" placeholder="Paste threshold envelope JSON from a co-signer..." oninput="window.setThresholdImportText(this.value)">' + esc(thresholdAttestState.importText) + '</textarea>' +
+      '<div class="btn-row"><button class="btn-icon" onclick="window.importThresholdEnvelope()">Import envelope</button></div></div>';
+
+    var html = '<div class="home"><h1>&#128101; <span>Threshold Attest</span></h1><p class="home-subtitle">Create and finalize multi-sig attestation envelopes</p>' +
+      '<div class="dashboard-toolbar"><button class="btn-icon" onclick="window.refreshThresholdAttest()">&#x21BB; Refresh</button></div>' +
+      successHtml + errorHtml +
+      '<div class="dashboard-section">' +
+      '<div class="form-row"><label>Article</label><select onchange="window.selectThresholdKey(this.value)">' + options + '</select></div>' +
+      '<div class="form-row"><label>Opinion</label><select onchange="window.setThresholdOpinion(this.value)">' +
+      '<option value="valid"' + (thresholdAttestState.opinion === 'valid' ? ' selected' : '') + '>valid</option>' +
+      '<option value="invalid"' + (thresholdAttestState.opinion === 'invalid' ? ' selected' : '') + '>invalid</option>' +
+      '<option value="partially-valid"' + (thresholdAttestState.opinion === 'partially-valid' ? ' selected' : '') + '>partially-valid</option>' +
+      '<option value="outdated"' + (thresholdAttestState.opinion === 'outdated' ? ' selected' : '') + '>outdated</option>' +
+      '<option value="disputed"' + (thresholdAttestState.opinion === 'disputed' ? ' selected' : '') + '>disputed</option>' +
+      '</select></div>' +
+      '<div class="form-row"><label>Confidence ' + esc(String(thresholdAttestState.confidence)) + '</label><input type="range" min="0" max="1" step="0.05" value="' + esc(String(thresholdAttestState.confidence)) + '" oninput="window.setThresholdConfidence(this.value)"></div>' +
+      '<div class="form-row"><label>Reason</label><textarea rows="3" placeholder="Why are you attesting this way?" oninput="window.setThresholdReason(this.value)">' + esc(thresholdAttestState.reason) + '</textarea></div>' +
+      '<div class="form-row"><label>Source URL (optional)</label><input type="text" value="' + esc(thresholdAttestState.sourceUrl) + '" placeholder="https://example.com/source" oninput="window.setThresholdSourceUrl(this.value)"></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 2fr;gap:0.75rem">' +
+      '<div class="form-row"><label>Threshold</label><input type="number" min="1" value="' + esc(String(thresholdAttestState.threshold)) + '" oninput="window.setThresholdCount(this.value)"></div>' +
+      '<div class="form-row"><label>Co-signer agent ids (comma separated)</label><input type="text" value="' + esc(thresholdAttestState.coSignerIds) + '" placeholder="agent-a, agent-b" oninput="window.setThresholdCoSignerIds(this.value)"></div>' +
+      '</div>' +
+      '<div class="form-row"><label>API key (optional)</label><input type="password" placeholder="Bearer token for permabrain serve" value="' + esc(thresholdAttestState.apiKey) + '" oninput="window.setThresholdApiKey(this.value)"></div>' +
+      '<div class="btn-row">' +
+      '<button class="btn-primary" onclick="window.createThresholdEnvelope()" ' + (thresholdAttestState.loading ? 'disabled' : '') + '>Create envelope</button> ' +
+      '<button class="btn-icon" onclick="window.signThresholdEnvelopeLocal()" ' + (thresholdAttestState.loading ? 'disabled' : '') + '>Sign locally</button> ' +
+      '<button class="btn-icon" onclick="window.verifyThresholdEnvelope()" ' + (thresholdAttestState.loading ? 'disabled' : '') + '>Verify</button> ' +
+      '<button class="btn-icon" onclick="window.finalizeThresholdEnvelope()" ' + (thresholdAttestState.loading ? 'disabled' : '') + '>Finalize</button>' +
+      '</div>' +
+      '</div>' +
+      envelopeHtml + verifyHtml + importHtml +
+      '</div>';
+
+    main.innerHTML = html;
+  }
+
+  window.renderThresholdAttest = renderThresholdAttest;
 
   // --- Activity / notifications panel ---
   window.showActivity = async function() {
@@ -4947,6 +5376,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'topics') window.showTopics();
         else if (bootState.view === 'attest') window.showAttest();
         else if (bootState.view === 'batch-attest') window.showBatchAttest();
+        else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -4968,6 +5398,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'activity') window.showActivity();
   else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'batch-attest') window.showBatchAttest();
+  else if (viewMode === 'threshold-attest') window.showThresholdAttest();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();

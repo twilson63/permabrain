@@ -2105,6 +2105,25 @@ const api = {
   },
 
   /**
+   * Sign the current threshold envelope's digest with the local identity and add it as a co-signer.
+   * Useful in single-node or local-serve scenarios where the server owns the signing identity.
+   *
+   * @param {string} envelopeId
+   * @returns {Promise<Object>} Updated envelope
+   */
+  async signThresholdEnvelope(envelopeId) {
+    await this.ensureInit();
+    requireInit(this._home);
+    const threshold = await import('./threshold-attestation.mjs');
+    const { loadIdentity } = await import('./keys.mjs');
+    const identity = loadIdentity(this._home);
+    const envelope = threshold.exportThresholdEnvelope(envelopeId);
+    const digest = Buffer.from(envelope.digest, 'base64url');
+    const signer = await threshold.signThresholdDigest(identity, digest);
+    return threshold.addCoSigner(envelopeId, signer);
+  },
+
+  /**
    * Import a threshold envelope shared by another co-signer.
    *
    * @param {Object} envelope
