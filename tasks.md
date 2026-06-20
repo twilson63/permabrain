@@ -1,6 +1,8 @@
 # PermaBrain Build Tasks
 
 ## Done
+- [x] Cron build loop checkpoint (2026-06-20 08:04 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `5b3e048`. Full sequential `npm test` suite passes in this environment (completed in the previous 07:34 run, including the previously-hanging `test/transport-probe.mjs`, which now exits successfully). Left queue empty and recorded clean status.
+- [x] Cron build loop checkpoint (2026-06-20 07:34 UTC): no unchecked 'In Progress' or 'Next' tasks at start; queue remains empty. No implementation work picked. Clean `main` at `5b3e048`. Full sequential `npm test` suite passes in this environment (including the previously-hanging `test/transport-probe.mjs`). Left queue empty and recorded clean status.
 - [x] Cron build loop checkpoint (2026-06-20 06:34 UTC): queue was empty at start. Seeded and implemented SDK/client meta endpoint parity: added public `GET /api/v1/version`, authenticated `GET /api/v1/release-notes` (JSON + markdown via Accept header) to `src/serve.mjs`; registered both in `src/route-registry.mjs`; added SDK `client.version()`, `client.releaseNotes()`, and `client.releaseNotesMarkdown()` to `src/client.mjs`; added `test/client-meta.mjs` covering `version`, `whoami` (JSON/markdown/HTML), and `releaseNotes` via live server; wired the new test into `npm test` and `test:client-meta` script. Full `npm test` suite passes; committed to `main` as `5b3e048` and pushed to `origin/main`.
 
 ## Done
