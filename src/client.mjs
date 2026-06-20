@@ -211,11 +211,20 @@ export function createClient(options = {}) {
     /** @returns {Promise<Object>} */
     whoami: () => request('GET', '/api/v1/identity/report'),
 
-    /** @returns {Promise<Object>} */
+    /** @returns {Promise<string>} */
     whoamiHTML: () => request('GET', '/api/v1/identity/report.html', undefined, { accept: 'text/html' }),
 
-    /** @returns {Promise<Object>} */
+    /** @returns {Promise<string>} */
     whoamiMarkdown: () => request('GET', '/api/v1/identity/report.md', undefined, { accept: 'text/markdown' }),
+
+    /** @returns {Promise<{version: string, name: string, description: string}>} */
+    version: () => request('GET', '/api/v1/version'),
+
+    /** @returns {Promise<{markdown: string, json: object, release: object}>} */
+    releaseNotes: (opts = {}) => request('GET', `/api/v1/release-notes${toQuery(opts)}`),
+
+    /** @returns {Promise<string>} Markdown release notes. */
+    releaseNotesMarkdown: (opts = {}) => request('GET', `/api/v1/release-notes${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
 
     /** @returns {Promise<Object>} */
     goal: (body) => request('POST', '/api/v1/goal', body),

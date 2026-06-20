@@ -51,6 +51,8 @@ function normalizeImportResult(result) {
  *   GET  /api/v1/identity/report      → full identity introspection report (JSON)
  *   GET  /api/v1/identity/report.md   → markdown identity report
  *   GET  /api/v1/identity/report.html → HTML identity report
+ *   GET  /api/v1/version               → package version info (JSON)
+ *   GET  /api/v1/release-notes         → release notes from CHANGELOG.md (JSON/markdown)
  *   GET  /api/v1/raw/:id                → raw ANS-104 DataItem bytes
  *   POST /api/v1/sync                  → sync
  *   GET  /api/v1/search?q=...          → search
@@ -79,6 +81,9 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { URL } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { WebSocketServer } from 'ws';
 import { initState, getHome, loadConfig, defaultConfig } from './config.mjs';
 import { ensureIdentity, loadIdentity, publicIdentity } from './keys.mjs';
@@ -90,6 +95,9 @@ import { createRateLimiter, DEFAULT_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT_WINDOW_MS
 import { requestLogger } from './request-log.mjs';
 import { buildIdentityReport, identityReportToMarkdown, identityReportToHtml } from './identity-report.mjs';
 import { createRuntimeMetrics, stopRuntimeMetrics, buildMetricsReport, formatPrometheus } from './metrics-runtime.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
 
 const DEFAULT_PORT = 8765;
 const DEFAULT_SSE_HEARTBEAT_MS = 30000;
@@ -980,6 +988,31 @@ async function handleRequest(req, res, home, options = {}) {
       const html = identityReportToHtml(report);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       return res.end(html);
+    }
+
+    if (method === 'GET' && (route === '/api/v1/version' || route === '/api/v1/version.json')) {
+      return sendJson(res, 200, {
+        version: pkg.version || 'unknown',
+        name: pkg.name || 'permabrain',
+        description: pkg.description || ''
+      });
+    }
+
+    if (method === 'GET' && route === '/api/v1/release-notes') {
+      const { buildReleaseNotes } = await import('./release-notes.mjs');
+      const params = url.searchParams;
+      const opts = {
+        path: params.get('file') || './CHANGELOG.md',
+        version: params.get('version') || undefined,
+        unreleased: params.get('unreleased') === 'true'
+      };
+      const notes = buildReleaseNotes(opts);
+      const accept = req.headers['accept'] || '';
+      if (accept.includes('text/markdown')) {
+        res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+        return res.end(notes.markdown);
+      }
+      return sendJson(res, 200, { markdown: notes.markdown, json: notes.json, release: notes.release });
     }
 
     const rawMatch = route.match(/^\/api\/v1\/raw\/(.+)$/);

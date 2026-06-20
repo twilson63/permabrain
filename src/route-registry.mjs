@@ -473,6 +473,26 @@ export const ROUTES = [
     response: { html: 'string' }
   },
   {
+    route: '/api/v1/version',
+    method: 'GET',
+    description: 'Return package version and metadata.',
+    public: true,
+    params: [],
+    response: { version: 'string', name: 'string', description: 'string' }
+  },
+  {
+    route: '/api/v1/release-notes',
+    method: 'GET',
+    description: 'Return release notes from CHANGELOG.md as JSON or markdown.',
+    public: false,
+    params: [
+      { name: 'version', in: 'query', type: 'string', required: false },
+      { name: 'unreleased', in: 'query', type: 'boolean', required: false },
+      { name: 'file', in: 'query', type: 'string', required: false }
+    ],
+    response: { markdown: 'string', json: 'object', release: 'object' }
+  },
+  {
     route: '/api/v1/raw/:id',
     method: 'GET',
     description: 'Fetch raw ANS-104 DataItem bytes by DataItem id.',
