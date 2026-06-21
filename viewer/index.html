@@ -404,6 +404,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="verifyBtn" onclick="window.showVerify()" title="Verify signature">&#9989;</button>
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
+    <button class="btn-icon" id="metricsBtn" onclick="window.showMetrics()" title="Runtime metrics">&#128240;</button>
     <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
     <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
     <button class="btn-icon" id="importExportBtn" onclick="window.showImportExport()" title="Import / Export">&#128260;</button>
@@ -618,6 +619,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var agentsState = { data: null, loading: false, error: null, sort: 'articles', limit: 100 };
   var sourcesState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var kindsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
+  var metricsState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'prometheus'
   var historyData = {};       // key -> history payload from local API (used by article tab + modal)
   var historyLoading = false;
   var historyError = null;
@@ -1583,6 +1585,9 @@ function statCard(label, value, cls) {
       if (sourcesState.sort && sourcesState.sort !== 'count') params.set('sourcesSort', sourcesState.sort);
       if (sourcesState.limit && sourcesState.limit !== 100) params.set('sourcesLimit', String(sourcesState.limit));
     }
+    if (viewMode === 'metrics') {
+      if (metricsState.format && metricsState.format !== 'json') params.set('metricsFormat', metricsState.format);
+    }
     if (viewMode === 'kinds') {
       if (kindsState.sort && kindsState.sort !== 'count') params.set('kindsSort', kindsState.sort);
       if (kindsState.limit && kindsState.limit !== 100) params.set('kindsLimit', String(kindsState.limit));
@@ -1646,6 +1651,7 @@ function statCard(label, value, cls) {
       sourcesLimit: params.get('sourcesLimit') || '',
       kindsSort: params.get('kindsSort') || '',
       kindsLimit: params.get('kindsLimit') || '',
+      metricsFormat: params.get('metricsFormat') || '',
       peerRemoteUrl: params.get('peerRemoteUrl') || '',
       peerRemoteApiKey: params.get('peerRemoteApiKey') || '',
       peerDirection: params.get('peerDirection') || '',
@@ -1699,7 +1705,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','attest','batch-attest','threshold-attest','peer-sync','verify'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','attest','batch-attest','threshold-attest','peer-sync','verify'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1761,6 +1767,9 @@ function statCard(label, value, cls) {
     if (state.view === 'kinds') {
       if (state.kindsSort) kindsState.sort = state.kindsSort;
       if (state.kindsLimit) { var kl = parseInt(state.kindsLimit, 10); if (!isNaN(kl) && kl > 0) kindsState.limit = kl; }
+    }
+    if (state.view === 'metrics') {
+      if (state.metricsFormat) metricsState.format = state.metricsFormat;
     }
     if (state.view === 'peer-sync') {
       if (state.peerRemoteUrl) peerSyncState.remoteUrl = state.peerRemoteUrl;
@@ -4397,6 +4406,127 @@ function statCard(label, value, cls) {
     updateUrlState();
   };
 
+  window.showStats = async function() {
+    viewMode = 'stats';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchLocalStats();
+    renderStatsDashboard();
+    updateUrlState();
+  };
+
+  window.showMetrics = async function() {
+    viewMode = 'metrics';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchMetrics();
+    updateUrlState();
+  };
+
+  window.refreshMetrics = async function() {
+    await fetchMetrics();
+    updateUrlState();
+  };
+
+  window.setMetricsFormat = async function(format) {
+    metricsState.format = format || 'json';
+    await fetchMetrics();
+    updateUrlState();
+  };
+
+  async function fetchMetrics() {
+    if (!isLocalServer()) return;
+    metricsState.loading = true;
+    metricsState.error = null;
+    if (viewMode === 'metrics') renderMetrics();
+    try {
+      var params = new URLSearchParams();
+      if (metricsState.format === 'prometheus') params.set('format', 'prometheus');
+      var path = '/api/v1/metrics' + (params.toString() ? '?' + params.toString() : '');
+      var r = await fetch(path);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (metricsState.format === 'prometheus') {
+        metricsState.data = { prometheus: await r.text(), generatedAt: new Date().toISOString() };
+      } else {
+        metricsState.data = await r.json();
+      }
+      metricsState.loading = false;
+    } catch(e) {
+      metricsState.error = e.message;
+      metricsState.loading = false;
+    }
+    if (viewMode === 'metrics') renderMetrics();
+  }
+
+  window.fetchMetrics = fetchMetrics;
+
+  function renderMetrics() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Metrics panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see runtime metrics.</p></div>';
+      return;
+    }
+    if (metricsState.loading && !metricsState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading metrics...</div>';
+      return;
+    }
+    if (metricsState.error && !metricsState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Metrics error</h2><p>' + esc(metricsState.error) + '</p><button class="btn-icon" onclick="window.refreshMetrics()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = metricsState.data || {};
+    var isPrometheus = metricsState.format === 'prometheus';
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshMetrics()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Format ' +
+      '<select onchange="window.setMetricsFormat(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="json"' + (metricsState.format === 'json' ? ' selected' : '') + '>JSON</option>' +
+      '<option value="prometheus"' + (metricsState.format === 'prometheus' ? ' selected' : '') + '>Prometheus</option>' +
+      '</select></label>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '&mdash;') + '</span>' +
+      '</div>';
+
+    if (isPrometheus) {
+      main.innerHTML = '<div class="home"><h1>&#128240; <span>Metrics</span></h1><p class="home-subtitle">Runtime and data metrics from this PermaBrain node</p>' + toolbar + '<h2>Prometheus exposition</h2><pre class="support-bundle-json" style="white-space:pre-wrap;word-break:break-word">' + esc(data.prometheus || '') + '</pre></div>';
+      return;
+    }
+
+    var r = data.runtime || {};
+    var req = r.requests || {};
+    var totals = (data.data && data.data.totals) || {};
+
+    var stats = '<div class="stats-grid">' +
+      statCard('Uptime', r.uptime || '&mdash;', 'uptime') +
+      statCard('Requests', String(req.total || 0), 'requests') +
+      statCard('Errors', String(req.errors || 0), 'errors') +
+      statCard('Rate limited', String(req.rateLimited || 0), 'rateLimited') +
+      statCard('SSE clients', String((r.activeStreams && r.activeStreams.sse) || 0), 'sse') +
+      statCard('WebSocket clients', String((r.activeStreams && r.activeStreams.websocket) || 0), 'ws') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      statCard('Attestations', String(totals.attestations || 0), 'attestations') +
+      statCard('Public', String(totals.publicArticles || 0), 'good') +
+      statCard('Encrypted', String(totals.encryptedArticles || 0), 'moderate') +
+      '</div>';
+
+    var events = r.events || {};
+    var eventKeys = Object.keys(events).sort(function(a, b) { return events[b] - events[a]; });
+    var eventsHtml = eventKeys.length ? '<div class="dashboard-section"><h2>Events</h2>' + eventKeys.map(function(k) {
+      return '<div class="activity-row"><span class="ts">' + esc(k) + '</span><span>' + esc(String(events[k])) + '</span></div>';
+    }).join('') + '</div>' : '';
+
+    var jsonHtml = '<pre class="support-bundle-json">' + esc(JSON.stringify(data, null, 2)) + '</pre>';
+
+    main.innerHTML = '<div class="home"><h1>&#128240; <span>Metrics</span></h1><p class="home-subtitle">Runtime and data metrics from this PermaBrain node</p>' + toolbar + stats + eventsHtml + '<h2>Raw snapshot</h2>' + jsonHtml + '</div>';
+  }
+
+  window.renderMetrics = renderMetrics;
+
   window.showAudit = async function() {
     viewMode = 'audit';
     selectedKey = null;
@@ -5654,7 +5784,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify';
   }
 
   function readFiltersFromDom() {
@@ -6408,6 +6538,7 @@ function statCard(label, value, cls) {
       if (bootState) {
         if (bootState.view === 'dashboard') window.showDashboard();
         else if (bootState.view === 'stats') window.showStats();
+        else if (bootState.view === 'metrics') window.showMetrics();
         else if (bootState.view === 'audit') window.showAudit();
         else if (bootState.view === 'compare') window.showCompare();
         else if (bootState.view === 'import-export') {
@@ -6440,6 +6571,8 @@ function statCard(label, value, cls) {
   }
   // Pre-render dashboard/audit if already in that mode (e.g., page reload)
   if (viewMode === 'dashboard') window.showDashboard();
+  else if (viewMode === 'stats') window.showStats();
+  else if (viewMode === 'metrics') window.showMetrics();
   else if (viewMode === 'audit') window.showAudit();
   else if (viewMode === 'import-export') window.showImportExport();
   else if (viewMode === 'publish') window.showPublish();
