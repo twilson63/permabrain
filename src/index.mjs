@@ -88,6 +88,7 @@ export { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 export { computeStats, statsToMarkdown } from './stats.mjs';
 export { listTopics, topicsToMarkdown } from './topics.mjs';
 export { listTags, tagsToMarkdown } from './tag-index.mjs';
+export { listAgents, agentsToMarkdown } from './agents-catalog.mjs';
 
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

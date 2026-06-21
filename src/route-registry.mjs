@@ -258,6 +258,24 @@ export const ROUTES = [
     response: { generatedAt: 'string', home: 'string', filters: 'object', totals: 'object', tags: 'array' }
   },
   {
+    route: '/api/v1/agents',
+    method: 'GET',
+    description: 'List unique publishing and attesting agents from the local cache with counts and trust scores.',
+    public: false,
+    params: [
+      { name: 'kind', in: 'query', type: 'string', required: false },
+      { name: 'topic', in: 'query', type: 'string', required: false },
+      { name: 'after', in: 'query', type: 'string', required: false },
+      { name: 'before', in: 'query', type: 'string', required: false },
+      { name: 'minArticles', in: 'query', type: 'integer', required: false },
+      { name: 'minAttestations', in: 'query', type: 'integer', required: false },
+      { name: 'agentId', in: 'query', type: 'string', required: false },
+      { name: 'sort', in: 'query', type: 'string', required: false },
+      { name: 'limit', in: 'query', type: 'integer', required: false }
+    ],
+    response: { generatedAt: 'string', home: 'string', filters: 'object', totals: 'object', agents: 'array' }
+  },
+  {
     route: '/api/v1/topics/:topic',
     method: 'GET',
     description: 'List articles for a topic.',

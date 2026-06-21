@@ -411,6 +411,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
     <button class="btn-icon" id="tagsBtn" onclick="window.showTags()" title="Tags catalog">&#127991;</button>
+    <button class="btn-icon" id="agentsBtn" onclick="window.showAgents()" title="Agents catalog">&#128100;</button>
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
@@ -570,7 +571,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -610,6 +611,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var healthState = { data: null, routes: null, admin: null, loading: false, error: null, format: 'json' };
   var topicsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var tagsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
+  var agentsState = { data: null, loading: false, error: null, sort: 'articles', limit: 100 };
   var historyData = {};       // key -> history payload from local API (used by article tab + modal)
   var historyLoading = false;
   var historyError = null;
@@ -1562,6 +1564,10 @@ function statCard(label, value, cls) {
       if (activityState.filters.before) params.set('activityBefore', activityState.filters.before);
       if (activityState.limit && activityState.limit !== 50) params.set('activityLimit', String(activityState.limit));
     }
+    if (viewMode === 'agents') {
+      if (agentsState.sort && agentsState.sort !== 'articles') params.set('agentsSort', agentsState.sort);
+      if (agentsState.limit && agentsState.limit !== 100) params.set('agentsLimit', String(agentsState.limit));
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -1616,6 +1622,7 @@ function statCard(label, value, cls) {
       thresholdSourceUrl: params.get('thresholdSourceUrl') || '',
       thresholdCount: params.get('thresholdCount') || '',
       thresholdCoSigners: params.get('thresholdCoSigners') || '',
+      agentsLimit: params.get('agentsLimit') || '',
       peerRemoteUrl: params.get('peerRemoteUrl') || '',
       peerRemoteApiKey: params.get('peerRemoteApiKey') || '',
       peerDirection: params.get('peerDirection') || '',
@@ -1666,7 +1673,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1716,6 +1723,10 @@ function statCard(label, value, cls) {
       if (state.thresholdSourceUrl) thresholdAttestState.sourceUrl = state.thresholdSourceUrl;
       if (state.thresholdCount) { var tci = parseInt(state.thresholdCount, 10); if (!isNaN(tci) && tci >= 1) thresholdAttestState.threshold = tci; }
       if (state.thresholdCoSigners) thresholdAttestState.coSignerIds = state.thresholdCoSigners;
+    }
+    if (state.view === 'agents') {
+      if (state.agentsSort) agentsState.sort = state.agentsSort;
+      if (state.agentsLimit) { var al = parseInt(state.agentsLimit, 10); if (!isNaN(al) && al > 0) agentsState.limit = al; }
     }
     if (state.view === 'peer-sync') {
       if (state.peerRemoteUrl) peerSyncState.remoteUrl = state.peerRemoteUrl;
@@ -2235,6 +2246,129 @@ function statCard(label, value, cls) {
   }
 
   window.renderTags = renderTags;
+
+  // --- Agents catalog panel ---
+  window.showAgents = async function() {
+    viewMode = 'agents';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchAgents();
+    updateUrlState();
+  };
+
+  window.refreshAgents = async function() {
+    await fetchAgents();
+    updateUrlState();
+  };
+
+  window.setAgentsSort = async function(sort) {
+    agentsState.sort = sort || 'articles';
+    await fetchAgents();
+    updateUrlState();
+  };
+
+  window.setAgentsLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    agentsState.limit = (!isNaN(n) && n > 0) ? n : 100;
+    await fetchAgents();
+    updateUrlState();
+  };
+
+  async function fetchAgents() {
+    if (!isLocalServer()) return;
+    agentsState.loading = true;
+    agentsState.error = null;
+    if (viewMode === 'agents') renderAgents();
+    try {
+      var params = new URLSearchParams();
+      params.set('sort', agentsState.sort || 'articles');
+      if (agentsState.limit && agentsState.limit !== 100) params.set('limit', String(agentsState.limit));
+      var r = await fetch('/api/v1/agents?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      agentsState.data = await r.json();
+      agentsState.loading = false;
+    } catch(e) {
+      agentsState.error = e.message;
+      agentsState.loading = false;
+    }
+    if (viewMode === 'agents') renderAgents();
+  }
+
+  window.fetchAgents = fetchAgents;
+
+  function renderAgents() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Agents catalog unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to browse agents.</p></div>';
+      return;
+    }
+    if (agentsState.loading && !agentsState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading agents catalog...</div>';
+      return;
+    }
+    if (agentsState.error && !agentsState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Agents catalog error</h2><p>' + esc(agentsState.error) + '</p><button class="btn-icon" onclick="window.refreshAgents()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = agentsState.data || {};
+    var agents = data.agents || [];
+    var totals = data.totals || {};
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshAgents()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Sort ' +
+      '<select onchange="window.setAgentsSort(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="articles"' + (agentsState.sort === 'articles' ? ' selected' : '') + '>Articles</option>' +
+      '<option value="attestations"' + (agentsState.sort === 'attestations' ? ' selected' : '') + '>Attestations</option>' +
+      '<option value="name"' + (agentsState.sort === 'name' ? ' selected' : '') + '>Name</option>' +
+      '<option value="latest"' + (agentsState.sort === 'latest' ? ' selected' : '') + '>Latest</option>' +
+      '<option value="trust"' + (agentsState.sort === 'trust' ? ' selected' : '') + '>Trust</option>' +
+      '<option value="keys"' + (agentsState.sort === 'keys' ? ' selected' : '') + '>Unique keys</option>' +
+      '</select></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
+      '<input type="number" min="1" max="1000" value="' + esc(String(agentsState.limit)) + '" onchange="window.setAgentsLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '</div>';
+
+    var stats = '<div class="stats-grid">' +
+      statCard('Agents', String(totals.agents || 0), 'agents') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      statCard('Attestations', String(totals.attestations || 0), 'attestations') +
+      '</div>';
+
+    if (!agents.length) {
+      main.innerHTML = '<div class="home"><h1>&#128100; <span>Agents</span></h1><p class="home-subtitle">Browse publishing and attesting agents from the local catalog</p>' + toolbar + stats + '<p class="dashboard-empty">No agents found.</p></div>';
+      return;
+    }
+
+    var rows = agents.map(function(a) {
+      var topics = Object.entries(a.byTopic || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var kinds = Object.entries(a.byKind || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var opinions = Object.entries(a.byOpinion || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var trust = a.trustScore !== null && a.trustScore !== undefined ? a.trustScore.toFixed(3) : '—';
+      return '<tr><td class="mono"><a href="?view=home&author=' + encodeURIComponent(a.agentId) + '" style="color:var(--accent);text-decoration:none">' + esc(a.agentId) + '</a></td>' +
+        '<td style="text-align:center">' + esc(String(a.articles)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(a.uniqueKeys)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(a.attestationsGiven)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(a.attestationsReceived)) + '</td>' +
+        '<td style="text-align:center">' + trust + '</td>' +
+        '<td>' + esc(a.latestAt ? fmtDate(a.latestAt) : '—') + '</td>' +
+        '<td>' + (topics || '—') + '</td>' +
+        '<td>' + (kinds || '—') + '</td>' +
+        '<td>' + (opinions || '—') + '</td></tr>';
+    }).join('');
+
+    var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+      '<th>Agent</th><th>Articles</th><th>Unique keys</th><th>Attestations given</th><th>Attestations received</th><th>Trust score</th><th>Latest</th><th>Topics</th><th>Kinds</th><th>Opinions</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#128100; <span>Agents</span></h1><p class="home-subtitle">Browse publishing and attesting agents from the local catalog</p>' + toolbar + stats + table + '</div>';
+  }
+
+  window.renderAgents = renderAgents;
 
   // --- Attest panel ---
   window.showAttest = async function() {
@@ -5093,7 +5227,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents';
   }
 
   function readFiltersFromDom() {
@@ -5862,6 +5996,7 @@ function statCard(label, value, cls) {
           window.showHistory();
         }
         else if (bootState.view === 'tags') window.showTags();
+        else if (bootState.view === 'agents') window.showAgents();
         else if (bootState.view === 'attest') window.showAttest();
         else if (bootState.view === 'batch-attest') window.showBatchAttest();
         else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
@@ -5884,6 +6019,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'health') window.showHealth();
   else if (viewMode === 'topics') window.showTopics();
   else if (viewMode === 'tags') window.showTags();
+  else if (viewMode === 'agents') window.showAgents();
   else if (viewMode === 'activity') window.showActivity();
   else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'batch-attest') window.showBatchAttest();

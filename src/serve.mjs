@@ -644,6 +644,27 @@ async function handleRequest(req, res, home, options = {}) {
       }
       return sendJson(res, 200, result);
     }
+    if (method === 'GET' && route === '/api/v1/agents') {
+      const opts = {
+        kind: url.searchParams.get('kind'),
+        topic: url.searchParams.get('topic'),
+        after: url.searchParams.get('after'),
+        before: url.searchParams.get('before'),
+        minArticles: url.searchParams.has('minArticles') ? Number(url.searchParams.get('minArticles')) : undefined,
+        minAttestations: url.searchParams.has('minAttestations') ? Number(url.searchParams.get('minAttestations')) : undefined,
+        agentId: url.searchParams.get('agentId'),
+        sort: url.searchParams.get('sort') || 'articles',
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined
+      };
+      const accept = req.headers.accept || '';
+      const result = await api.agents(opts);
+      if (accept.includes('text/markdown')) {
+        const markdown = await api.agentsToMarkdown(opts);
+        res.setHeader('content-type', 'text/markdown');
+        return res.end(markdown);
+      }
+      return sendJson(res, 200, result);
+    }
     if (topicMatch && method === 'GET') {
       const topic = decodeURIComponent(topicMatch[1]);
       const opts = {

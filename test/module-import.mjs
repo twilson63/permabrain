@@ -345,12 +345,12 @@ const expectedMethods = [
   'verify', 'exportBundle', 'exportAll', 'importBundle', 'importBundleAutoDetect', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'topics', 'topicsToMarkdown', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
   'createThresholdAttestation', 'addThresholdSigner', 'signThresholdEnvelope', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope', 'shareEncrypted',
   'adminPanel', 'adminPanelHTML', 'adminPanelMarkdown',
-  'watchFiles', 'watchFilesOnce', 'watchFilesToMarkdown', 'tags', 'tagsToMarkdown'
+  'watchFiles', 'watchFilesOnce', 'watchFilesToMarkdown', 'tags', 'tagsToMarkdown', 'agents', 'agentsToMarkdown'
 ];
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 106 API methods present');
+console.log('   ✓ All 108 API methods present');
 
 // --- 11a. Admin panel API methods ---
 console.log('11a. Admin panel API methods');

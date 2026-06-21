@@ -42,6 +42,7 @@ import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { computeStats, statsToMarkdown } from './stats.mjs';
 import { listTopics, topicsToMarkdown } from './topics.mjs';
 import { listTags, tagsToMarkdown } from './tag-index.mjs';
+import { listAgents, agentsToMarkdown } from './agents-catalog.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
@@ -1382,6 +1383,37 @@ const api = {
   async tagsToMarkdown(opts = {}) {
     const report = await this.tags(opts);
     return tagsToMarkdown(report);
+  },
+
+  /**
+   * List unique publishing and attesting agents from the local cache.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.kind] - Filter by article kind contributed
+   * @param {string} [opts.topic] - Filter by topic contributed
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {number} [opts.minArticles] - Minimum articles authored
+   * @param {number} [opts.minAttestations] - Minimum attestations given
+   * @param {string} [opts.agentId] - Substring match on agent id
+   * @param {string} [opts.sort='articles'] - Sort by 'articles', 'attestations', 'name', 'latest', 'trust', 'keys'
+   * @param {number} [opts.limit] - Maximum agents to return
+   * @returns {Promise<Object>} Agents catalog report
+   */
+  async agents(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return listAgents({ ...opts, home: this._home });
+  },
+
+  /**
+   * Render the agents catalog as Markdown.
+   * @param {Object} [opts]
+   * @returns {Promise<string>} Markdown report
+   */
+  async agentsToMarkdown(opts = {}) {
+    const report = await this.agents(opts);
+    return agentsToMarkdown(report);
   },
 
   /**
