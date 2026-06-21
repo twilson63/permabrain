@@ -399,6 +399,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="bookmarkViewBtn" onclick="window.saveBookmarkPrompt()" title="Bookmark current view">&#128278;</button>
     <button class="btn-icon" id="bookmarksBtn" onclick="window.showBookmarks()" title="Saved bookmarks">&#128214;</button>
     <button class="btn-icon" id="releaseNotesBtn" onclick="window.showReleaseNotes()" title="Release notes">&#128196;</button>
+    <button class="btn-icon" id="identityBtn" onclick="window.showIdentity()" title="Identity">&#127380;</button>
     <button class="btn-icon" id="activityBtn" onclick="window.showActivity()" title="Notifications / Activity">&#128276;</button>
     <button class="btn-icon" id="historyBtn" onclick="window.showHistory()" title="Version history / diff">&#9200;</button>
     <button class="btn-icon" id="healthBtn" onclick="window.showHealth()" title="Health / diagnostics">&#10003;</button>
@@ -580,7 +581,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -643,6 +644,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var bookmarksState = { list: [], loading: false, error: null, selectedName: '', importText: '', exportText: '' };
   var releaseNotesState = { data: null, loading: false, error: null, markdown: false, version: '', unreleased: false };
   var searchState = { q: '', kind: '', topic: '', author: '', key: '', after: '', before: '', limit: 20, offset: 0, sort: 'relevance', loading: false, error: null, results: null, total: 0 };
+  var identityState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'markdown'
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -1597,6 +1599,9 @@ function statCard(label, value, cls) {
     if (viewMode === 'metrics') {
       if (metricsState.format && metricsState.format !== 'json') params.set('metricsFormat', metricsState.format);
     }
+    if (viewMode === 'identity') {
+      if (identityState.format && identityState.format !== 'json') params.set('identityFormat', identityState.format);
+    }
     if (viewMode === 'kinds') {
       if (kindsState.sort && kindsState.sort !== 'count') params.set('kindsSort', kindsState.sort);
       if (kindsState.limit && kindsState.limit !== 100) params.set('kindsLimit', String(kindsState.limit));
@@ -1699,6 +1704,7 @@ function statCard(label, value, cls) {
       languagesAfter: params.get('languagesAfter') || '',
       languagesBefore: params.get('languagesBefore') || '',
       metricsFormat: params.get('metricsFormat') || '',
+      identityFormat: params.get('identityFormat') || '',
       peerRemoteUrl: params.get('peerRemoteUrl') || '',
       peerRemoteApiKey: params.get('peerRemoteApiKey') || '',
       peerDirection: params.get('peerDirection') || '',
@@ -1766,7 +1772,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','identity','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1841,6 +1847,9 @@ function statCard(label, value, cls) {
     }
     if (state.view === 'metrics') {
       if (state.metricsFormat) metricsState.format = state.metricsFormat;
+    }
+    if (state.view === 'identity') {
+      if (state.identityFormat) identityState.format = state.identityFormat;
     }
     if (state.view === 'peer-sync') {
       if (state.peerRemoteUrl) peerSyncState.remoteUrl = state.peerRemoteUrl;
@@ -2180,6 +2189,120 @@ function statCard(label, value, cls) {
   }
 
   window.renderHealth = renderHealth;
+
+  // --- Identity panel ---
+  window.showIdentity = async function() {
+    viewMode = 'identity';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchIdentity();
+    updateUrlState();
+  };
+
+  window.refreshIdentity = async function() {
+    await fetchIdentity();
+    updateUrlState();
+  };
+
+  window.setIdentityFormat = async function(format) {
+    identityState.format = (format === 'markdown') ? 'markdown' : 'json';
+    await fetchIdentity();
+    updateUrlState();
+  };
+
+  window.copyIdentityField = function(field) {
+    var value = identityState.data && identityState.data[field];
+    if (value) window.copyText(String(value));
+  };
+
+  window.downloadIdentityJson = function() {
+    if (!identityState.data) return;
+    window.downloadText('permabrain-identity.json', JSON.stringify(identityState.data, null, 2));
+  };
+
+  async function fetchIdentity() {
+    if (!isLocalServer()) return;
+    identityState.loading = true;
+    identityState.error = null;
+    if (viewMode === 'identity') renderIdentity();
+    try {
+      var url = (identityState.format === 'markdown') ? '/api/v1/identity/report.md' : '/api/v1/identity/report';
+      var r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (identityState.format === 'markdown') {
+        identityState.data = { _markdown: await r.text() };
+      } else {
+        identityState.data = await r.json();
+      }
+      identityState.loading = false;
+    } catch(e) {
+      identityState.error = e.message;
+      identityState.loading = false;
+    }
+    if (viewMode === 'identity') renderIdentity();
+  }
+
+  window.fetchIdentity = fetchIdentity;
+
+  function renderIdentity() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Identity panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to inspect the local node identity.</p></div>';
+      return;
+    }
+    if (identityState.loading && !identityState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading identity report...</div>';
+      return;
+    }
+    if (identityState.error && !identityState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Identity report error</h2><p>' + esc(identityState.error) + '</p><button class="btn-icon" onclick="window.refreshIdentity()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = identityState.data || {};
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshIdentity()">&#x21BB; Refresh</button>' +
+      '<button class="btn-icon" onclick="window.setIdentityFormat(\'json\')"' + (identityState.format === 'json' ? ' class="btn-icon active"' : '') + '>JSON</button>' +
+      '<button class="btn-icon" onclick="window.setIdentityFormat(\'markdown\')"' + (identityState.format === 'markdown' ? ' class="btn-icon active"' : '') + '>Markdown</button>' +
+      '<button class="btn-icon" onclick="window.copyIdentityField(\'agentId\')">Copy agent ID</button>' +
+      '<button class="btn-icon" onclick="window.downloadIdentityJson()">Download JSON</button>' +
+      '<span class="last-updated">generated ' + (data.createdAt ? fmtDate(data.createdAt) : '—') + '</span>' +
+      '</div>';
+
+    if (identityState.format === 'markdown' && data._markdown) {
+      main.innerHTML = '<div class="home"><h1>&#127380; <span>Identity</span></h1><p class="home-subtitle">Local node identity and public keys</p>' + toolbar + '<pre class="support-bundle-json">' + esc(data._markdown) + '</pre></div>';
+      return;
+    }
+
+    var rows = [
+      ['Agent ID', data.agentId || '—'],
+      ['Key type', data.keyType || '—'],
+      ['Transport', data.transport || '—'],
+      ['Home', data.home || '—']
+    ];
+    if (data.hyperbeamUrl) rows.push(['HyperBEAM URL', data.hyperbeamUrl]);
+    if (data.publicKey) rows.push(['Public key', data.publicKey]);
+    if (data.encryptionPublicKey) {
+      rows.push(['Encryption key type', data.encryptionKeyType || 'x25519']);
+      rows.push(['Encryption public key', data.encryptionPublicKey]);
+      rows.push(['Encryption fingerprint', data.encryptionFingerprint]);
+    }
+    if (data.createdAt) rows.push(['Created', data.createdAt]);
+
+    var tableRows = rows.map(function(row) {
+      var copyable = (row[0] === 'Agent ID' || row[0] === 'Public key' || row[0] === 'Encryption public key' || row[0] === 'Encryption fingerprint');
+      var copyBtn = copyable ? ' <button class="btn-icon" style="margin-left:0.3rem" onclick="window.copyIdentityField(\'' + (row[0] === 'Agent ID' ? 'agentId' : row[0] === 'Public key' ? 'publicKey' : row[0] === 'Encryption public key' ? 'encryptionPublicKey' : 'encryptionFingerprint') + '\')">Copy</button>' : '';
+      return '<tr><th>' + esc(row[0]) + '</th><td><code>' + esc(String(row[1])) + '</code>' + copyBtn + '</td></tr>';
+    }).join('');
+
+    var configJson = '<pre class="support-bundle-json">' + esc(JSON.stringify(data.config || {}, null, 2)) + '</pre>';
+
+    main.innerHTML = '<div class="home"><h1>&#127380; <span>Identity</span></h1><p class="home-subtitle">Local node identity and public keys</p>' + toolbar + '<table class="audit-table"><tbody>' + tableRows + '</tbody></table><h2>Config summary</h2>' + configJson + '</div>';
+  }
+
+  window.renderIdentity = renderIdentity;
 
   // --- Topics catalog panel ---
   window.showTopics = async function() {
@@ -7266,6 +7389,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'bookmarks') window.showBookmarks();
         else if (bootState.view === 'search') window.showSearch();
         else if (bootState.view === 'release-notes') window.showReleaseNotes();
+        else if (bootState.view === 'identity') window.showIdentity();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -7299,6 +7423,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'bookmarks') window.showBookmarks();
   else if (viewMode === 'search') window.showSearch();
   else if (viewMode === 'release-notes') window.showReleaseNotes();
+  else if (viewMode === 'identity') window.showIdentity();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
