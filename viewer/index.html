@@ -410,6 +410,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
+    <button class="btn-icon" id="tagsBtn" onclick="window.showTags()" title="Tags catalog">&#127991;</button>
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
@@ -569,7 +570,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -608,6 +609,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var adminState = { data: null, loading: false, error: null, accessLogLimit: 25, auditLogLimit: 25 };
   var healthState = { data: null, routes: null, admin: null, loading: false, error: null, format: 'json' };
   var topicsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
+  var tagsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var historyData = {};       // key -> history payload from local API (used by article tab + modal)
   var historyLoading = false;
   var historyError = null;
@@ -1664,7 +1666,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -2118,6 +2120,121 @@ function statCard(label, value, cls) {
   }
 
   window.renderTopics = renderTopics;
+
+  // --- Tags catalog panel ---
+  window.showTags = async function() {
+    viewMode = 'tags';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchTags();
+    updateUrlState();
+  };
+
+  window.refreshTags = async function() {
+    await fetchTags();
+    updateUrlState();
+  };
+
+  window.setTagsSort = async function(sort) {
+    tagsState.sort = sort || 'count';
+    await fetchTags();
+    updateUrlState();
+  };
+
+  window.setTagsLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    tagsState.limit = (!isNaN(n) && n > 0) ? n : 100;
+    await fetchTags();
+    updateUrlState();
+  };
+
+  async function fetchTags() {
+    if (!isLocalServer()) return;
+    tagsState.loading = true;
+    tagsState.error = null;
+    if (viewMode === 'tags') renderTags();
+    try {
+      var params = new URLSearchParams();
+      params.set('sort', tagsState.sort || 'count');
+      if (tagsState.limit && tagsState.limit !== 100) params.set('limit', String(tagsState.limit));
+      var r = await fetch('/api/v1/tags?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      tagsState.data = await r.json();
+      tagsState.loading = false;
+    } catch(e) {
+      tagsState.error = e.message;
+      tagsState.loading = false;
+    }
+    if (viewMode === 'tags') renderTags();
+  }
+
+  window.fetchTags = fetchTags;
+
+  function renderTags() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Tags catalog unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to browse article tags.</p></div>';
+      return;
+    }
+    if (tagsState.loading && !tagsState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading tags catalog...</div>';
+      return;
+    }
+    if (tagsState.error && !tagsState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Tags catalog error</h2><p>' + esc(tagsState.error) + '</p><button class="btn-icon" onclick="window.refreshTags()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = tagsState.data || {};
+    var tags = data.tags || [];
+    var totals = data.totals || {};
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshTags()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Sort ' +
+      '<select onchange="window.setTagsSort(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="count"' + (tagsState.sort === 'count' ? ' selected' : '') + '>Count</option>' +
+      '<option value="name"' + (tagsState.sort === 'name' ? ' selected' : '') + '>Name</option>' +
+      '<option value="latest"' + (tagsState.sort === 'latest' ? ' selected' : '') + '>Latest</option>' +
+      '<option value="keys"' + (tagsState.sort === 'keys' ? ' selected' : '') + '>Unique keys</option>' +
+      '</select></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
+      '<input type="number" min="1" max="1000" value="' + esc(String(tagsState.limit)) + '" onchange="window.setTagsLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '</div>';
+
+    var stats = '<div class="stats-grid">' +
+      statCard('Tags', String(totals.tags || 0), 'tags') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      '</div>';
+
+    if (!tags.length) {
+      main.innerHTML = '<div class="home"><h1>&#127991; <span>Tags</span></h1><p class="home-subtitle">Browse custom article tags from the local catalog</p>' + toolbar + stats + '<p class="dashboard-empty">No custom tags found.</p></div>';
+      return;
+    }
+
+    var rows = tags.map(function(t) {
+      var kinds = Object.entries(t.byKind || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var topValues = Object.entries(t.byValue || {}).slice(0, 5).map(function(kv) { return '<code>' + esc(String(kv[0])) + '</code> ' + esc(String(kv[1])); }).join(', ');
+      return '<tr><td class="mono"><a href="?view=home" style="color:var(--accent);text-decoration:none">' + esc(t.name) + '</a></td>' +
+        '<td style="text-align:center">' + esc(String(t.count)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(t.uniqueKeys)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(t.uniqueValues)) + '</td>' +
+        '<td>' + esc(t.latestAt ? fmtDate(t.latestAt) : '—') + '</td>' +
+        '<td>' + (kinds || '—') + '</td>' +
+        '<td>' + (topValues || '—') + '</td></tr>';
+    }).join('');
+
+    var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+      '<th>Tag</th><th>Count</th><th>Unique keys</th><th>Unique values</th><th>Latest</th><th>Kinds</th><th>Top values</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#127991; <span>Tags</span></h1><p class="home-subtitle">Browse custom article tags from the local catalog</p>' + toolbar + stats + table + '</div>';
+  }
+
+  window.renderTags = renderTags;
 
   // --- Attest panel ---
   window.showAttest = async function() {
@@ -5744,7 +5861,7 @@ function statCard(label, value, cls) {
           if (bootState.historyKey) historyPanelState.key = bootState.historyKey;
           window.showHistory();
         }
-        else if (bootState.view === 'topics') window.showTopics();
+        else if (bootState.view === 'tags') window.showTags();
         else if (bootState.view === 'attest') window.showAttest();
         else if (bootState.view === 'batch-attest') window.showBatchAttest();
         else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
@@ -5766,6 +5883,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'support') window.showSupportBundle();
   else if (viewMode === 'health') window.showHealth();
   else if (viewMode === 'topics') window.showTopics();
+  else if (viewMode === 'tags') window.showTags();
   else if (viewMode === 'activity') window.showActivity();
   else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'batch-attest') window.showBatchAttest();

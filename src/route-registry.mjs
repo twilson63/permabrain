@@ -242,6 +242,22 @@ export const ROUTES = [
     response: { generatedAt: 'string', home: 'string', totals: 'object', topics: 'array' }
   },
   {
+    route: '/api/v1/tags',
+    method: 'GET',
+    description: 'List custom article tags from local DataItems with counts and metadata.',
+    public: false,
+    params: [
+      { name: 'prefix', in: 'query', type: 'string', required: false },
+      { name: 'name', in: 'query', type: 'string', required: false },
+      { name: 'kind', in: 'query', type: 'string', required: false },
+      { name: 'after', in: 'query', type: 'string', required: false },
+      { name: 'before', in: 'query', type: 'string', required: false },
+      { name: 'sort', in: 'query', type: 'string', required: false },
+      { name: 'limit', in: 'query', type: 'integer', required: false }
+    ],
+    response: { generatedAt: 'string', home: 'string', filters: 'object', totals: 'object', tags: 'array' }
+  },
+  {
     route: '/api/v1/topics/:topic',
     method: 'GET',
     description: 'List articles for a topic.',

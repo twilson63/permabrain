@@ -182,6 +182,12 @@ export function createClient(options = {}) {
     topicsMarkdown: (opts = {}) => request('GET', `/api/v1/topics${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
 
     /** @returns {Promise<Object>} */
+    tags: (opts = {}) => request('GET', `/api/v1/tags${toQuery(opts)}`),
+
+    /** @returns {Promise<string>} Markdown tags catalog. */
+    tagsMarkdown: (opts = {}) => request('GET', `/api/v1/tags${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
+
+    /** @returns {Promise<Object>} */
     batchAttest: (body) => request('POST', '/api/v1/batch-attest', body),
 
     /** @returns {Promise<Object>} */

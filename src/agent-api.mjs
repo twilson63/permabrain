@@ -41,6 +41,7 @@ import { exportArticles } from './export-articles.mjs';
 import { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 import { computeStats, statsToMarkdown } from './stats.mjs';
 import { listTopics, topicsToMarkdown } from './topics.mjs';
+import { listTags, tagsToMarkdown } from './tag-index.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
@@ -1352,6 +1353,35 @@ const api = {
   async topicsToMarkdown(opts = {}) {
     const report = await this.topics(opts);
     return topicsToMarkdown(report);
+  },
+
+  /**
+   * List custom article tags from local DataItems with counts and metadata.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.prefix] - Filter tags whose name starts with this prefix
+   * @param {string} [opts.name] - Exact tag name filter
+   * @param {string} [opts.kind] - Filter by associated article kind
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {string} [opts.sort='count'] - Sort by 'count', 'name', 'latest', or 'keys'
+   * @param {number} [opts.limit] - Maximum tags to return
+   * @returns {Promise<Object>} Tags catalog report
+   */
+  async tags(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return listTags({ ...opts, home: this._home });
+  },
+
+  /**
+   * Render the tags catalog as Markdown.
+   * @param {Object} [opts]
+   * @returns {Promise<string>} Markdown report
+   */
+  async tagsToMarkdown(opts = {}) {
+    const report = await this.tags(opts);
+    return tagsToMarkdown(report);
   },
 
   /**

@@ -625,6 +625,25 @@ async function handleRequest(req, res, home, options = {}) {
       }
       return sendJson(res, 200, result);
     }
+    if (method === 'GET' && route === '/api/v1/tags') {
+      const opts = {
+        prefix: url.searchParams.get('prefix'),
+        name: url.searchParams.get('name'),
+        kind: url.searchParams.get('kind'),
+        after: url.searchParams.get('after'),
+        before: url.searchParams.get('before'),
+        sort: url.searchParams.get('sort') || 'count',
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined
+      };
+      const accept = req.headers.accept || '';
+      const result = await api.tags(opts);
+      if (accept.includes('text/markdown')) {
+        const markdown = await api.tagsToMarkdown(opts);
+        res.setHeader('content-type', 'text/markdown');
+        return res.end(markdown);
+      }
+      return sendJson(res, 200, result);
+    }
     if (topicMatch && method === 'GET') {
       const topic = decodeURIComponent(topicMatch[1]);
       const opts = {
