@@ -396,6 +396,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   <div class="subtitle">Public signed knowledge graph</div>
   <div class="header-actions">
     <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
+    <button class="btn-icon" id="bookmarkViewBtn" onclick="window.saveBookmarkPrompt()" title="Bookmark current view">&#128278;</button>
+    <button class="btn-icon" id="bookmarksBtn" onclick="window.showBookmarks()" title="Saved bookmarks">&#128214;</button>
     <button class="btn-icon" id="activityBtn" onclick="window.showActivity()" title="Notifications / Activity">&#128276;</button>
     <button class="btn-icon" id="historyBtn" onclick="window.showHistory()" title="Version history / diff">&#9200;</button>
     <button class="btn-icon" id="healthBtn" onclick="window.showHealth()" title="Health / diagnostics">&#10003;</button>
@@ -634,6 +636,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var auditFilters = { method: '', status: '', path: '', after: '', before: '' };
   var auditEventSource = null; // EventSource for live request log tail
   var auditTotal = 0;
+  var bookmarksState = { list: [], loading: false, error: null, selectedName: '', importText: '', exportText: '' };
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -1592,6 +1595,9 @@ function statCard(label, value, cls) {
       if (kindsState.sort && kindsState.sort !== 'count') params.set('kindsSort', kindsState.sort);
       if (kindsState.limit && kindsState.limit !== 100) params.set('kindsLimit', String(kindsState.limit));
     }
+    if (viewMode === 'bookmarks') {
+      if (bookmarksState.selectedName) params.set('bookmark', bookmarksState.selectedName);
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -1665,13 +1671,14 @@ function statCard(label, value, cls) {
       exportKey: params.get('exportKey') || '',
       exportMode: params.get('exportMode') || 'bundle',
       importName: params.get('importName') || '',
-      importTab: params.get('importTab') || ''
+      importTab: params.get('importTab') || '',
+      bookmark: params.get('bookmark') || ''
     };
   }
 
-  function applyUrlState() {
+  function applyUrlState(state) {
     if (!window.history.replaceState) return;
-    var state = readUrlState();
+    if (!state) state = readUrlState();
     if (state.q) document.getElementById('search').value = state.q;
     if (state.topic) {
       var topicSel = document.getElementById('topicSelect');
@@ -1705,7 +1712,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','attest','batch-attest','threshold-attest','peer-sync','verify'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1785,6 +1792,9 @@ function statCard(label, value, cls) {
       if (state.verifyNoVerifyChain === 'true') verifyState.noVerifyChain = true;
       if (state.verifyNoVerifyTarget === 'true') verifyState.noVerifyTarget = true;
     }
+    if (state.view === 'bookmarks') {
+      if (state.bookmark) bookmarksState.selectedName = state.bookmark;
+    }
     if (state.tab) activeTab = state.tab;
     return state;
   }
@@ -1821,6 +1831,29 @@ function statCard(label, value, cls) {
   window.buildUrlState = buildUrlState;
   window.applyUrlState = applyUrlState;
   window.updateUrlState = updateUrlState;
+
+  window.copyText = function(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() { showToast('Copied to clipboard', 'success'); }).catch(function() { showToast('Copy failed', 'error'); });
+    } else {
+      showToast('Clipboard not available', 'error');
+    }
+  };
+
+  window.downloadText = function(filename, text) {
+    try {
+      var blob = new Blob([text], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch(e) {
+      showToast('Download failed: ' + e.message, 'error');
+    }
+  };
 
   // --- Public API ---
   window.onSearchInput = function() {
@@ -2654,6 +2687,178 @@ function statCard(label, value, cls) {
   }
 
   window.renderSources = renderSources;
+
+  // --- Bookmarks / Saved queries panel ---
+  var BOOKMARKS_STORAGE_KEY = 'permabrain-bookmarks';
+
+  function readBookmarks() {
+    try {
+      var raw = localStorage.getItem(BOOKMARKS_STORAGE_KEY);
+      var list = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(list)) return [];
+      return list.filter(function(b) { return b && typeof b.name === 'string'; });
+    } catch(e) {
+      return [];
+    }
+  }
+
+  function writeBookmarks(list) {
+    try {
+      localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(list.slice(0, 200)));
+    } catch(e) {
+      showToast('Could not save bookmarks: ' + e.message, 'error');
+    }
+  }
+
+  window.saveBookmark = function(name) {
+    name = (name || '').trim();
+    if (!name) {
+      showToast('Bookmark name is required', 'error');
+      return false;
+    }
+    var list = readBookmarks();
+    var existing = list.findIndex(function(b) { return b.name === name; });
+    var record = {
+      name: name,
+      createdAt: new Date().toISOString(),
+      state: readUrlState()
+    };
+    if (existing >= 0) list[existing] = record;
+    else list.push(record);
+    writeBookmarks(list);
+    showToast('Bookmark "' + esc(name) + '" saved', 'success');
+    if (viewMode === 'bookmarks') renderBookmarks();
+    return true;
+  };
+
+  window.saveBookmarkPrompt = function() {
+    var name = window.prompt('Name this bookmark:');
+    if (name === null) return;
+    window.saveBookmark(name);
+  };
+
+  window.deleteBookmark = function(name) {
+    var list = readBookmarks().filter(function(b) { return b.name !== name; });
+    writeBookmarks(list);
+    if (bookmarksState.selectedName === name) bookmarksState.selectedName = '';
+    showToast('Bookmark removed', 'success');
+    if (viewMode === 'bookmarks') renderBookmarks();
+  };
+
+  window.loadBookmark = function(name) {
+    var list = readBookmarks();
+    var record = list.find(function(b) { return b.name === name; });
+    if (!record) {
+      showToast('Bookmark "' + esc(name) + '" not found', 'error');
+      return;
+    }
+    bookmarksState.selectedName = name;
+    applyUrlState(record.state);
+    var params = buildUrlState();
+    var qs = params.toString();
+    window.location.href = window.location.pathname + (qs ? '?' + qs : '');
+  };
+
+  window.exportBookmarks = function() {
+    var list = readBookmarks();
+    var json = JSON.stringify(list, null, 2);
+    bookmarksState.exportText = json;
+    return json;
+  };
+
+  window.importBookmarks = function(json) {
+    try {
+      var parsed = JSON.parse(json);
+      if (!Array.isArray(parsed)) throw new Error('Bookmarks must be an array');
+      var valid = parsed.filter(function(b) { return b && typeof b.name === 'string'; });
+      if (!valid.length) throw new Error('No valid bookmarks found');
+      var existing = readBookmarks();
+      var map = {};
+      existing.forEach(function(b) { map[b.name] = b; });
+      valid.forEach(function(b) {
+        b.createdAt = b.createdAt || new Date().toISOString();
+        map[b.name] = b;
+      });
+      var merged = Object.values(map);
+      writeBookmarks(merged);
+      showToast('Imported ' + valid.length + ' bookmark(s)', 'success');
+    } catch(e) {
+      showToast('Import failed: ' + e.message, 'error');
+    }
+    if (viewMode === 'bookmarks') renderBookmarks();
+  };
+
+  window.refreshBookmarks = function() {
+    if (viewMode === 'bookmarks') renderBookmarks();
+  };
+
+  window.showBookmarks = function() {
+    viewMode = 'bookmarks';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    renderBookmarks();
+    updateUrlState();
+  };
+
+  function renderBookmarks() {
+    var main = document.getElementById('main');
+    var list = readBookmarks();
+    var selected = bookmarksState.selectedName;
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.saveBookmarkPrompt()">&#128278; Save current view</button>' +
+      '<button class="btn-icon" onclick="window.exportBookmarks(); window.refreshBookmarks();">&#128190; Export JSON</button>' +
+      '<span class="last-updated">' + list.length + ' saved</span>' +
+      '</div>';
+
+    var importCard = '<div class="dashboard-section" style="max-width:50rem">' +
+      '<h3>Import bookmarks</h3>' +
+      '<textarea id="bookmarksImportText" placeholder="Paste bookmarks JSON..." style="width:100%;min-height:6rem;font-family:monospace;font-size:0.8rem;padding:0.5rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text)"></textarea>' +
+      '<div style="margin-top:0.5rem;display:flex;gap:0.5rem">' +
+      '<button class="btn-icon" onclick="window.importBookmarks(document.getElementById(\'bookmarksImportText\').value)">Import</button>' +
+      '<button class="btn-icon" onclick="document.getElementById(\'bookmarksImportText\').value=\'\'">Clear</button>' +
+      '</div>' +
+      '</div>';
+
+    var exportCard = bookmarksState.exportText ? '<div class="dashboard-section" style="max-width:50rem">' +
+      '<h3>Exported bookmarks</h3>' +
+      '<pre style="white-space:pre-wrap;word-break:break-word;font-size:0.75rem;background:var(--bg);padding:0.5rem;border:1px solid var(--border);border-radius:6px">' + esc(bookmarksState.exportText) + '</pre>' +
+      '<div style="margin-top:0.5rem"><button class="btn-icon" onclick="window.copyText(document.getElementById(\'bookmarksExportCopy\').dataset.text || bookmarksState.exportText)" id="bookmarksExportCopy" data-text="">Copy JSON</button> <button class="btn-icon" onclick="window.downloadText(\'permabrain-bookmarks.json\', bookmarksState.exportText)">Download</button> <button class="btn-icon" onclick="bookmarksState.exportText=\'\'; window.refreshBookmarks();">Dismiss</button></div>' +
+      '</div>' : '';
+
+    if (!list.length) {
+      main.innerHTML = '<div class="home"><h1>&#128214; <span>Bookmarks</span></h1><p class="home-subtitle">Save and restore views, filters, and searches</p>' + toolbar + '<p class="dashboard-empty">No bookmarks yet. Click the bookmark icon in the toolbar to save the current view.</p>' + importCard + exportCard + '</div>';
+      return;
+    }
+
+    var rows = list.map(function(b) {
+      var st = b.state || {};
+      var viewLabel = st.view || 'home';
+      var queryLabel = st.q ? 'q=' + esc(st.q) : '—';
+      var topicLabel = st.topic ? 'topic=' + esc(st.topic) : '';
+      var isSelected = selected === b.name ? ' style="background:rgba(var(--accent-rgb),0.08)"' : '';
+      return '<tr' + isSelected + '>' +
+        '<td class="mono">' + esc(b.name) + '</td>' +
+        '<td>' + esc(viewLabel) + '</td>' +
+        '<td>' + esc(queryLabel) + (topicLabel ? ' <span style="opacity:0.7">' + esc(topicLabel) + '</span>' : '') + '</td>' +
+        '<td>' + esc(b.createdAt ? fmtDate(b.createdAt) : '—') + '</td>' +
+        '<td style="white-space:nowrap">' +
+        '<button class="btn-icon" onclick="window.loadBookmark(\'' + esc(b.name).replace(/'/g, "&#39;") + '\')">Load</button> ' +
+        '<button class="btn-icon" onclick="window.copyText(window.location.origin + window.location.pathname + \'?view=bookmarks&bookmark=\' + encodeURIComponent(\'' + esc(b.name).replace(/'/g, "&#39;") + '\'))">Link</button> ' +
+        '<button class="btn-icon" onclick="window.deleteBookmark(\'' + esc(b.name).replace(/'/g, "&#39;") + '\')">Delete</button>' +
+        '</td></tr>';
+    }).join('');
+
+    var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+      '<th>Name</th><th>View</th><th>Query / filters</th><th>Saved</th><th>Actions</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#128214; <span>Bookmarks</span></h1><p class="home-subtitle">Save and restore views, filters, and searches</p>' + toolbar + table + importCard + exportCard + '</div>';
+  }
+
+  window.renderBookmarks = renderBookmarks;
 
   // --- Attest panel ---
   window.showAttest = async function() {
@@ -6560,6 +6765,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'batch-attest') window.showBatchAttest();
         else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
         else if (bootState.view === 'verify') window.showVerify();
+        else if (bootState.view === 'bookmarks') window.showBookmarks();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -6589,6 +6795,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'batch-attest') window.showBatchAttest();
   else if (viewMode === 'threshold-attest') window.showThresholdAttest();
   else if (viewMode === 'verify') window.showVerify();
+  else if (viewMode === 'bookmarks') window.showBookmarks();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
