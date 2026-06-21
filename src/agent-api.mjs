@@ -1333,6 +1333,17 @@ const api = {
   },
 
   /**
+   * Render aggregate stats as Markdown for terminal/HTTP output.
+   *
+   * @param {Object} [opts]
+   * @returns {Promise<string>} Markdown stats report
+   */
+  async statsMarkdown(opts = {}) {
+    const report = await this.stats(opts);
+    return statsToMarkdown(report);
+  },
+
+  /**
    * List unique article topics from the local cache with counts and metadata.
    *
    * @param {Object} [opts]

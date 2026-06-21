@@ -175,6 +175,9 @@ export function createClient(options = {}) {
     /** @returns {Promise<Object>} */
     stats: (opts = {}) => request('GET', `/api/v1/stats${toQuery(opts)}`),
 
+    /** @returns {Promise<string>} Markdown stats report. */
+    statsMarkdown: (opts = {}) => request('GET', `/api/v1/stats${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
+
     /** @returns {Promise<Object>} */
     topics: (opts = {}) => request('GET', `/api/v1/topics${toQuery(opts)}`),
 

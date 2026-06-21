@@ -638,10 +638,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var historyError = null;
   var historyPanelState = { key: '', data: null, loading: false, error: null, selected: [], diffResult: null, diffLoading: false, diffError: null };
   var forksState = { key: '', data: null, loading: false, error: null, sort: 'key', limit: 100 };
-  var statsData = null;
-  var statsLoading = false;
-  var statsError = null;
-  var localStatsData = null;  // live /api/v1/stats per key for selected article
+  var statsState = { data: null, loading: false, error: null, filters: { kind: '', topic: '', author: '', after: '', before: '' }, top: 10 };
   var auditData = null;
   var auditLoading = false;
   var auditError = null;
@@ -1616,6 +1613,14 @@ function statCard(label, value, cls) {
     if (viewMode === 'metrics') {
       if (metricsState.format && metricsState.format !== 'json') params.set('metricsFormat', metricsState.format);
     }
+    if (viewMode === 'stats') {
+      if (statsState.filters.kind) params.set('statsKind', statsState.filters.kind);
+      if (statsState.filters.topic) params.set('statsTopic', statsState.filters.topic);
+      if (statsState.filters.author) params.set('statsAuthor', statsState.filters.author);
+      if (statsState.filters.after) params.set('statsAfter', statsState.filters.after);
+      if (statsState.filters.before) params.set('statsBefore', statsState.filters.before);
+      if (statsState.top && statsState.top !== 10) params.set('statsTop', String(statsState.top));
+    }
     if (viewMode === 'identity') {
       if (identityState.format && identityState.format !== 'json') params.set('identityFormat', identityState.format);
     }
@@ -1740,6 +1745,12 @@ function statCard(label, value, cls) {
       languagesAfter: params.get('languagesAfter') || '',
       languagesBefore: params.get('languagesBefore') || '',
       metricsFormat: params.get('metricsFormat') || '',
+      statsKind: params.get('statsKind') || '',
+      statsTopic: params.get('statsTopic') || '',
+      statsAuthor: params.get('statsAuthor') || '',
+      statsAfter: params.get('statsAfter') || '',
+      statsBefore: params.get('statsBefore') || '',
+      statsTop: params.get('statsTop') || '',
       identityFormat: params.get('identityFormat') || '',
       peerRemoteUrl: params.get('peerRemoteUrl') || '',
       peerRemoteApiKey: params.get('peerRemoteApiKey') || '',
@@ -1902,6 +1913,14 @@ function statCard(label, value, cls) {
     }
     if (state.view === 'metrics') {
       if (state.metricsFormat) metricsState.format = state.metricsFormat;
+    }
+    if (state.view === 'stats') {
+      if (state.statsKind) statsState.filters.kind = state.statsKind;
+      if (state.statsTopic) statsState.filters.topic = state.statsTopic;
+      if (state.statsAuthor) statsState.filters.author = state.statsAuthor;
+      if (state.statsAfter) statsState.filters.after = state.statsAfter;
+      if (state.statsBefore) statsState.filters.before = state.statsBefore;
+      if (state.statsTop) { var st = parseInt(state.statsTop, 10); if (!isNaN(st) && st > 0) statsState.top = st; }
     }
     if (state.view === 'identity') {
       if (state.identityFormat) identityState.format = state.identityFormat;
@@ -6409,19 +6428,29 @@ function statCard(label, value, cls) {
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
-    await fetchLocalStats();
-    renderStatsDashboard();
+    await fetchStats();
+    renderStats();
     updateUrlState();
   };
 
-  window.showStats = async function() {
-    viewMode = 'stats';
-    selectedKey = null;
-    renderList();
-    stopDashboardRefresh();
-    stopAuditStream();
-    await fetchLocalStats();
-    renderStatsDashboard();
+  window.refreshStats = async function() {
+    await fetchStats();
+    renderStats();
+    updateUrlState();
+  };
+
+  window.setStatsFilter = function(key, value) {
+    statsState.filters[key] = value || '';
+  };
+
+  window.setStatsTop = function(top) {
+    var n = parseInt(top, 10);
+    statsState.top = isNaN(n) || n < 1 ? 10 : n;
+  };
+
+  window.runStatsRefresh = async function() {
+    await fetchStats();
+    renderStats();
     updateUrlState();
   };
 
@@ -7832,7 +7861,7 @@ function statCard(label, value, cls) {
     if (!isLocalServer()) return;
     dashboardLoading = true;
     dashboardError = null;
-    await fetchLocalStats();
+    await fetchStats();
     if (viewMode === 'dashboard') renderDashboard();
     try {
       var r = await fetch('/api/v1/dashboard');
@@ -7875,22 +7904,37 @@ function statCard(label, value, cls) {
     if (selectedKey === key) renderArticle(key);
   }
 
-  async function fetchLocalStats() {
+  async function fetchStats() {
     if (!isLocalServer()) return;
-    if (statsLoading) return;
-    statsLoading = true;
-    statsError = null;
+    if (statsState.loading) return;
+    statsState.loading = true;
+    statsState.error = null;
     try {
-      var r = await fetch('/api/v1/stats');
+      var params = new URLSearchParams();
+      var f = statsState.filters;
+      if (f.kind) params.set('kind', f.kind);
+      if (f.topic) params.set('topic', f.topic);
+      if (f.author) params.set('author', f.author);
+      if (f.after) params.set('after', f.after + 'T00:00:00.000Z');
+      if (f.before) params.set('before', f.before + 'T23:59:59.999Z');
+      if (statsState.top && statsState.top !== 10) params.set('top', String(statsState.top));
+      var path = '/api/v1/stats' + (params.toString() ? '?' + params.toString() : '');
+      var r = await fetch(path);
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      statsData = await r.json();
+      statsState.data = await r.json();
     } catch(e) {
-      statsError = e.message;
+      statsState.error = e.message;
     } finally {
-      statsLoading = false;
+      statsState.loading = false;
     }
-    if (viewMode === 'dashboard') renderDashboard();
+    if (viewMode === 'stats') renderStats();
   }
+
+  window.fetchStats = fetchStats;
+
+  // Backward-compatible aliases for code/tests that expect the old names.
+  window.fetchLocalStats = fetchStats;
+  window.renderStatsDashboard = renderStats;
 
   // --- Interactive local article list (uses /api/v1/list) ---
   function fmtDate(ts) { return fmtTs(ts); }
@@ -7993,7 +8037,7 @@ function statCard(label, value, cls) {
       livePendingRefresh = false;
       if (isLocalListMode()) fetchLocalList();
       if (viewMode === 'dashboard') fetchDashboard();
-      if (viewMode === 'stats') { fetchLocalStats(); renderStatsDashboard(); }
+      if (viewMode === 'stats') { fetchStats(); renderStats(); }
       if (modalArticle && modalArticle.key) {
         // refresh modal history/consensus without closing it
         refreshModalData(modalArticle.key);
@@ -8403,25 +8447,25 @@ function statCard(label, value, cls) {
       '</ul>';
   }
 
-  function renderStatsDashboard() {
+  function renderStats() {
     var main = document.getElementById('main');
     if (!isLocalServer()) {
       main.innerHTML = '<div class="empty-state"><h2>Local stats unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see live stats.</p></div>';
       return;
     }
-    if (statsLoading && !statsData) {
-      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading local stats...</div>';
+    if (statsState.loading && !statsState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading stats...</div>';
       return;
     }
-    if (statsError && !statsData) {
-      main.innerHTML = '<div class="empty-state"><h2>Stats error</h2><p>' + esc(statsError) + '</p><button class="btn-icon" onclick="window.showStats()">Retry</button></div>';
+    if (statsState.error && !statsState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Stats error</h2><p>' + esc(statsState.error) + '</p><button class="btn-icon" onclick="window.showStats()">Retry</button></div>';
       return;
     }
-    if (!statsData || !statsData.totals) {
+    if (!statsState.data || !statsState.data.totals) {
       main.innerHTML = '<div class="empty-state"><h2>No stats data</h2><p>The local PermaBrain node returned empty stats.</p></div>';
       return;
     }
-    var s = statsData;
+    var s = statsState.data;
     var t = s.totals || {};
     var c = s.consensus || {};
     var ag = s.agents || {};
@@ -8429,17 +8473,6 @@ function statCard(label, value, cls) {
     var byKind = s.articles && s.articles.byKind ? s.articles.byKind : {};
     var byTopic = s.articles && s.articles.byTopic ? s.articles.byTopic : {};
     var byOpinion = s.attestations && s.attestations.byOpinion ? s.attestations.byOpinion : {};
-
-    var statsHtml = '<div class="dashboard-grid">' +
-      '<div class="stat-card"><div class="stat-value">' + (t.articles || 0) + '</div><div class="stat-label">Articles</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (t.attestations || 0) + '</div><div class="stat-label">Attestations</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (t.agentCount || 0) + '</div><div class="stat-label">Agents</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (t.topicCount || 0) + '</div><div class="stat-label">Topics</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (t.kindCount || 0) + '</div><div class="stat-label">Kinds</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (c.averageConsensus != null ? c.averageConsensus.toFixed(3) : '—') + '</div><div class="stat-label">Avg Consensus</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (c.attestedArticles || 0) + '</div><div class="stat-label">Attested</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (act.active7d || 0) + '</div><div class="stat-label">Active 7d</div></div>' +
-      '</div>';
 
     function renderDistribution(title, map) {
       var keys = Object.keys(map || {});
@@ -8476,9 +8509,27 @@ function statCard(label, value, cls) {
       latestHtml += '</div>';
     }
 
+    var f = statsState.filters;
     var toolbar = '<div class="dashboard-toolbar">' +
-      '<button class="btn-icon" onclick="window.fetchLocalStats();window.showStats()">&#x21BB; Refresh</button>' +
+      '<button class="btn-icon" onclick="window.runStatsRefresh()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Kind <input id="statsKind" type="text" value="' + esc(f.kind) + '" onchange="window.setStatsFilter(\'kind\', this.value);window.runStatsRefresh()" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:6rem"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Topic <input id="statsTopic" type="text" value="' + esc(f.topic) + '" onchange="window.setStatsFilter(\'topic\', this.value);window.runStatsRefresh()" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:6rem"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Author <input id="statsAuthor" type="text" value="' + esc(f.author) + '" onchange="window.setStatsFilter(\'author\', this.value);window.runStatsRefresh()" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:6rem"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">After <input id="statsAfter" type="date" value="' + esc(f.after) + '" onchange="window.setStatsFilter(\'after\', this.value);window.runStatsRefresh()" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Before <input id="statsBefore" type="date" value="' + esc(f.before) + '" onchange="window.setStatsFilter(\'before\', this.value);window.runStatsRefresh()" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Top <input id="statsTop" type="number" min="1" value="' + esc(String(statsState.top)) + '" onchange="window.setStatsTop(this.value);window.runStatsRefresh()" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:3rem"></label>' +
       '<span class="last-updated">Generated ' + fmtTs(s.generatedAt) + '</span>' +
+      '</div>';
+
+    var statsHtml = '<div class="dashboard-grid">' +
+      '<div class="stat-card"><div class="stat-value">' + (t.articles || 0) + '</div><div class="stat-label">Articles</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.attestations || 0) + '</div><div class="stat-label">Attestations</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.agentCount || 0) + '</div><div class="stat-label">Agents</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.topicCount || 0) + '</div><div class="stat-label">Topics</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (t.kindCount || 0) + '</div><div class="stat-label">Kinds</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (c.averageConsensus != null ? c.averageConsensus.toFixed(3) : '—') + '</div><div class="stat-label">Avg Consensus</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (c.attestedArticles || 0) + '</div><div class="stat-label">Attested</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (act.active7d || 0) + '</div><div class="stat-label">Active 7d</div></div>' +
       '</div>';
 
     main.innerHTML = '<div class="home">' +
@@ -8494,6 +8545,8 @@ function statCard(label, value, cls) {
       latestHtml +
       '</div>';
   }
+
+  window.renderStats = renderStats;
 
   function renderDashboard() {
     var main = document.getElementById('main');

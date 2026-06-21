@@ -778,7 +778,13 @@ async function handleRequest(req, res, home, options = {}) {
         before: url.searchParams.get('before'),
         top: url.searchParams.has('top') ? Number(url.searchParams.get('top')) : undefined
       };
-      const result = await api.stats(opts);
+      const accept = req.headers.accept || '';
+      const wantsMarkdown = accept.includes('text/markdown');
+      const result = wantsMarkdown ? await api.statsMarkdown(opts) : await api.stats(opts);
+      if (wantsMarkdown) {
+        res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+        return res.end(result);
+      }
       return sendJson(res, 200, result);
     }
 

@@ -342,7 +342,7 @@ const expectedMethods = [
   'listKnownAgents', 'getKnownAgent', 'encrypt', 'decrypt', 'isEncrypted',
   'listRecipients', 'generateEncryptionKeypair', 'deriveEncryptionKey',
   'batchAttest', 'autoImport', 'getAndDecrypt', 'probe', 'getCircuitBreakerStatus', 'getTransportStatus',
-  'verify', 'exportBundle', 'exportAll', 'importBundle', 'importBundleAutoDetect', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'topics', 'topicsToMarkdown', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
+  'verify', 'exportBundle', 'exportAll', 'importBundle', 'importBundleAutoDetect', 'exportHistory', 'importHistory', 'history', 'fork', 'listForks', 'merge', 'diff', 'status', 'search', 'topicFeed', 'activity', 'listArticles', 'exportArticles', 'metrics', 'stats', 'statsMarkdown', 'topics', 'topicsToMarkdown', 'config', 'remote', 'archive', 'restore', 'backup', 'listBackups', 'restoreBackup', 'pruneBackups', 'serve', 'doctor', 'log', 'auditLog', 'logToMarkdown', 'tailLog', 'exportLog', 'importLog', 'completion',
   'createThresholdAttestation', 'addThresholdSigner', 'signThresholdEnvelope', 'finalizeThresholdAttestation', 'verifyThresholdEnvelope', 'importThresholdEnvelope', 'exportThresholdEnvelope', 'shareEncrypted',
   'adminPanel', 'adminPanelHTML', 'adminPanelMarkdown',
   'watchFiles', 'watchFilesOnce', 'watchFilesToMarkdown', 'tags', 'tagsToMarkdown', 'agents', 'agentsToMarkdown', 'sources', 'sourcesToMarkdown', 'kinds', 'kindsToMarkdown', 'languages', 'languagesToMarkdown'
@@ -350,7 +350,7 @@ const expectedMethods = [
 for (const method of expectedMethods) {
   assert.equal(typeof api[method], 'function', `api.${method} is a function`);
 }
-console.log('   ✓ All 114 API methods present');
+console.log('   ✓ All 115 API methods present');
 
 // --- 11a. Admin panel API methods ---
 console.log('11a. Admin panel API methods');
