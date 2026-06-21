@@ -12,7 +12,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bg:#fff;--surface:#f6f8fa;--text:#1f2328;--muted:#656d76;
-  --accent:#0969da;--green:#1a7f37;--orange:#9a6700;--red:#cf222e;
+  --accent:#0969da;--green:#1a7f37;--orange:#9a6700;--red:#cf222e;--yellow:#d4a017;
   --border:#d0d7de;--card:#eef1f4;--sidebar:320px;
   --shadow:0 1px 3px rgba(0,0,0,0.08);
   --radius:8px;
@@ -430,6 +430,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="remotesBtn" onclick="window.showRemotes()" title="Named remotes">&#127758;</button>
     <button class="btn-icon" id="configBtn" onclick="window.showConfig()" title="Node configuration">&#128295;</button>
     <button class="btn-icon" id="goalBtn" onclick="window.showGoal()" title="Goal / PRD planner">&#127919;</button>
+    <button class="btn-icon" id="backupBtn" onclick="window.showBackup()" title="Backup / archive">&#128424;</button>
+    <button class="btn-icon" id="archiveBtn" onclick="window.showArchive()" title="Archive / restore">&#128230;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -653,6 +655,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var configState = { data: null, loading: false, error: null, message: null, envData: null, validationResult: null, editPath: '', editValue: '' };
   var goalState = { text: '', result: null, loading: false, error: null, message: null };
   var remotesState = { data: null, loading: false, error: null, message: null, actionLoading: false, showJson: true, apiKey: '', form: { name: '', url: '', transport: 'auto', description: '' } };
+  var backupState = { data: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', backupName: '', keep: '10', maxAgeDays: '', showJson: false };
+  var archiveState = { archive: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', recipients: '', dryRun: false, importText: '', restorePassphrase: '', restoreOptions: 'dryRun=false' };
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -1641,6 +1645,21 @@ function statCard(label, value, cls) {
       if (remotesState.apiKey) params.set('remotesApiKey', remotesState.apiKey);
       if (!remotesState.showJson) params.set('remotesShowJson', 'false');
     }
+    if (viewMode === 'backup') {
+      if (backupState.showJson) params.set('backupShowJson', 'true');
+      if (backupState.passphrase) params.set('backupPassphrase', backupState.passphrase);
+      if (backupState.backupName) params.set('backupName', backupState.backupName);
+      if (backupState.keep && backupState.keep !== '10') params.set('backupKeep', backupState.keep);
+      if (backupState.maxAgeDays) params.set('backupMaxAgeDays', backupState.maxAgeDays);
+    }
+    if (viewMode === 'archive') {
+      if (archiveState.passphrase) params.set('archivePassphrase', archiveState.passphrase);
+      if (archiveState.recipients) params.set('archiveRecipients', archiveState.recipients);
+      if (archiveState.dryRun) params.set('archiveDryRun', 'true');
+      if (archiveState.importText) params.set('archiveImportText', archiveState.importText);
+      if (archiveState.restorePassphrase) params.set('archiveRestorePassphrase', archiveState.restorePassphrase);
+      if (archiveState.restoreOptions && archiveState.restoreOptions !== 'dryRun=false') params.set('archiveRestoreOptions', archiveState.restoreOptions);
+    }
     if (viewMode === 'search') {
       if (searchState.q) params.set('searchQ', searchState.q);
       if (searchState.kind) params.set('searchKind', searchState.kind);
@@ -1752,7 +1771,18 @@ function statCard(label, value, cls) {
       searchSort: params.get('searchSort') || '',
       forksKey: params.get('forksKey') || '',
       forksSort: params.get('forksSort') || '',
-      forksLimit: params.get('forksLimit') || ''
+      forksLimit: params.get('forksLimit') || '',
+      backupShowJson: params.get('backupShowJson') || '',
+      backupPassphrase: params.get('backupPassphrase') || '',
+      backupName: params.get('backupName') || '',
+      backupKeep: params.get('backupKeep') || '',
+      backupMaxAgeDays: params.get('backupMaxAgeDays') || '',
+      archivePassphrase: params.get('archivePassphrase') || '',
+      archiveRecipients: params.get('archiveRecipients') || '',
+      archiveDryRun: params.get('archiveDryRun') || '',
+      archiveImportText: params.get('archiveImportText') || '',
+      archiveRestorePassphrase: params.get('archiveRestorePassphrase') || '',
+      archiveRestoreOptions: params.get('archiveRestoreOptions') || ''
     };
   }
 
@@ -1792,7 +1822,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','backup','archive'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1901,6 +1931,21 @@ function statCard(label, value, cls) {
     if (state.view === 'remotes') {
       if (state.remotesApiKey) remotesState.apiKey = state.remotesApiKey;
       if (state.remotesShowJson === 'false') remotesState.showJson = false;
+    }
+    if (state.view === 'backup') {
+      if (state.backupShowJson === 'true') backupState.showJson = true;
+      if (state.backupPassphrase) backupState.passphrase = state.backupPassphrase;
+      if (state.backupName) backupState.backupName = state.backupName;
+      if (state.backupKeep) backupState.keep = state.backupKeep;
+      if (state.backupMaxAgeDays) backupState.maxAgeDays = state.backupMaxAgeDays;
+    }
+    if (state.view === 'archive') {
+      if (state.archivePassphrase) archiveState.passphrase = state.archivePassphrase;
+      if (state.archiveRecipients) archiveState.recipients = state.archiveRecipients;
+      if (state.archiveDryRun === 'true') archiveState.dryRun = true;
+      if (state.archiveImportText) archiveState.importText = state.archiveImportText;
+      if (state.archiveRestorePassphrase) archiveState.restorePassphrase = state.archiveRestorePassphrase;
+      if (state.archiveRestoreOptions) archiveState.restoreOptions = state.archiveRestoreOptions;
     }
     if (state.view === 'search') {
       if (state.searchQ) searchState.q = state.searchQ;
@@ -2332,6 +2377,480 @@ function statCard(label, value, cls) {
   }
 
   window.renderIdentity = renderIdentity;
+
+  // --- Backup panel ---
+  window.showBackup = async function() {
+    viewMode = 'backup';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchBackups();
+    updateUrlState();
+  };
+
+  window.refreshBackup = async function() {
+    await fetchBackups();
+    updateUrlState();
+  };
+
+  window.setBackupPassphrase = function(value) {
+    backupState.passphrase = value || '';
+    updateUrlState();
+  };
+
+  window.setBackupName = function(value) {
+    backupState.backupName = value || '';
+    updateUrlState();
+  };
+
+  window.setBackupKeep = function(value) {
+    backupState.keep = value || '10';
+    updateUrlState();
+  };
+
+  window.setBackupMaxAgeDays = function(value) {
+    backupState.maxAgeDays = value || '';
+    updateUrlState();
+  };
+
+  window.setBackupShowJson = function(show) {
+    backupState.showJson = !!show;
+    if (viewMode === 'backup') renderBackup();
+    updateUrlState();
+  };
+
+  async function fetchBackups() {
+    if (!isLocalServer()) return;
+    backupState.loading = true;
+    backupState.error = null;
+    backupState.message = null;
+    if (viewMode === 'backup') renderBackup();
+    try {
+      var r = await fetch('/api/v1/backups');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      backupState.data = await r.json();
+      backupState.loading = false;
+    } catch (e) {
+      backupState.error = e.message;
+      backupState.loading = false;
+    }
+    if (viewMode === 'backup') renderBackup();
+  }
+
+  window.fetchBackups = fetchBackups;
+
+  window.runBackupCreate = async function() {
+    if (!isLocalServer()) return;
+    var passphrase = (document.getElementById('backupPassphrase')?.value || '').trim();
+    if (!passphrase) { backupState.error = 'Passphrase is required to create an encrypted backup.'; renderBackup(); return; }
+    backupState.actionLoading = 'create';
+    backupState.error = null;
+    backupState.message = null;
+    backupState.passphrase = passphrase;
+    var name = (document.getElementById('backupName')?.value || '').trim();
+    if (name) backupState.backupName = name;
+    if (viewMode === 'backup') renderBackup();
+    try {
+      var body = { action: 'create', passphrase: passphrase };
+      if (name) body.name = name;
+      var r = await fetch('/api/v1/backups', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) {
+        var errBody = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
+        throw new Error(errBody.error || 'HTTP ' + r.status);
+      }
+      var result = await r.json();
+      backupState.message = 'Created backup ' + result.name + ' (' + result.meta.entries + ' files, ' + fmtBytes(result.meta.size) + ')';
+      backupState.passphrase = '';
+      backupState.backupName = '';
+      await fetchBackups();
+    } catch (e) {
+      backupState.error = e.message;
+      backupState.actionLoading = false;
+      if (viewMode === 'backup') renderBackup();
+    }
+  };
+
+  window.runBackupRestore = async function(backup) {
+    if (!isLocalServer()) return;
+    var passphrase = (document.getElementById('restorePassphrase-' + backup)?.value || '').trim();
+    if (!passphrase) { backupState.error = 'Passphrase is required to restore a backup.'; renderBackup(); return; }
+    if (!confirm('Restore from backup "' + backup + '"? This will overwrite current node files.')) return;
+    backupState.actionLoading = 'restore-' + backup;
+    backupState.error = null;
+    backupState.message = null;
+    if (viewMode === 'backup') renderBackup();
+    try {
+      var r = await fetch('/api/v1/backups', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'restore', backup: backup, passphrase: passphrase })
+      });
+      if (!r.ok) {
+        var errBody = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
+        throw new Error(errBody.error || 'HTTP ' + r.status);
+      }
+      var result = await r.json();
+      backupState.message = 'Restored ' + result.entriesRestored + ' files from ' + result.backup + (result.dryRun ? ' (dry-run)' : '');
+      await fetchBackups();
+    } catch (e) {
+      backupState.error = e.message;
+      backupState.actionLoading = false;
+      if (viewMode === 'backup') renderBackup();
+    }
+  };
+
+  window.runBackupPrune = async function() {
+    if (!isLocalServer()) return;
+    var keep = parseInt((document.getElementById('backupKeep')?.value || '10').trim(), 10);
+    var maxAge = parseInt((document.getElementById('backupMaxAgeDays')?.value || '0').trim(), 10);
+    if (isNaN(keep) || keep < 0) { backupState.error = 'Keep must be a non-negative number.'; renderBackup(); return; }
+    backupState.actionLoading = 'prune';
+    backupState.error = null;
+    backupState.message = null;
+    backupState.keep = String(keep);
+    if (!isNaN(maxAge) && maxAge > 0) backupState.maxAgeDays = String(maxAge);
+    if (viewMode === 'backup') renderBackup();
+    try {
+      var body = { action: 'prune', keep: keep };
+      if (!isNaN(maxAge) && maxAge > 0) body.maxAgeDays = maxAge;
+      var r = await fetch('/api/v1/backups', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) {
+        var errBody = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
+        throw new Error(errBody.error || 'HTTP ' + r.status);
+      }
+      var result = await r.json();
+      backupState.message = 'Pruned backups: kept ' + result.kept.length + ', removed ' + result.removed.length;
+      await fetchBackups();
+    } catch (e) {
+      backupState.error = e.message;
+      backupState.actionLoading = false;
+      if (viewMode === 'backup') renderBackup();
+    }
+  };
+
+  window.runBackupDelete = async function(backup) {
+    if (!isLocalServer()) return;
+    if (!confirm('Delete backup "' + backup + '" permanently?')) return;
+    backupState.actionLoading = 'delete-' + backup;
+    backupState.error = null;
+    backupState.message = null;
+    if (viewMode === 'backup') renderBackup();
+    try {
+      var r = await fetch('/api/v1/backups', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'prune', keep: 10000, maxAgeDays: 0 })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var backups = (backupState.data?.backups || []);
+      var target = backups.find(function(b) { return b.name === backup; });
+      if (target) {
+        var mtime = new Date(target.createdAt).getTime();
+        var maxAgeMs = Math.ceil((Date.now() - mtime) / (24 * 60 * 60 * 1000)) + 1;
+        r = await fetch('/api/v1/backups', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'prune', keep: 10000, maxAgeDays: maxAgeMs })
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+      }
+      backupState.message = 'Deleted ' + backup;
+      await fetchBackups();
+    } catch (e) {
+      backupState.error = e.message;
+      backupState.actionLoading = false;
+      if (viewMode === 'backup') renderBackup();
+    }
+  };
+
+  window.copyBackupJson = function() {
+    if (!backupState.data) return;
+    window.copyText(JSON.stringify(backupState.data, null, 2));
+  };
+
+  window.downloadBackupJson = function() {
+    if (!backupState.data) return;
+    window.downloadText('permabrain-backups.json', JSON.stringify(backupState.data, null, 2));
+  };
+
+  function fmtBytes(n) {
+    if (typeof n !== 'number') return '—';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function renderBackup() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Backup panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to manage encrypted backups.</p></div>';
+      return;
+    }
+    if (backupState.loading && !backupState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading backups...</div>';
+      return;
+    }
+    if (backupState.error && !backupState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Backup error</h2><p>' + esc(backupState.error) + '</p><button class="btn-icon" onclick="window.refreshBackup()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = backupState.data || {};
+    var backups = data.backups || [];
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshBackup()">&#x21BB; Refresh</button>' +
+      '<button class="btn-icon" onclick="window.copyBackupJson()">Copy JSON</button>' +
+      '<button class="btn-icon" onclick="window.downloadBackupJson()">Download JSON</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Format ' +
+      '<select onchange="window.setBackupShowJson(this.value === \'json\')" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="table"' + (!backupState.showJson ? ' selected' : '') + '>Table</option>' +
+      '<option value="json"' + (backupState.showJson ? ' selected' : '') + '>JSON</option>' +
+      '</select></label>' +
+      '</div>';
+
+    var createForm = '<div class="dashboard-section" style="margin-bottom:1rem">' +
+      '<h3 style="font-size:0.95rem;margin-bottom:0.5rem">Create backup</h3>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Passphrase<span style="color:var(--red)">*</span><br><input type="password" id="backupPassphrase" data-testid="backup-passphrase" value="' + esc(backupState.passphrase || '') + '" oninput="window.setBackupPassphrase(this.value)" placeholder="Encryption passphrase" style="width:14rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Name (optional)<br><input type="text" id="backupName" data-testid="backup-name" value="' + esc(backupState.backupName || '') + '" oninput="window.setBackupName(this.value)" placeholder="backup-YYYYmmdd-HHMMSS.json" style="width:14rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<button class="btn-icon" data-testid="backup-create-btn" onclick="window.runBackupCreate()">Create</button>' +
+      '</div></div>';
+
+    var pruneForm = '<div class="dashboard-section" style="margin-bottom:1rem">' +
+      '<h3 style="font-size:0.95rem;margin-bottom:0.5rem">Prune old backups</h3>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Keep newest<br><input type="number" id="backupKeep" data-testid="backup-keep" value="' + esc(backupState.keep || '10') + '" oninput="window.setBackupKeep(this.value)" min="0" style="width:6rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Max age (days)<br><input type="number" id="backupMaxAgeDays" data-testid="backup-max-age" value="' + esc(backupState.maxAgeDays || '') + '" oninput="window.setBackupMaxAgeDays(this.value)" min="0" placeholder="optional" style="width:8rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<button class="btn-icon" data-testid="backup-prune-btn" onclick="window.runBackupPrune()">Prune</button>' +
+      '</div></div>';
+
+    var msg = '';
+    if (backupState.message) msg += '<p style="margin:0.5rem 0;color:var(--green)">' + esc(backupState.message) + '</p>';
+    if (backupState.error) msg += '<p style="margin:0.5rem 0;color:var(--red)">' + esc(backupState.error) + '</p>';
+    if (backupState.actionLoading) msg += '<p style="margin:0.5rem 0;color:var(--muted)">Running ' + esc(backupState.actionLoading) + '...</p>';
+
+    if (backupState.showJson) {
+      var body = '<pre style="font-size:0.78rem;overflow:auto;background:var(--surface);padding:0.8rem;border-radius:6px;border:1px solid var(--border);max-height:24rem">' + esc(JSON.stringify(data, null, 2)) + '</pre>';
+      main.innerHTML = '<div class="home"><h1>&#128424; <span>Backups</span></h1><p class="home-subtitle">Encrypted, timestamped node snapshots</p>' + toolbar + createForm + pruneForm + msg + body + '</div>';
+      return;
+    }
+
+    if (!backups.length) {
+      main.innerHTML = '<div class="home"><h1>&#128424; <span>Backups</span></h1><p class="home-subtitle">Encrypted, timestamped node snapshots</p>' + toolbar + createForm + pruneForm + msg + '<p class="dashboard-empty">No backups yet.</p></div>';
+      return;
+    }
+
+    var rows = backups.map(function(b, i) {
+      return '<tr>' +
+        '<td class="mono">' + (i + 1) + '</td>' +
+        '<td class="mono">' + esc(b.name) + '</td>' +
+        '<td>' + (b.createdAt ? fmtDate(b.createdAt) : '—') + '</td>' +
+        '<td class="mono">' + esc(b.agentId || '—') + '</td>' +
+        '<td>' + (b.entries || 0) + '</td>' +
+        '<td>' + (b.hasPassphrase ? 'yes' : 'no') + '</td>' +
+        '<td>' + (b.recipientCount || 0) + '</td>' +
+        '<td>' + fmtBytes(b.size) + '</td>' +
+        '<td style="white-space:nowrap">' +
+        '<input type="password" id="restorePassphrase-' + esc(b.name) + '" data-testid="restore-passphrase-' + esc(b.name) + '" placeholder="Passphrase" style="width:8rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"> ' +
+        '<button class="btn-icon" data-testid="backup-restore-' + esc(b.name) + '" onclick="window.runBackupRestore(\'' + esc(b.name) + '\')">Restore</button> ' +
+        '<button class="btn-icon" data-testid="backup-delete-' + esc(b.name) + '" onclick="window.runBackupDelete(\'' + esc(b.name) + '\')">Delete</button>' +
+        '</td></tr>';
+    }).join('');
+    var body = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+      '<th>#</th><th>Name</th><th>Created</th><th>Agent</th><th>Files</th><th>Passphrase</th><th>Recipients</th><th>Size</th><th>Actions</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#128424; <span>Backups</span></h1><p class="home-subtitle">Encrypted, timestamped node snapshots</p>' + toolbar + createForm + pruneForm + msg + body + '</div>';
+  }
+
+  window.renderBackup = renderBackup;
+
+  // --- Archive panel ---
+  window.showArchive = async function() {
+    viewMode = 'archive';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await renderArchive();
+    updateUrlState();
+  };
+
+  window.refreshArchive = async function() {
+    await renderArchive();
+    updateUrlState();
+  };
+
+  window.setArchivePassphrase = function(value) {
+    archiveState.passphrase = value || '';
+    updateUrlState();
+  };
+
+  window.setArchiveRecipients = function(value) {
+    archiveState.recipients = value || '';
+    updateUrlState();
+  };
+
+  window.setArchiveDryRun = function(value) {
+    archiveState.dryRun = !!value;
+    updateUrlState();
+  };
+
+  window.setArchiveImportText = function(value) {
+    archiveState.importText = value || '';
+    updateUrlState();
+  };
+
+  window.setArchiveRestorePassphrase = function(value) {
+    archiveState.restorePassphrase = value || '';
+    updateUrlState();
+  };
+
+  window.setArchiveRestoreOptions = function(value) {
+    archiveState.restoreOptions = value || 'dryRun=false';
+    updateUrlState();
+  };
+
+  window.runArchiveCreate = async function() {
+    if (!isLocalServer()) return;
+    var passphrase = (document.getElementById('archivePassphrase')?.value || '').trim();
+    if (!passphrase) { archiveState.error = 'Passphrase is required to create an encrypted archive.'; renderArchive(); return; }
+    archiveState.actionLoading = 'create';
+    archiveState.error = null;
+    archiveState.message = null;
+    archiveState.passphrase = passphrase;
+    var recipientsRaw = (document.getElementById('archiveRecipients')?.value || '').trim();
+    archiveState.recipients = recipientsRaw;
+    if (viewMode === 'archive') renderArchive();
+    try {
+      var body = { passphrase: passphrase };
+      if (recipientsRaw) body.recipients = recipientsRaw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      var r = await fetch('/api/v1/archive', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) {
+        var errBody = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
+        throw new Error(errBody.error || 'HTTP ' + r.status);
+      }
+      var result = await r.json();
+      archiveState.archive = result;
+      archiveState.message = 'Created archive for ' + result.agentId + ' (' + result.entries.length + ' files, ' + (result.encryption.recipientCount || 0) + ' recipients)';
+      archiveState.passphrase = '';
+      archiveState.recipients = '';
+    } catch (e) {
+      archiveState.error = e.message;
+      archiveState.actionLoading = false;
+      if (viewMode === 'archive') renderArchive();
+    }
+  };
+
+  window.runArchiveRestore = async function() {
+    if (!isLocalServer()) return;
+    var text = (document.getElementById('archiveImportText')?.value || '').trim();
+    if (!text) { archiveState.error = 'Paste an archive JSON object to restore.'; renderArchive(); return; }
+    var passphrase = (document.getElementById('archiveRestorePassphrase')?.value || '').trim();
+    if (!passphrase) { archiveState.error = 'Passphrase is required to restore an archive.'; renderArchive(); return; }
+    var optionsRaw = (document.getElementById('archiveRestoreOptions')?.value || '').trim();
+    var dryRun = optionsRaw.toLowerCase().includes('dryrun=true');
+    archiveState.actionLoading = 'restore';
+    archiveState.error = null;
+    archiveState.message = null;
+    archiveState.importText = text;
+    archiveState.restorePassphrase = passphrase;
+    archiveState.restoreOptions = optionsRaw || 'dryRun=false';
+    if (viewMode === 'archive') renderArchive();
+    try {
+      var archiveObj;
+      try { archiveObj = JSON.parse(text); } catch (e) { throw new Error('Invalid JSON: ' + e.message); }
+      var r = await fetch('/api/v1/restore', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ archive: archiveObj, options: { passphrase: passphrase, dryRun: dryRun } })
+      });
+      if (!r.ok) {
+        var errBody = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
+        throw new Error(errBody.error || 'HTTP ' + r.status);
+      }
+      var result = await r.json();
+      archiveState.message = 'Restored ' + result.entriesRestored + ' files' + (result.dryRun ? ' (dry-run)' : '');
+      archiveState.importText = '';
+      archiveState.restorePassphrase = '';
+    } catch (e) {
+      archiveState.error = e.message;
+      archiveState.actionLoading = false;
+      if (viewMode === 'archive') renderArchive();
+    }
+  };
+
+  window.copyArchiveJson = function() {
+    if (!archiveState.archive) return;
+    window.copyText(JSON.stringify(archiveState.archive, null, 2));
+  };
+
+  window.downloadArchiveJson = function() {
+    if (!archiveState.archive) return;
+    window.downloadText('permabrain-archive.json', JSON.stringify(archiveState.archive, null, 2));
+  };
+
+  function renderArchive() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Archive panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to create or restore encrypted archives.</p></div>';
+      return;
+    }
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshArchive()">&#x21BB; Refresh</button>' +
+      (archiveState.archive ? '<button class="btn-icon" onclick="window.copyArchiveJson()">Copy JSON</button>' : '') +
+      (archiveState.archive ? '<button class="btn-icon" onclick="window.downloadArchiveJson()">Download JSON</button>' : '') +
+      '</div>';
+
+    var createForm = '<div class="dashboard-section" style="margin-bottom:1rem">' +
+      '<h3 style="font-size:0.95rem;margin-bottom:0.5rem">Create archive</h3>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Passphrase<span style="color:var(--red)">*</span><br><input type="password" id="archivePassphrase" data-testid="archive-passphrase" value="' + esc(archiveState.passphrase || '') + '" oninput="window.setArchivePassphrase(this.value)" placeholder="Encryption passphrase" style="width:14rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Recipients (optional, comma-separated X25519 keys)<br><input type="text" id="archiveRecipients" data-testid="archive-recipients" value="' + esc(archiveState.recipients || '') + '" oninput="window.setArchiveRecipients(this.value)" placeholder="pub1, pub2, ..." style="width:22rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<button class="btn-icon" data-testid="archive-create-btn" onclick="window.runArchiveCreate()">Create</button>' +
+      '</div></div>';
+
+    var restoreForm = '<div class="dashboard-section" style="margin-bottom:1rem">' +
+      '<h3 style="font-size:0.95rem;margin-bottom:0.5rem">Restore archive</h3>' +
+      '<p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem">Paste the archive JSON, then enter the passphrase used when creating it. Use the options field to toggle dry-run.</p>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start">' +
+      '<label style="font-size:0.75rem;color:var(--muted);flex:1;min-width:20rem">Archive JSON<br><textarea id="archiveImportText" data-testid="archive-import-text" oninput="window.setArchiveImportText(this.value)" placeholder="{ version, createdAt, agentId, entries: [...] }" rows="6" style="width:100%;font-family:monospace;font-size:0.78rem;padding:0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' + esc(archiveState.importText || '') + '</textarea></label>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end;margin-top:0.5rem">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Passphrase<span style="color:var(--red)">*</span><br><input type="password" id="archiveRestorePassphrase" data-testid="archive-restore-passphrase" value="' + esc(archiveState.restorePassphrase || '') + '" oninput="window.setArchiveRestorePassphrase(this.value)" placeholder="Archive passphrase" style="width:14rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Options<br><input type="text" id="archiveRestoreOptions" data-testid="archive-restore-options" value="' + esc(archiveState.restoreOptions || 'dryRun=false') + '" oninput="window.setArchiveRestoreOptions(this.value)" placeholder="dryRun=false" style="width:14rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<button class="btn-icon" data-testid="archive-restore-btn" onclick="window.runArchiveRestore()">Restore</button>' +
+      '</div>' +
+      '</div>';
+
+    var msg = '';
+    if (archiveState.message) msg += '<p style="margin:0.5rem 0;color:var(--green)">' + esc(archiveState.message) + '</p>';
+    if (archiveState.error) msg += '<p style="margin:0.5rem 0;color:var(--red)">' + esc(archiveState.error) + '</p>';
+    if (archiveState.actionLoading) msg += '<p style="margin:0.5rem 0;color:var(--muted)">Running ' + esc(archiveState.actionLoading) + '...</p>';
+
+    var preview = '';
+    if (archiveState.archive) {
+      var ar = archiveState.archive;
+      preview += '<div class="dashboard-section" style="margin-top:1rem">' +
+        '<h3>Latest archive</h3>' +
+        '<table class="audit-table"><tbody>' +
+        '<tr><th>Agent</th><td class="mono">' + esc(ar.agentId || '—') + '</td></tr>' +
+        '<tr><th>Created</th><td>' + (ar.createdAt ? fmtDate(ar.createdAt) : '—') + '</td></tr>' +
+        '<tr><th>Files</th><td>' + (ar.entries ? ar.entries.length : 0) + '</td></tr>' +
+        '<tr><th>Recipients</th><td>' + (ar.encryption ? ar.encryption.recipientCount : 0) + '</td></tr>' +
+        '<tr><th>Passphrase</th><td>' + (ar.encryption && ar.encryption.hasPassphrase ? 'yes' : 'no') + '</td></tr>' +
+        '</tbody></table>' +
+        '<pre class="support-bundle-json" style="max-height:16rem">' + esc(JSON.stringify(ar, null, 2)) + '</pre>' +
+        '</div>';
+    }
+
+    main.innerHTML = '<div class="home"><h1>&#128230; <span>Archive / Restore</span></h1><p class="home-subtitle">Create or restore a portable encrypted snapshot</p>' + toolbar + createForm + restoreForm + msg + preview + '</div>';
+  }
+
+  window.renderArchive = renderArchive;
 
   // --- Config panel ---
   window.showConfig = async function() {
@@ -7377,7 +7896,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify' && viewMode !== 'search';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify' && viewMode !== 'search' && viewMode !== 'backup' && viewMode !== 'archive';
   }
 
   function readFiltersFromDom() {
@@ -8167,6 +8686,8 @@ function statCard(label, value, cls) {
           if (bootState.remotesShowJson === 'false') remotesState.showJson = false;
           window.showRemotes();
         }
+        else if (bootState.view === 'backup') window.showBackup();
+        else if (bootState.view === 'archive') window.showArchive();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -8206,6 +8727,8 @@ function statCard(label, value, cls) {
   else if (viewMode === 'goal') window.showGoal();
   else if (viewMode === 'remotes') window.showRemotes();
   else if (viewMode === 'history') window.showHistory();
+  else if (viewMode === 'backup') window.showBackup();
+  else if (viewMode === 'archive') window.showArchive();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
