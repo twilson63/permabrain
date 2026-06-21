@@ -22,6 +22,9 @@
 ## Done
 - [x] Cron build loop checkpoint (2026-06-21 06:04 UTC): picked the in-progress Web viewer Search panel task and completed it. Added a Search toolbar button (`&#128269;`) in `viewer/index.html`, `searchState`, `window.showSearch()`/`refreshSearch()`/`runSearch()`/`fetchSearch()`/`renderSearch()`/`setSearchSort()`/`setSearchLimit()` helpers, filter inputs (query, kind, topic, author, key, after/before) and sort/limit controls, ranked results list with title/key/topic/version/source/snippet/consensus, result count, empty-state help, JSON copy/download of results, and deep-link URL state (`?view=search&searchQ=...`) with boot-time restoration. Excluded `search` from local article-list mode. Added `test/viewer-search.mjs` (HTML wiring checks and HTTP round-trip tests: empty index, query with filters, sort/limit params, local-only fallbacks) and wired it into `npm test` plus `test:viewer-search`. Full sequential `npm test` suite passes. Pushed the resulting logical chunk to `origin/main` as `9d44ee3` after merging upstream tasks.md update.
 
+## Done
+- [x] Web viewer Identity panel: add a panel displaying the local identity report from `/api/v1/identity/report`, with copy actions for agent ID/public key/encryption key, JSON/markdown toggle, download identity JSON, and deep-link via `?view=identity`. Added `test/viewer-identity.mjs` and wired into `npm test` plus `test:viewer-identity`. Full sequential `npm test` suite passes. Committed to `main` as `782762a` and pushed to `origin/main`.
+
 ## In Progress
 - [ ] (pending)
 
