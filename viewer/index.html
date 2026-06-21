@@ -412,6 +412,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
     <button class="btn-icon" id="tagsBtn" onclick="window.showTags()" title="Tags catalog">&#127991;</button>
     <button class="btn-icon" id="agentsBtn" onclick="window.showAgents()" title="Agents catalog">&#128100;</button>
+    <button class="btn-icon" id="sourcesBtn" onclick="window.showSources()" title="Sources catalog">&#128279;</button>
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
@@ -612,6 +613,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var topicsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var tagsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var agentsState = { data: null, loading: false, error: null, sort: 'articles', limit: 100 };
+  var sourcesState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var historyData = {};       // key -> history payload from local API (used by article tab + modal)
   var historyLoading = false;
   var historyError = null;
@@ -1568,6 +1570,10 @@ function statCard(label, value, cls) {
       if (agentsState.sort && agentsState.sort !== 'articles') params.set('agentsSort', agentsState.sort);
       if (agentsState.limit && agentsState.limit !== 100) params.set('agentsLimit', String(agentsState.limit));
     }
+    if (viewMode === 'sources') {
+      if (sourcesState.sort && sourcesState.sort !== 'count') params.set('sourcesSort', sourcesState.sort);
+      if (sourcesState.limit && sourcesState.limit !== 100) params.set('sourcesLimit', String(sourcesState.limit));
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -1623,6 +1629,8 @@ function statCard(label, value, cls) {
       thresholdCount: params.get('thresholdCount') || '',
       thresholdCoSigners: params.get('thresholdCoSigners') || '',
       agentsLimit: params.get('agentsLimit') || '',
+      sourcesSort: params.get('sourcesSort') || '',
+      sourcesLimit: params.get('sourcesLimit') || '',
       peerRemoteUrl: params.get('peerRemoteUrl') || '',
       peerRemoteApiKey: params.get('peerRemoteApiKey') || '',
       peerDirection: params.get('peerDirection') || '',
@@ -1673,7 +1681,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1727,6 +1735,10 @@ function statCard(label, value, cls) {
     if (state.view === 'agents') {
       if (state.agentsSort) agentsState.sort = state.agentsSort;
       if (state.agentsLimit) { var al = parseInt(state.agentsLimit, 10); if (!isNaN(al) && al > 0) agentsState.limit = al; }
+    }
+    if (state.view === 'sources') {
+      if (state.sourcesSort) sourcesState.sort = state.sourcesSort;
+      if (state.sourcesLimit) { var sl = parseInt(state.sourcesLimit, 10); if (!isNaN(sl) && sl > 0) sourcesState.limit = sl; }
     }
     if (state.view === 'peer-sync') {
       if (state.peerRemoteUrl) peerSyncState.remoteUrl = state.peerRemoteUrl;
@@ -2369,6 +2381,125 @@ function statCard(label, value, cls) {
   }
 
   window.renderAgents = renderAgents;
+
+  // --- Sources catalog panel ---
+  window.showSources = async function() {
+    viewMode = 'sources';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchSources();
+    updateUrlState();
+  };
+
+  window.refreshSources = async function() {
+    await fetchSources();
+    updateUrlState();
+  };
+
+  window.setSourcesSort = async function(sort) {
+    sourcesState.sort = sort || 'count';
+    await fetchSources();
+    updateUrlState();
+  };
+
+  window.setSourcesLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    sourcesState.limit = (!isNaN(n) && n > 0) ? n : 100;
+    await fetchSources();
+    updateUrlState();
+  };
+
+  async function fetchSources() {
+    if (!isLocalServer()) return;
+    sourcesState.loading = true;
+    sourcesState.error = null;
+    if (viewMode === 'sources') renderSources();
+    try {
+      var params = new URLSearchParams();
+      params.set('sort', sourcesState.sort || 'count');
+      if (sourcesState.limit && sourcesState.limit !== 100) params.set('limit', String(sourcesState.limit));
+      var r = await fetch('/api/v1/sources?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      sourcesState.data = await r.json();
+      sourcesState.loading = false;
+    } catch(e) {
+      sourcesState.error = e.message;
+      sourcesState.loading = false;
+    }
+    if (viewMode === 'sources') renderSources();
+  }
+
+  window.fetchSources = fetchSources;
+
+  function renderSources() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Sources catalog unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to browse sources.</p></div>';
+      return;
+    }
+    if (sourcesState.loading && !sourcesState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading sources catalog...</div>';
+      return;
+    }
+    if (sourcesState.error && !sourcesState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Sources catalog error</h2><p>' + esc(sourcesState.error) + '</p><button class="btn-icon" onclick="window.refreshSources()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = sourcesState.data || {};
+    var sources = data.sources || [];
+    var totals = data.totals || {};
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshSources()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Sort ' +
+      '<select onchange="window.setSourcesSort(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="count"' + (sourcesState.sort === 'count' ? ' selected' : '') + '>Count</option>' +
+      '<option value="name"' + (sourcesState.sort === 'name' ? ' selected' : '') + '>Name</option>' +
+      '<option value="latest"' + (sourcesState.sort === 'latest' ? ' selected' : '') + '>Latest</option>' +
+      '<option value="keys"' + (sourcesState.sort === 'keys' ? ' selected' : '') + '>Unique keys</option>' +
+      '</select></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
+      '<input type="number" min="1" max="1000" value="' + esc(String(sourcesState.limit)) + '" onchange="window.setSourcesLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '</div>';
+
+    var stats = '<div class="stats-grid">' +
+      statCard('Sources', String(totals.sources || 0), 'sources') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      '</div>';
+
+    if (!sources.length) {
+      main.innerHTML = '<div class="home"><h1>&#128279; <span>Sources</span></h1><p class="home-subtitle">Browse article sources from the local catalog</p>' + toolbar + stats + '<p class="dashboard-empty">No sources found.</p></div>';
+      return;
+    }
+
+    var rows = sources.map(function(s) {
+      var name = s.url ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">' + esc(s.name) + '</a>' : esc(s.name);
+      var kinds = Object.entries(s.byKind || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var topics = Object.entries(s.byTopic || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var languages = Object.entries(s.byLanguage || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var agents = Object.entries(s.byAgent || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      return '<tr><td class="mono">' + name + '</td>' +
+        '<td style="text-align:center">' + esc(String(s.count)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(s.uniqueKeys)) + '</td>' +
+        '<td>' + esc(s.latestAt ? fmtDate(s.latestAt) : '—') + '</td>' +
+        '<td>' + (kinds || '—') + '</td>' +
+        '<td>' + (topics || '—') + '</td>' +
+        '<td>' + (languages || '—') + '</td>' +
+        '<td>' + (agents || '—') + '</td></tr>';
+    }).join('');
+
+    var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+      '<th>Source</th><th>Articles</th><th>Unique keys</th><th>Latest</th><th>Kinds</th><th>Topics</th><th>Languages</th><th>Agents</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#128279; <span>Sources</span></h1><p class="home-subtitle">Browse article sources from the local catalog</p>' + toolbar + stats + table + '</div>';
+  }
+
+  window.renderSources = renderSources;
 
   // --- Attest panel ---
   window.showAttest = async function() {
@@ -5997,6 +6128,7 @@ function statCard(label, value, cls) {
         }
         else if (bootState.view === 'tags') window.showTags();
         else if (bootState.view === 'agents') window.showAgents();
+        else if (bootState.view === 'sources') window.showSources();
         else if (bootState.view === 'attest') window.showAttest();
         else if (bootState.view === 'batch-attest') window.showBatchAttest();
         else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
@@ -6020,6 +6152,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'topics') window.showTopics();
   else if (viewMode === 'tags') window.showTags();
   else if (viewMode === 'agents') window.showAgents();
+  else if (viewMode === 'sources') window.showSources();
   else if (viewMode === 'activity') window.showActivity();
   else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'batch-attest') window.showBatchAttest();

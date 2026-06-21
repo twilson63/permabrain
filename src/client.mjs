@@ -193,6 +193,12 @@ export function createClient(options = {}) {
     /** @returns {Promise<string>} Markdown agents catalog. */
     agentsMarkdown: (opts = {}) => request('GET', `/api/v1/agents${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
 
+    /** @returns {Promise<Object>} Sources catalog. */
+    sources: (opts = {}) => request('GET', `/api/v1/sources${toQuery(opts)}`),
+
+    /** @returns {Promise<string>} Markdown sources catalog. */
+    sourcesMarkdown: (opts = {}) => request('GET', `/api/v1/sources${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
+
     /** @returns {Promise<Object>} */
     batchAttest: (body) => request('POST', '/api/v1/batch-attest', body),
 

@@ -665,6 +665,27 @@ async function handleRequest(req, res, home, options = {}) {
       }
       return sendJson(res, 200, result);
     }
+    if (method === 'GET' && route === '/api/v1/sources') {
+      const opts = {
+        kind: url.searchParams.get('kind'),
+        topic: url.searchParams.get('topic'),
+        name: url.searchParams.get('name'),
+        url: url.searchParams.get('url'),
+        agentId: url.searchParams.get('agentId'),
+        after: url.searchParams.get('after'),
+        before: url.searchParams.get('before'),
+        sort: url.searchParams.get('sort') || 'count',
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined
+      };
+      const accept = req.headers.accept || '';
+      const result = await api.sources(opts);
+      if (accept.includes('text/markdown')) {
+        const markdown = await api.sourcesToMarkdown(opts);
+        res.setHeader('content-type', 'text/markdown');
+        return res.end(markdown);
+      }
+      return sendJson(res, 200, result);
+    }
     if (topicMatch && method === 'GET') {
       const topic = decodeURIComponent(topicMatch[1]);
       const opts = {

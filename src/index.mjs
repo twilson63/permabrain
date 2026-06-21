@@ -46,6 +46,12 @@ export { HyperbeamTransport, ArweaveTransport, LocalTransport, getTransport, pro
 // Article directory list
 export { listArticles, listToMarkdown } from './list.mjs';
 
+// Topic, tag, agent, and source catalogs
+export { listTopics, topicsToMarkdown } from './topics.mjs';
+export { listTags, tagsToMarkdown } from './tag-index.mjs';
+export { listAgents, agentsToMarkdown } from './agents-catalog.mjs';
+export { listSources, sourcesToMarkdown } from './sources-catalog.mjs';
+
 // Export filtered article directory
 export { exportArticles, exportArticlesToMarkdown } from './export-articles.mjs';
 export { verifyDataItemById, verifyByKey, verifyItem } from './verify.mjs';
@@ -86,9 +92,6 @@ export { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, qu
 // Article-level metrics and dashboard stats
 export { computeMetrics, metricsToMarkdown } from './article-metrics.mjs';
 export { computeStats, statsToMarkdown } from './stats.mjs';
-export { listTopics, topicsToMarkdown } from './topics.mjs';
-export { listTags, tagsToMarkdown } from './tag-index.mjs';
-export { listAgents, agentsToMarkdown } from './agents-catalog.mjs';
 
 // Bundle export/import
 export { exportBundle, exportAllArticles, importBundle, buildBundle } from './bundle.mjs';

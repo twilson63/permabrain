@@ -43,6 +43,7 @@ import { computeStats, statsToMarkdown } from './stats.mjs';
 import { listTopics, topicsToMarkdown } from './topics.mjs';
 import { listTags, tagsToMarkdown } from './tag-index.mjs';
 import { listAgents, agentsToMarkdown } from './agents-catalog.mjs';
+import { listSources, sourcesToMarkdown } from './sources-catalog.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
@@ -2305,6 +2306,37 @@ const api = {
     if (opts.html) return identityReportToHtml(report);
     if (opts.markdown) return { ...report, markdown: identityReportToMarkdown(report) };
     return report;
+  },
+
+  /**
+   * List unique article sources from the local cache with counts and metadata.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.kind] - Filter by article kind
+   * @param {string} [opts.topic] - Filter by topic
+   * @param {string} [opts.name] - Substring filter on source name
+   * @param {string} [opts.url] - Substring filter on source URL
+   * @param {string} [opts.agentId] - Filter by authoring agent id substring
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {string} [opts.sort='count'] - count|name|latest|keys
+   * @param {number} [opts.limit] - Max rows to return
+   * @returns {Promise<Object>}
+   */
+  async sources(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return listSources({ home: this._home, ...opts });
+  },
+
+  /**
+   * Render the sources catalog as Markdown.
+   * @param {Object} [opts]
+   * @returns {Promise<string>}
+   */
+  async sourcesToMarkdown(opts = {}) {
+    const report = await this.sources(opts);
+    return sourcesToMarkdown(report);
   },
 
   /**
