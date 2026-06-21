@@ -427,6 +427,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
     <button class="btn-icon" id="peerSyncBtn" onclick="window.showPeerSync()" title="Peer sync">&#128260;</button>
+    <button class="btn-icon" id="remotesBtn" onclick="window.showRemotes()" title="Named remotes">&#127758;</button>
     <button class="btn-icon" id="configBtn" onclick="window.showConfig()" title="Node configuration">&#128295;</button>
     <button class="btn-icon" id="goalBtn" onclick="window.showGoal()" title="Goal / PRD planner">&#127919;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
@@ -584,7 +585,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -651,6 +652,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var identityState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'markdown'
   var configState = { data: null, loading: false, error: null, message: null, envData: null, validationResult: null, editPath: '', editValue: '' };
   var goalState = { text: '', result: null, loading: false, error: null, message: null };
+  var remotesState = { data: null, loading: false, error: null, message: null, actionLoading: false, showJson: true, apiKey: '', form: { name: '', url: '', transport: 'auto', description: '' } };
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -1635,6 +1637,10 @@ function statCard(label, value, cls) {
       if (releaseNotesState.unreleased) params.set('releaseNotesUnreleased', 'true');
       if (releaseNotesState.markdown) params.set('releaseNotesMarkdown', 'true');
     }
+    if (viewMode === 'remotes') {
+      if (remotesState.apiKey) params.set('remotesApiKey', remotesState.apiKey);
+      if (!remotesState.showJson) params.set('remotesShowJson', 'false');
+    }
     if (viewMode === 'search') {
       if (searchState.q) params.set('searchQ', searchState.q);
       if (searchState.kind) params.set('searchKind', searchState.kind);
@@ -1786,7 +1792,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1891,6 +1897,10 @@ function statCard(label, value, cls) {
       if (state.releaseNotesVersion) releaseNotesState.version = state.releaseNotesVersion;
       if (state.releaseNotesUnreleased === 'true') releaseNotesState.unreleased = true;
       if (state.releaseNotesMarkdown === 'true') releaseNotesState.markdown = true;
+    }
+    if (state.view === 'remotes') {
+      if (state.remotesApiKey) remotesState.apiKey = state.remotesApiKey;
+      if (state.remotesShowJson === 'false') remotesState.showJson = false;
     }
     if (state.view === 'search') {
       if (state.searchQ) searchState.q = state.searchQ;
@@ -3431,6 +3441,222 @@ function statCard(label, value, cls) {
   }
 
   window.renderSources = renderSources;
+
+  // --- Remotes panel ---
+  window.showRemotes = async function() {
+    viewMode = 'remotes';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchRemotes();
+    updateUrlState();
+  };
+
+  window.refreshRemotes = async function() {
+    await fetchRemotes();
+    updateUrlState();
+  };
+
+  window.setRemotesApiKey = async function(key) {
+    remotesState.apiKey = key || '';
+    await fetchRemotes();
+    updateUrlState();
+  };
+
+  window.setRemotesShowJson = function(show) {
+    remotesState.showJson = !!show;
+    if (viewMode === 'remotes') renderRemotes();
+    updateUrlState();
+  };
+
+  window.setRemoteForm = function(field, value) {
+    remotesState.form[field] = value || '';
+  };
+
+  function remoteApiKeyHeader() {
+    return remotesState.apiKey ? { 'Authorization': 'Bearer ' + remotesState.apiKey } : {};
+  }
+
+  async function fetchRemotes() {
+    if (!isLocalServer()) return;
+    remotesState.loading = true;
+    remotesState.error = null;
+    remotesState.message = null;
+    if (viewMode === 'remotes') renderRemotes();
+    try {
+      var r = await fetch('/api/v1/remotes', { headers: remoteApiKeyHeader() });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      remotesState.data = await r.json();
+      remotesState.loading = false;
+    } catch(e) {
+      remotesState.error = e.message;
+      remotesState.loading = false;
+    }
+    if (viewMode === 'remotes') renderRemotes();
+  }
+
+  window.fetchRemotes = fetchRemotes;
+
+  function renderRemoteUrl(r) {
+    return r.url || r.dataUrl || r.graphqlUrl || '(unset)';
+  }
+
+  function renderRemoteTransport(r) {
+    return r.transport || 'auto';
+  }
+
+  window.runRemoteAction = async function(action, params) {
+    if (!isLocalServer()) return;
+    remotesState.actionLoading = action;
+    remotesState.message = null;
+    remotesState.error = null;
+    if (viewMode === 'remotes') renderRemotes();
+    try {
+      var r = await fetch('/api/v1/remotes', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, remoteApiKeyHeader()),
+        body: JSON.stringify({ action: action, params: params || {} })
+      });
+      if (!r.ok) {
+        var errText = await r.text().catch(function() { return 'HTTP ' + r.status; });
+        throw new Error(errText || 'HTTP ' + r.status);
+      }
+      var result = await r.json();
+      remotesState.message = (result.remote?.name || result.defaultRemote || action) + ' ' + action + ' succeeded';
+      await fetchRemotes();
+      return result;
+    } catch(e) {
+      remotesState.error = e.message;
+      remotesState.actionLoading = false;
+      if (viewMode === 'remotes') renderRemotes();
+      throw e;
+    }
+  };
+
+  window.addRemoteFromForm = async function() {
+    var form = remotesState.form;
+    if (!form.name || !form.url) {
+      remotesState.error = 'Name and URL are required';
+      if (viewMode === 'remotes') renderRemotes();
+      return;
+    }
+    var params = { name: form.name, url: form.url };
+    if (form.transport && form.transport !== 'auto') params.transport = form.transport;
+    if (form.description) params.description = form.description;
+    await runRemoteAction('add', params);
+    remotesState.form = { name: '', url: '', transport: 'auto', description: '' };
+  };
+
+  window.removeRemoteByName = async function(name) {
+    if (!confirm('Remove remote "' + name + '"?')) return;
+    await runRemoteAction('remove', { name: name });
+  };
+
+  window.setDefaultRemoteByName = async function(name) {
+    await runRemoteAction('default', { name: name });
+  };
+
+  window.probeRemoteByName = async function(name) {
+    var result = await runRemoteAction('probe', { name: name });
+    remotesState.message = (result.name || name) + ' probe: ' + (result.ok ? 'ok' : 'failed') + ' (' + (result.transport || 'unknown') + ')';
+    if (viewMode === 'remotes') renderRemotes();
+  };
+
+  window.copyRemotesJson = function() {
+    if (!remotesState.data) return;
+    window.copyText(JSON.stringify(remotesState.data, null, 2));
+  };
+
+  window.downloadRemotesJson = function() {
+    if (!remotesState.data) return;
+    window.downloadText('permabrain-remotes.json', JSON.stringify(remotesState.data, null, 2));
+  };
+
+  function renderRemotes() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Remotes unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to manage named remotes.</p></div>';
+      return;
+    }
+    if (remotesState.loading && !remotesState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading remotes...</div>';
+      return;
+    }
+    if (remotesState.error && !remotesState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Remotes error</h2><p>' + esc(remotesState.error) + '</p><button class="btn-icon" onclick="window.refreshRemotes()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = remotesState.data || {};
+    var names = Object.keys(data.remotes || {});
+    var defaultRemote = data.defaultRemote;
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshRemotes()">&#x21BB; Refresh</button>' +
+      '<button class="btn-icon" onclick="window.copyRemotesJson()">Copy JSON</button>' +
+      '<button class="btn-icon" onclick="window.downloadRemotesJson()">Download JSON</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">API key ' +
+      '<input type="password" id="remotesApiKeyInput" data-testid="remotes-api-key" value="' + esc(remotesState.apiKey || '') + '" onchange="window.setRemotesApiKey(this.value)" placeholder="Bearer token" style="width:8rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Format ' +
+      '<select onchange="window.setRemotesShowJson(this.value === \'json\')" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="json"' + (remotesState.showJson ? ' selected' : '') + '>JSON</option>' +
+      '<option value="table"' + (!remotesState.showJson ? ' selected' : '') + '>Table</option>' +
+      '</select></label>' +
+      '</div>';
+
+    var addForm = '<div class="dashboard-section" style="margin-bottom:1rem">' +
+      '<h3 style="font-size:0.95rem;margin-bottom:0.5rem">Add remote</h3>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Name<br><input type="text" id="remoteNameInput" data-testid="remote-name-input" value="' + esc(remotesState.form.name || '') + '" oninput="window.setRemoteForm(\'name\', this.value)" placeholder="origin" style="font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">URL<br><input type="text" id="remoteUrlInput" data-testid="remote-url-input" value="' + esc(remotesState.form.url || '') + '" oninput="window.setRemoteForm(\'url\', this.value)" placeholder="https://..." style="width:16rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Transport<br><select id="remoteTransportInput" data-testid="remote-transport-input" onchange="window.setRemoteForm(\'transport\', this.value)" style="font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="auto"' + (remotesState.form.transport === 'auto' ? ' selected' : '') + '>auto</option>' +
+      '<option value="arweave"' + (remotesState.form.transport === 'arweave' ? ' selected' : '') + '>arweave</option>' +
+      '<option value="hyperbeam"' + (remotesState.form.transport === 'hyperbeam' ? ' selected' : '') + '>hyperbeam</option>' +
+      '<option value="local"' + (remotesState.form.transport === 'local' ? ' selected' : '') + '>local</option>' +
+      '</select></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Description<br><input type="text" id="remoteDescriptionInput" data-testid="remote-description-input" value="' + esc(remotesState.form.description || '') + '" oninput="window.setRemoteForm(\'description\', this.value)" placeholder="optional" style="width:12rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<button class="btn-icon" data-testid="remote-add-btn" onclick="window.addRemoteFromForm()">Add</button>' +
+      '</div></div>';
+
+    var msg = '';
+    if (remotesState.message) msg += '<p style="margin:0.5rem 0;color:var(--green)">' + esc(remotesState.message) + '</p>';
+    if (remotesState.error) msg += '<p style="margin:0.5rem 0;color:var(--red)">' + esc(remotesState.error) + '</p>';
+    if (remotesState.actionLoading) msg += '<p style="margin:0.5rem 0;color:var(--muted)">Running ' + esc(remotesState.actionLoading) + '...</p>';
+
+    if (!names.length) {
+      main.innerHTML = '<div class="home"><h1>&#127758; <span>Remotes</span></h1><p class="home-subtitle">Manage named remote endpoints</p>' + toolbar + addForm + msg + '<p class="dashboard-empty">No remotes configured.</p></div>';
+      return;
+    }
+
+    var body;
+    if (remotesState.showJson) {
+      body = '<pre style="font-size:0.78rem;overflow:auto;background:var(--surface);padding:0.8rem;border-radius:6px;border:1px solid var(--border);max-height:24rem">' + esc(JSON.stringify(data, null, 2)) + '</pre>';
+    } else {
+      var rows = names.map(function(name) {
+        var r = data.remotes[name];
+        var isDefault = defaultRemote === name;
+        return '<tr><td class="mono">' + esc(name) + (isDefault ? ' <span style="font-size:0.7rem;color:var(--green)">[default]</span>' : '') + '</td>' +
+          '<td class="mono">' + esc(renderRemoteUrl(r)) + '</td>' +
+          '<td>' + esc(renderRemoteTransport(r)) + '</td>' +
+          '<td>' + esc(r.description || '—') + '</td>' +
+          '<td>' + esc(r.createdAt ? fmtDate(r.createdAt) : '—') + '</td>' +
+          '<td style="white-space:nowrap">' +
+          '<button class="btn-icon" data-testid="remote-probe-' + esc(name) + '" onclick="window.probeRemoteByName(\'' + esc(name) + '\')">Probe</button>' +
+          (isDefault ? '' : '<button class="btn-icon" data-testid="remote-default-' + esc(name) + '" onclick="window.setDefaultRemoteByName(\'' + esc(name) + '\')">Set default</button>') +
+          '<button class="btn-icon" data-testid="remote-remove-' + esc(name) + '" onclick="window.removeRemoteByName(\'' + esc(name) + '\')">Remove</button>' +
+          '</td></tr>';
+      }).join('');
+      body = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+        '<th>Name</th><th>URL</th><th>Transport</th><th>Description</th><th>Added</th><th>Actions</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+
+    main.innerHTML = '<div class="home"><h1>&#127758; <span>Remotes</span></h1><p class="home-subtitle">Manage named remote endpoints</p>' + toolbar + addForm + msg + body + '</div>';
+  }
+
+  window.renderRemotes = renderRemotes;
 
   // --- Forks panel ---
   window.showForks = async function() {
@@ -7936,6 +8162,11 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'identity') window.showIdentity();
         else if (bootState.view === 'config') window.showConfig();
         else if (bootState.view === 'goal') window.showGoal();
+        else if (bootState.view === 'remotes') {
+          if (bootState.remotesApiKey) remotesState.apiKey = bootState.remotesApiKey;
+          if (bootState.remotesShowJson === 'false') remotesState.showJson = false;
+          window.showRemotes();
+        }
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -7973,6 +8204,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'identity') window.showIdentity();
   else if (viewMode === 'config') window.showConfig();
   else if (viewMode === 'goal') window.showGoal();
+  else if (viewMode === 'remotes') window.showRemotes();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
