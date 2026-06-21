@@ -410,6 +410,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="metricsBtn" onclick="window.showMetrics()" title="Runtime metrics">&#128240;</button>
     <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
+    <button class="btn-icon" id="forksBtn" onclick="window.showForks()" title="Forks">&#127807;</button>
     <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
     <button class="btn-icon" id="importExportBtn" onclick="window.showImportExport()" title="Import / Export">&#128260;</button>
     <button class="btn-icon" id="composeBtn" onclick="window.showCompose()" title="Compose article">&#9998;</button>
@@ -582,7 +583,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -632,6 +633,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var historyLoading = false;
   var historyError = null;
   var historyPanelState = { key: '', data: null, loading: false, error: null, selected: [], diffResult: null, diffLoading: false, diffError: null };
+  var forksState = { key: '', data: null, loading: false, error: null, sort: 'key', limit: 100 };
   var statsData = null;
   var statsLoading = false;
   var statsError = null;
@@ -1546,6 +1548,11 @@ function statCard(label, value, cls) {
       if (compareState.head) params.set('compareHead', compareState.head);
       if (compareState.base || compareState.head) params.set('compare', 'a');
     }
+    if (viewMode === 'forks') {
+      if (forksState.key) params.set('forksKey', forksState.key);
+      if (forksState.sort && forksState.sort !== 'key') params.set('forksSort', forksState.sort);
+      if (forksState.limit && forksState.limit !== 100) params.set('forksLimit', String(forksState.limit));
+    }
     if (viewMode === 'history') {
       if (historyPanelState.key) params.set('historyKey', historyPanelState.key);
     }
@@ -1734,7 +1741,10 @@ function statCard(label, value, cls) {
       searchBefore: params.get('searchBefore') || '',
       searchLimit: params.get('searchLimit') || '',
       searchOffset: params.get('searchOffset') || '',
-      searchSort: params.get('searchSort') || ''
+      searchSort: params.get('searchSort') || '',
+      forksKey: params.get('forksKey') || '',
+      forksSort: params.get('forksSort') || '',
+      forksLimit: params.get('forksLimit') || ''
     };
   }
 
@@ -1774,7 +1784,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','identity','config','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1807,6 +1817,11 @@ function statCard(label, value, cls) {
     if (state.compareBase) compareState.base = state.compareBase;
     if (state.compareHead) compareState.head = state.compareHead;
     if (state.view === 'history' && state.historyKey) historyPanelState.key = state.historyKey;
+    if (state.view === 'forks') {
+      if (state.forksKey) forksState.key = state.forksKey;
+      if (state.forksSort) forksState.sort = state.forksSort;
+      if (state.forksLimit) { var fl = parseInt(state.forksLimit, 10); if (!isNaN(fl) && fl > 0) forksState.limit = fl; }
+    }
     if (state.view === 'attest') {
       if (state.attestKey) attestState.selectedKey = state.attestKey;
       if (state.attestOpinion) attestState.opinion = state.attestOpinion;
@@ -3248,6 +3263,163 @@ function statCard(label, value, cls) {
   }
 
   window.renderSources = renderSources;
+
+  // --- Forks panel ---
+  window.showForks = async function() {
+    viewMode = 'forks';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchForks();
+    updateUrlState();
+  };
+
+  window.refreshForks = async function() {
+    await fetchForks();
+    updateUrlState();
+  };
+
+  window.setForksKey = async function(key) {
+    forksState.key = (key || '').trim();
+    await fetchForks();
+    updateUrlState();
+  };
+
+  window.setForksSort = async function(sort) {
+    forksState.sort = sort || 'key';
+    await fetchForks();
+    updateUrlState();
+  };
+
+  window.setForksLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    forksState.limit = (!isNaN(n) && n > 0) ? n : 100;
+    await fetchForks();
+    updateUrlState();
+  };
+
+  window.openForkCompare = function(forkKey) {
+    if (!forksState.key) return;
+    compareState.base = forksState.key;
+    compareState.head = forkKey || '';
+    window.showCompare();
+  };
+
+  window.openForkArticle = function(key) {
+    if (!key) return;
+    selectedKey = key;
+    activeTab = 'content';
+    viewMode = 'article';
+    openArticle(key);
+  };
+
+  async function fetchForks() {
+    if (!isLocalServer()) return;
+    forksState.loading = true;
+    forksState.error = null;
+    if (viewMode === 'forks') renderForks();
+    try {
+      if (!forksState.key) {
+        forksState.data = { source: forksState.key, forks: [], count: 0 };
+        forksState.loading = false;
+      } else {
+        var params = new URLSearchParams();
+        params.set('sort', forksState.sort || 'key');
+        if (forksState.limit && forksState.limit !== 100) params.set('limit', String(forksState.limit));
+        var r = await fetch('/api/v1/articles/' + encodeURIComponent(forksState.key) + '/forks?' + params.toString());
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        forksState.data = await r.json();
+        forksState.loading = false;
+      }
+    } catch(e) {
+      forksState.error = e.message;
+      forksState.loading = false;
+    }
+    if (viewMode === 'forks') renderForks();
+  }
+
+  window.fetchForks = fetchForks;
+
+  function renderForks() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Forks unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to list article forks.</p></div>';
+      return;
+    }
+    if (forksState.loading && !forksState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading forks...</div>';
+      return;
+    }
+    if (forksState.error && !forksState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Forks error</h2><p>' + esc(forksState.error) + '</p><button class="btn-icon" onclick="window.refreshForks()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = forksState.data || { source: forksState.key, forks: [], count: 0 };
+    var forks = data.forks || [];
+    var count = typeof data.count === 'number' ? data.count : forks.length;
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Source key ' +
+      '<input type="text" id="forksKeyInput" value="' + esc(forksState.key) + '" placeholder="subject/article" onchange="window.setForksKey(this.value)" style="width:14rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '</label>' +
+      '<button class="btn-icon" onclick="window.setForksKey(document.getElementById(\'forksKeyInput\').value)">&#x1F50D; Load</button>' +
+      '<button class="btn-icon" onclick="window.refreshForks()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Sort ' +
+      '<select onchange="window.setForksSort(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="key"' + (forksState.sort === 'key' ? ' selected' : '') + '>Key</option>' +
+      '<option value="date"' + (forksState.sort === 'date' ? ' selected' : '') + '>Date</option>' +
+      '<option value="title"' + (forksState.sort === 'title' ? ' selected' : '') + '>Title</option>' +
+      '</select></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
+      '<input type="number" min="1" max="1000" value="' + esc(String(forksState.limit)) + '" onchange="window.setForksLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '</div>';
+
+    var header = '<div class="home"><h1>&#127807; <span>Forks</span></h1><p class="home-subtitle">List and compare forks of an article</p></div>';
+
+    if (!forksState.key) {
+      main.innerHTML = header + toolbar + '<p class="dashboard-empty">Enter a source article key above to load its forks.</p>';
+      return;
+    }
+
+    var cards = forks.map(function(f) {
+      var key = esc(f.key || '');
+      var title = esc(f.title || f.key || '(untitled)');
+      var meta = [];
+      if (f.version !== undefined && f.version !== null) meta.push('v' + esc(String(f.version)));
+      if (f.topic) meta.push('topic:' + esc(f.topic));
+      if (f.kind) meta.push(esc(f.kind));
+      if (f.createdAt) meta.push(fmtDate(f.createdAt));
+      var metaStr = meta.length ? '<span style="font-size:0.75rem;color:var(--muted)">' + meta.join(' · ') + '</span>' : '';
+      var links = '<div style="margin-top:0.35rem;display:flex;gap:0.5rem;flex-wrap:wrap">' +
+        '<a href="?view=article&key=' + encodeURIComponent(key) + '" class="btn-icon" style="text-decoration:none">Open article</a>' +
+        '<button class="btn-icon" onclick="window.openForkCompare(\'' + key.replace(/\\'/g, "\\'") + '\')">Compare</button>' +
+        '<a href="?view=compare&compareBase=' + encodeURIComponent(forksState.key) + '&compareHead=' + encodeURIComponent(key) + '" class="btn-icon" style="text-decoration:none">Merge prep</a>' +
+        '</div>';
+      return '<div class="dashboard-section" style="padding:0.75rem 1rem;margin-bottom:0.5rem">' +
+        '<div class="mono" style="font-weight:600;margin-bottom:0.25rem">' + title + '</div>' +
+        '<div class="mono" style="font-size:0.8rem;color:var(--accent);margin-bottom:0.25rem">' + key + '</div>' +
+        (f.excerpt ? '<p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.35rem">' + esc(f.excerpt) + '</p>' : '') +
+        metaStr +
+        links +
+        '</div>';
+    }).join('');
+
+    if (!cards) {
+      main.innerHTML = header + toolbar + '<p class="dashboard-empty">No forks found for <code>' + esc(forksState.key) + '</code>.</p>';
+      return;
+    }
+
+    var summary = '<div class="stats-grid" style="margin-top:0.75rem">' +
+      statCard('Source', esc(forksState.key), 'key') +
+      statCard('Forks', String(count), 'forks') +
+      '</div>';
+
+    main.innerHTML = header + toolbar + summary + '<div style="margin-top:0.75rem">' + cards + '</div>';
+  }
+
+  window.renderForks = renderForks;
 
   // --- Search panel ---
   window.showSearch = async function() {
@@ -7568,6 +7740,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'metrics') window.showMetrics();
         else if (bootState.view === 'audit') window.showAudit();
         else if (bootState.view === 'compare') window.showCompare();
+        else if (bootState.view === 'forks') window.showForks();
         else if (bootState.view === 'import-export') {
           if (bootState.exportKey) exportImportState.exportKey = bootState.exportKey;
           if (bootState.exportMode) exportImportState.exportMode = bootState.exportMode;
@@ -7617,6 +7790,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'tags') window.showTags();
   else if (viewMode === 'agents') window.showAgents();
   else if (viewMode === 'sources') window.showSources();
+  else if (viewMode === 'forks') window.showForks();
   else if (viewMode === 'kinds') window.showKinds();
   else if (viewMode === 'languages') window.showLanguages();
   else if (viewMode === 'activity') window.showActivity();

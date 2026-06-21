@@ -531,7 +531,7 @@ async function handleRequest(req, res, home, options = {}) {
     const keyMatch = route.match(/^\/api\/v1\/articles\/(.+)$/);
     if (keyMatch) {
       const key = decodeURIComponent(keyMatch[1]);
-      const subMatch = key.match(/^(.+)\/(attest|consensus|history|fork|merge)$/);
+      const subMatch = key.match(/^(.+)\/(attest|consensus|history|fork|forks|merge)$/);
       const articleKey = subMatch ? subMatch[1] : key;
       const subAction = subMatch ? subMatch[2] : null;
 
@@ -562,18 +562,16 @@ async function handleRequest(req, res, home, options = {}) {
         return sendJson(res, 200, result);
       }
 
+      if (method === 'GET' && subAction === 'forks') {
+        const result = await api.listForks(articleKey, { useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) });
+        return sendJson(res, 200, { forks: result, count: result.length });
+      }
+
       if (method === 'POST' && subAction === 'fork') {
         const body = bodyOrRead || await readBody(req);
         const result = await api.fork(articleKey, body, body);
         return sendJson(res, 201, result);
       }
-    }
-
-    const forksMatch = route.match(/^\/api\/v1\/articles\/(.+)\/forks$/);
-    if (forksMatch && method === 'GET') {
-      const sourceKey = decodeURIComponent(forksMatch[1]);
-      const result = await api.listForks(sourceKey, { useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam')) });
-      return sendJson(res, 200, { forks: result, count: result.length });
     }
 
     if (method === 'POST' && route === '/api/v1/merge') {
