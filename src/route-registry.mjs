@@ -308,6 +308,23 @@ export const ROUTES = [
     response: { generatedAt: 'string', home: 'string', filters: 'object', totals: 'object', kinds: 'array' }
   },
   {
+    route: '/api/v1/languages',
+    method: 'GET',
+    description: 'List unique article languages from the local cache with counts and metadata.',
+    public: false,
+    params: [
+      { name: 'topic', in: 'query', type: 'string', required: false },
+      { name: 'kind', in: 'query', type: 'string', required: false },
+      { name: 'source', in: 'query', type: 'string', required: false },
+      { name: 'agent', in: 'query', type: 'string', required: false },
+      { name: 'after', in: 'query', type: 'string', required: false },
+      { name: 'before', in: 'query', type: 'string', required: false },
+      { name: 'sort', in: 'query', type: 'string', required: false },
+      { name: 'limit', in: 'query', type: 'integer', required: false }
+    ],
+    response: { generatedAt: 'string', home: 'string', filters: 'object', totals: 'object', languages: 'array' }
+  },
+  {
     route: '/api/v1/topics/:topic',
     method: 'GET',
     description: 'List articles for a topic.',

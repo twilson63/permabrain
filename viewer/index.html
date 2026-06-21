@@ -418,6 +418,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="agentsBtn" onclick="window.showAgents()" title="Agents catalog">&#128100;</button>
     <button class="btn-icon" id="sourcesBtn" onclick="window.showSources()" title="Sources catalog">&#128279;</button>
     <button class="btn-icon" id="kindsBtn" onclick="window.showKinds()" title="Kinds catalog">&#128230;</button>
+    <button class="btn-icon" id="languagesBtn" onclick="window.showLanguages()" title="Languages catalog">&#127760;</button>
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
@@ -577,7 +578,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -621,6 +622,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var agentsState = { data: null, loading: false, error: null, sort: 'articles', limit: 100 };
   var sourcesState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var kindsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
+  var languagesState = { data: null, loading: false, error: null, sort: 'count', limit: 100, filters: { topic: '', kind: '', source: '', agent: '', after: '', before: '' } };
   var metricsState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'prometheus'
   var historyData = {};       // key -> history payload from local API (used by article tab + modal)
   var historyLoading = false;
@@ -1595,6 +1597,16 @@ function statCard(label, value, cls) {
       if (kindsState.sort && kindsState.sort !== 'count') params.set('kindsSort', kindsState.sort);
       if (kindsState.limit && kindsState.limit !== 100) params.set('kindsLimit', String(kindsState.limit));
     }
+    if (viewMode === 'languages') {
+      if (languagesState.sort && languagesState.sort !== 'count') params.set('languagesSort', languagesState.sort);
+      if (languagesState.limit && languagesState.limit !== 100) params.set('languagesLimit', String(languagesState.limit));
+      if (languagesState.filters.topic) params.set('languagesTopic', languagesState.filters.topic);
+      if (languagesState.filters.kind) params.set('languagesKind', languagesState.filters.kind);
+      if (languagesState.filters.source) params.set('languagesSource', languagesState.filters.source);
+      if (languagesState.filters.agent) params.set('languagesAgent', languagesState.filters.agent);
+      if (languagesState.filters.after) params.set('languagesAfter', languagesState.filters.after);
+      if (languagesState.filters.before) params.set('languagesBefore', languagesState.filters.before);
+    }
     if (viewMode === 'bookmarks') {
       if (bookmarksState.selectedName) params.set('bookmark', bookmarksState.selectedName);
     }
@@ -1657,6 +1669,14 @@ function statCard(label, value, cls) {
       sourcesLimit: params.get('sourcesLimit') || '',
       kindsSort: params.get('kindsSort') || '',
       kindsLimit: params.get('kindsLimit') || '',
+      languagesSort: params.get('languagesSort') || '',
+      languagesLimit: params.get('languagesLimit') || '',
+      languagesTopic: params.get('languagesTopic') || '',
+      languagesKind: params.get('languagesKind') || '',
+      languagesSource: params.get('languagesSource') || '',
+      languagesAgent: params.get('languagesAgent') || '',
+      languagesAfter: params.get('languagesAfter') || '',
+      languagesBefore: params.get('languagesBefore') || '',
       metricsFormat: params.get('metricsFormat') || '',
       peerRemoteUrl: params.get('peerRemoteUrl') || '',
       peerRemoteApiKey: params.get('peerRemoteApiKey') || '',
@@ -1712,7 +1732,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1774,6 +1794,16 @@ function statCard(label, value, cls) {
     if (state.view === 'kinds') {
       if (state.kindsSort) kindsState.sort = state.kindsSort;
       if (state.kindsLimit) { var kl = parseInt(state.kindsLimit, 10); if (!isNaN(kl) && kl > 0) kindsState.limit = kl; }
+    }
+    if (state.view === 'languages') {
+      if (state.languagesSort) languagesState.sort = state.languagesSort;
+      if (state.languagesLimit) { var ll = parseInt(state.languagesLimit, 10); if (!isNaN(ll) && ll > 0) languagesState.limit = ll; }
+      if (state.languagesTopic) languagesState.filters.topic = state.languagesTopic;
+      if (state.languagesKind) languagesState.filters.kind = state.languagesKind;
+      if (state.languagesSource) languagesState.filters.source = state.languagesSource;
+      if (state.languagesAgent) languagesState.filters.agent = state.languagesAgent;
+      if (state.languagesAfter) languagesState.filters.after = state.languagesAfter;
+      if (state.languagesBefore) languagesState.filters.before = state.languagesBefore;
     }
     if (state.view === 'metrics') {
       if (state.metricsFormat) metricsState.format = state.metricsFormat;
@@ -2330,6 +2360,160 @@ function statCard(label, value, cls) {
   }
 
   window.renderKinds = renderKinds;
+
+  // --- Languages catalog panel ---
+  window.showLanguages = async function() {
+    viewMode = 'languages';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchLanguages();
+    updateUrlState();
+  };
+
+  window.refreshLanguages = async function() {
+    await fetchLanguages();
+    updateUrlState();
+  };
+
+  window.setLanguagesSort = async function(sort) {
+    languagesState.sort = sort || 'count';
+    await fetchLanguages();
+    updateUrlState();
+  };
+
+  window.setLanguagesLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    languagesState.limit = (!isNaN(n) && n > 0) ? n : 100;
+    await fetchLanguages();
+    updateUrlState();
+  };
+
+  window.setLanguagesFilter = async function(key, value) {
+    languagesState.filters[key] = value || '';
+    await fetchLanguages();
+    updateUrlState();
+  };
+
+  window.resetLanguagesFilters = async function() {
+    languagesState.filters = { topic: '', kind: '', source: '', agent: '', after: '', before: '' };
+    await fetchLanguages();
+    updateUrlState();
+  };
+
+  async function fetchLanguages() {
+    if (!isLocalServer()) return;
+    languagesState.loading = true;
+    languagesState.error = null;
+    if (viewMode === 'languages') renderLanguages();
+    try {
+      var params = new URLSearchParams();
+      params.set('sort', languagesState.sort || 'count');
+      if (languagesState.limit && languagesState.limit !== 100) params.set('limit', String(languagesState.limit));
+      var f = languagesState.filters || {};
+      if (f.topic) params.set('topic', f.topic);
+      if (f.kind) params.set('kind', f.kind);
+      if (f.source) params.set('source', f.source);
+      if (f.agent) params.set('agent', f.agent);
+      if (f.after) params.set('after', f.after);
+      if (f.before) params.set('before', f.before);
+      var r = await fetch('/api/v1/languages?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      languagesState.data = await r.json();
+      languagesState.loading = false;
+    } catch(e) {
+      languagesState.error = e.message;
+      languagesState.loading = false;
+    }
+    if (viewMode === 'languages') renderLanguages();
+  }
+
+  window.fetchLanguages = fetchLanguages;
+
+  function renderLanguages() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Languages catalog unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to browse article languages.</p></div>';
+      return;
+    }
+    if (languagesState.loading && !languagesState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading languages catalog...</div>';
+      return;
+    }
+    if (languagesState.error && !languagesState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Languages catalog error</h2><p>' + esc(languagesState.error) + '</p><button class="btn-icon" onclick="window.refreshLanguages()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = languagesState.data || {};
+    var languages = data.languages || [];
+    var totals = data.totals || {};
+    var f = languagesState.filters || {};
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshLanguages()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Sort ' +
+      '<select onchange="window.setLanguagesSort(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="count"' + (languagesState.sort === 'count' ? ' selected' : '') + '>Count</option>' +
+      '<option value="name"' + (languagesState.sort === 'name' ? ' selected' : '') + '>Name</option>' +
+      '<option value="latest"' + (languagesState.sort === 'latest' ? ' selected' : '') + '>Latest</option>' +
+      '<option value="keys"' + (languagesState.sort === 'keys' ? ' selected' : '') + '>Unique keys</option>' +
+      '</select></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
+      '<input type="number" min="1" max="1000" value="' + esc(String(languagesState.limit)) + '" onchange="window.setLanguagesLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<button class="btn-icon" onclick="window.resetLanguagesFilters()">Reset filters</button>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '</div>';
+
+    var filterRow = '<div class="dashboard-toolbar" style="flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Topic ' +
+      '<input type="text" value="' + esc(f.topic || '') + '" onchange="window.setLanguagesFilter(\'topic\', this.value)" style="width:7rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Kind ' +
+      '<input type="text" value="' + esc(f.kind || '') + '" onchange="window.setLanguagesFilter(\'kind\', this.value)" style="width:7rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Source ' +
+      '<input type="text" value="' + esc(f.source || '') + '" onchange="window.setLanguagesFilter(\'source\', this.value)" style="width:7rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Agent ' +
+      '<input type="text" value="' + esc(f.agent || '') + '" onchange="window.setLanguagesFilter(\'agent\', this.value)" style="width:7rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">After ' +
+      '<input type="date" value="' + esc(f.after || '') + '" onchange="window.setLanguagesFilter(\'after\', this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Before ' +
+      '<input type="date" value="' + esc(f.before || '') + '" onchange="window.setLanguagesFilter(\'before\', this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '</div>';
+
+    var stats = '<div class="stats-grid">' +
+      statCard('Languages', String(totals.languages || 0), 'languages') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      '</div>';
+
+    if (!languages.length) {
+      main.innerHTML = '<div class="home"><h1>&#127760; <span>Languages</span></h1><p class="home-subtitle">Browse article languages from the local catalog</p>' + toolbar + filterRow + stats + '<p class="dashboard-empty">No languages found.</p></div>';
+      return;
+    }
+
+    var rows = languages.map(function(l) {
+      var topics = Object.entries(l.byTopic || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var kinds = Object.entries(l.byKind || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var sources = Object.entries(l.bySource || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var agents = Object.entries(l.byAgent || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      return '<tr><td class="mono"><a href="?view=home&language=' + encodeURIComponent(l.name) + '" style="color:var(--accent);text-decoration:none">' + esc(l.name) + '</a></td>' +
+        '<td style="text-align:center">' + esc(String(l.count)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(l.uniqueKeys)) + '</td>' +
+        '<td>' + esc(l.latestAt ? fmtDate(l.latestAt) : '—') + '</td>' +
+        '<td>' + (topics || '—') + '</td>' +
+        '<td>' + (kinds || '—') + '</td>' +
+        '<td>' + (sources || '—') + '</td>' +
+        '<td>' + (agents || '—') + '</td></tr>';
+    }).join('');
+
+    var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+      '<th>Language</th><th>Articles</th><th>Unique keys</th><th>Latest</th><th>Topics</th><th>Kinds</th><th>Sources</th><th>Agents</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#127760; <span>Languages</span></h1><p class="home-subtitle">Browse article languages from the local catalog</p>' + toolbar + filterRow + stats + table + '</div>';
+  }
+
+  window.renderLanguages = renderLanguages;
 
   // --- Tags catalog panel ---
   window.showTags = async function() {
@@ -6761,6 +6945,8 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'tags') window.showTags();
         else if (bootState.view === 'agents') window.showAgents();
         else if (bootState.view === 'sources') window.showSources();
+        else if (bootState.view === 'kinds') window.showKinds();
+        else if (bootState.view === 'languages') window.showLanguages();
         else if (bootState.view === 'attest') window.showAttest();
         else if (bootState.view === 'batch-attest') window.showBatchAttest();
         else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
@@ -6790,6 +6976,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'agents') window.showAgents();
   else if (viewMode === 'sources') window.showSources();
   else if (viewMode === 'kinds') window.showKinds();
+  else if (viewMode === 'languages') window.showLanguages();
   else if (viewMode === 'activity') window.showActivity();
   else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'batch-attest') window.showBatchAttest();

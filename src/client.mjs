@@ -205,6 +205,12 @@ export function createClient(options = {}) {
     /** @returns {Promise<string>} Markdown kinds catalog. */
     kindsMarkdown: (opts = {}) => request('GET', `/api/v1/kinds${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
 
+    /** @returns {Promise<Object>} Languages catalog. */
+    languages: (opts = {}) => request('GET', `/api/v1/languages${toQuery(opts)}`),
+
+    /** @returns {Promise<string>} Markdown languages catalog. */
+    languagesMarkdown: (opts = {}) => request('GET', `/api/v1/languages${toQuery(opts)}`, undefined, { accept: 'text/markdown' }),
+
     /** @returns {Promise<Object>} */
     batchAttest: (body) => request('POST', '/api/v1/batch-attest', body),
 
