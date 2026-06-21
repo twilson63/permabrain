@@ -426,6 +426,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
     <button class="btn-icon" id="peerSyncBtn" onclick="window.showPeerSync()" title="Peer sync">&#128260;</button>
+    <button class="btn-icon" id="configBtn" onclick="window.showConfig()" title="Node configuration">&#128295;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -581,7 +582,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -645,6 +646,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var releaseNotesState = { data: null, loading: false, error: null, markdown: false, version: '', unreleased: false };
   var searchState = { q: '', kind: '', topic: '', author: '', key: '', after: '', before: '', limit: 20, offset: 0, sort: 'relevance', loading: false, error: null, results: null, total: 0 };
   var identityState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'markdown'
+  var configState = { data: null, loading: false, error: null, message: null, envData: null, validationResult: null, editPath: '', editValue: '' };
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -1772,7 +1774,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','identity','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','identity','config','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -2303,6 +2305,207 @@ function statCard(label, value, cls) {
   }
 
   window.renderIdentity = renderIdentity;
+
+  // --- Config panel ---
+  window.showConfig = async function() {
+    viewMode = 'config';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchConfig();
+    updateUrlState();
+  };
+
+  window.refreshConfig = async function() {
+    await fetchConfig();
+    updateUrlState();
+  };
+
+  window.runConfigValidate = async function() {
+    if (!isLocalServer()) return;
+    configState.loading = true;
+    configState.error = null;
+    configState.message = null;
+    renderConfig();
+    try {
+      var r = await fetch('/api/v1/config?action=validate');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      configState.validationResult = await r.json();
+      configState.message = configState.validationResult.ok ? 'Configuration is valid' : 'Configuration has errors';
+    } catch (e) {
+      configState.error = e.message;
+    }
+    configState.loading = false;
+    renderConfig();
+  };
+
+  window.runConfigEnv = async function() {
+    if (!isLocalServer()) return;
+    configState.loading = true;
+    configState.error = null;
+    configState.message = null;
+    renderConfig();
+    try {
+      var r = await fetch('/api/v1/config?action=env');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      configState.envData = data.env;
+      configState.message = 'Environment variables loaded';
+    } catch (e) {
+      configState.error = e.message;
+    }
+    configState.loading = false;
+    renderConfig();
+  };
+
+  window.runConfigReset = async function() {
+    if (!isLocalServer()) return;
+    if (!confirm('Reset configuration to defaults? This cannot be undone.')) return;
+    configState.loading = true;
+    configState.error = null;
+    configState.message = null;
+    configState.envData = null;
+    configState.validationResult = null;
+    renderConfig();
+    try {
+      var r = await fetch('/api/v1/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'reset' }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      configState.message = 'Configuration reset to defaults';
+      await fetchConfig();
+    } catch (e) {
+      configState.error = e.message;
+      configState.loading = false;
+      renderConfig();
+    }
+  };
+
+  window.runConfigSet = async function(path, value) {
+    if (!isLocalServer()) return;
+    if (!path) { configState.error = 'Path is required'; renderConfig(); return; }
+    configState.loading = true;
+    configState.error = null;
+    configState.message = null;
+    configState.envData = null;
+    configState.validationResult = null;
+    configState.editPath = path;
+    configState.editValue = value;
+    renderConfig();
+    try {
+      var r = await fetch('/api/v1/config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'set', path: path, value: value }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      configState.message = 'Set ' + data.path + ' = ' + JSON.stringify(data.value);
+      configState.editPath = '';
+      configState.editValue = '';
+      await fetchConfig();
+    } catch (e) {
+      configState.error = e.message;
+      configState.loading = false;
+      renderConfig();
+    }
+  };
+
+  async function fetchConfig() {
+    if (!isLocalServer()) return;
+    configState.loading = true;
+    configState.error = null;
+    if (viewMode === 'config') renderConfig();
+    try {
+      var r = await fetch('/api/v1/config');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      configState.data = await r.json();
+      configState.loading = false;
+    } catch (e) {
+      configState.error = e.message;
+      configState.loading = false;
+    }
+    if (viewMode === 'config') renderConfig();
+  }
+
+  window.fetchConfig = fetchConfig;
+
+  function flattenConfigForRender(config, prefix) {
+    var out = [];
+    for (var k in config) {
+      if (!Object.prototype.hasOwnProperty.call(config, k)) continue;
+      var p = prefix ? prefix + '.' + k : k;
+      var v = config[k];
+      if (v && typeof v === 'object' && !Array.isArray(v)) out = out.concat(flattenConfigForRender(v, p));
+      else out.push({ path: p, value: v });
+    }
+    return out;
+  }
+
+  function renderConfig() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Configuration panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to inspect and edit the local node configuration.</p></div>';
+      return;
+    }
+    if (configState.loading && !configState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading configuration...</div>';
+      return;
+    }
+    if (configState.error && !configState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Configuration error</h2><p>' + esc(configState.error) + '</p><button class="btn-icon" onclick="window.refreshConfig()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = configState.data || {};
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshConfig()">&#x21BB; Refresh</button>' +
+      '<button class="btn-icon" onclick="window.runConfigValidate()">Validate</button>' +
+      '<button class="btn-icon" onclick="window.runConfigEnv()">Env vars</button>' +
+      '<button class="btn-icon" onclick="window.runConfigReset()">Reset defaults</button>' +
+      '</div>';
+
+    var editor = '<div class="dashboard-toolbar" style="margin-top:0.5rem">' +
+      '<input id="configPathInput" type="text" placeholder="path (e.g. transport)" value="' + esc(configState.editPath || '') + '" style="min-width:12rem;padding:0.35rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text)">' +
+      '<input id="configValueInput" type="text" placeholder="value" value="' + esc(configState.editValue || '') + '" style="min-width:12rem;padding:0.35rem 0.6rem;border:1px solid var(--border);border-radius:6px;font-size:0.85rem;background:var(--bg);color:var(--text)">' +
+      '<button class="btn-icon" onclick="var p=document.getElementById(\'configPathInput\').value; var v=document.getElementById(\'configValueInput\').value; window.runConfigSet(p,v)">Set value</button>' +
+      '</div>';
+
+    var message = '';
+    if (configState.message) message += '<p style="margin:0.5rem 0;color:var(--green)">' + esc(configState.message) + '</p>';
+    if (configState.error) message += '<p style="margin:0.5rem 0;color:var(--red)">' + esc(configState.error) + '</p>';
+
+    var sections = [];
+    sections.push('<h2>Current configuration</h2><pre class="support-bundle-json">' + esc(JSON.stringify(data.config || {}, null, 2)) + '</pre>');
+
+    var flat = flattenConfigForRender(data.config || {});
+    if (flat.length) {
+      var rows = flat.map(function(item) {
+        return '<tr><td><code>' + esc(item.path) + '</code></td><td><code>' + esc(JSON.stringify(item.value)) + '</code></td></tr>';
+      }).join('');
+      sections.push('<h2>Flat values</h2><table class="audit-table"><thead><tr><th>Path</th><th>Value</th></tr></thead><tbody>' + rows + '</tbody></table>');
+    }
+
+    if (data.sources && Object.keys(data.sources).length) {
+      var src = Object.keys(data.sources).map(function(k) { return k + ' [' + (data.sources[k].from || 'config') + ']'; }).join(', ');
+      sections.push('<p class="home-subtitle">Sources: ' + esc(src) + '</p>');
+    }
+
+    if (configState.validationResult) {
+      var v = configState.validationResult;
+      var vhtml = '<h2>Validation</h2><p>OK: ' + (v.ok ? 'yes' : 'no') + '</p>';
+      if (v.errors && v.errors.length) vhtml += '<ul>' + v.errors.map(function(e) { return '<li style="color:var(--red)">' + esc(e) + '</li>'; }).join('') + '</ul>';
+      if (v.warnings && v.warnings.length) vhtml += '<ul>' + v.warnings.map(function(w) { return '<li style="color:var(--orange)">' + esc(w) + '</li>'; }).join('') + '</ul>';
+      sections.push(vhtml);
+    }
+
+    if (configState.envData) {
+      var envRows = Object.keys(configState.envData).map(function(name) {
+        var info = configState.envData[name];
+        return '<tr><td><code>' + esc(name) + '</code></td><td>' + (info.active ? '<code>' + esc(String(info.value)) + '</code>' : '—') + '</td><td>' + esc(info.mapsTo) + '</td><td>' + esc(info.type) + '</td></tr>';
+      }).join('');
+      sections.push('<h2>Environment variables</h2><table class="audit-table"><thead><tr><th>Variable</th><th>Value</th><th>Maps to</th><th>Type</th></tr></thead><tbody>' + envRows + '</tbody></table>';
+    }
+
+    main.innerHTML = '<div class="home"><h1>&#128295; <span>Configuration</span></h1><p class="home-subtitle">View and edit the local node configuration</p>' + toolbar + editor + message + sections.join('') + '</div>';
+  }
+
+  window.renderConfig = renderConfig;
 
   // --- Topics catalog panel ---
   window.showTopics = async function() {
@@ -7390,6 +7593,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'search') window.showSearch();
         else if (bootState.view === 'release-notes') window.showReleaseNotes();
         else if (bootState.view === 'identity') window.showIdentity();
+        else if (bootState.view === 'config') window.showConfig();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -7424,6 +7628,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'search') window.showSearch();
   else if (viewMode === 'release-notes') window.showReleaseNotes();
   else if (viewMode === 'identity') window.showIdentity();
+  else if (viewMode === 'config') window.showConfig();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
