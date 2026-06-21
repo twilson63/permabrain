@@ -401,6 +401,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="healthBtn" onclick="window.showHealth()" title="Health / diagnostics">&#10003;</button>
     <button class="btn-icon" id="adminBtn" onclick="window.showAdminPanel()" title="Admin / monitoring">&#128202;</button>
     <button class="btn-icon" id="supportBundleBtn" onclick="window.showSupportBundle()" title="Support bundle">&#129520;</button>
+    <button class="btn-icon" id="verifyBtn" onclick="window.showVerify()" title="Verify signature">&#9989;</button>
     <button class="btn-icon" id="dashboardBtn" onclick="window.showDashboard()" title="Local dashboard">&#128202;</button>
     <button class="btn-icon" id="statsBtn" onclick="window.showStats()" title="Stats dashboard">&#128200;</button>
     <button class="btn-icon" id="auditBtn" onclick="window.showAudit()" title="Request audit log">&#128065;</button>
@@ -573,7 +574,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -582,6 +583,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     threshold: 2, coSignerIds: '', apiKey: '', envelope: null, importText: '',
     loading: false, error: null, success: null, verifyResult: null
   };
+  var verifyState = { idOrKey: '', noVerifyChain: false, noVerifyTarget: false, apiKey: '', loading: false, error: null, result: null };
   var peerSyncState = {
     remoteUrl: '',
     remoteApiKey: '',
@@ -1559,6 +1561,11 @@ function statCard(label, value, cls) {
       if (peerSyncState.includeVersions !== true) params.set('peerIncludeVersions', 'false');
       if (peerSyncState.format !== 'json') params.set('peerFormat', peerSyncState.format);
     }
+    if (viewMode === 'verify') {
+      if (verifyState.idOrKey) params.set('verifyIdOrKey', verifyState.idOrKey);
+      if (verifyState.noVerifyChain) params.set('verifyNoVerifyChain', 'true');
+      if (verifyState.noVerifyTarget) params.set('verifyNoVerifyTarget', 'true');
+    }
     if (viewMode === 'activity') {
       if (activityState.filters.eventKind) params.set('activityKind', activityState.filters.eventKind);
       if (activityState.filters.topic) params.set('activityTopic', activityState.filters.topic);
@@ -1646,6 +1653,9 @@ function statCard(label, value, cls) {
       peerIncludeAttestations: params.get('peerIncludeAttestations') || '',
       peerIncludeVersions: params.get('peerIncludeVersions') || '',
       peerFormat: params.get('peerFormat') || '',
+      verifyIdOrKey: params.get('verifyIdOrKey') || '',
+      verifyNoVerifyChain: params.get('verifyNoVerifyChain') || '',
+      verifyNoVerifyTarget: params.get('verifyNoVerifyTarget') || '',
       exportKey: params.get('exportKey') || '',
       exportMode: params.get('exportMode') || 'bundle',
       importName: params.get('importName') || '',
@@ -1689,7 +1699,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','attest','batch-attest','threshold-attest','peer-sync','verify'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1760,6 +1770,11 @@ function statCard(label, value, cls) {
       if (state.peerIncludeAttestations === 'false') peerSyncState.includeAttestations = false;
       if (state.peerIncludeVersions === 'false') peerSyncState.includeVersions = false;
       if (state.peerFormat) peerSyncState.format = state.peerFormat;
+    }
+    if (state.view === 'verify') {
+      if (state.verifyIdOrKey) verifyState.idOrKey = state.verifyIdOrKey;
+      if (state.verifyNoVerifyChain === 'true') verifyState.noVerifyChain = true;
+      if (state.verifyNoVerifyTarget === 'true') verifyState.noVerifyTarget = true;
     }
     if (state.tab) activeTab = state.tab;
     return state;
@@ -3751,6 +3766,157 @@ function statCard(label, value, cls) {
 
   window.renderPeerSync = renderPeerSync;
 
+  // --- Verify panel ---
+  window.showVerify = async function() {
+    viewMode = 'verify';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchVerifyArticles();
+    renderVerify();
+    updateUrlState();
+  };
+
+  window.refreshVerify = async function() {
+    await fetchVerifyArticles();
+    renderVerify();
+    updateUrlState();
+  };
+
+  window.runVerify = async function() {
+    if (!isLocalServer()) return;
+    if (!verifyState.idOrKey.trim()) {
+      verifyState.error = 'Enter an article key or DataItem ID to verify';
+      renderVerify();
+      return;
+    }
+    verifyState.loading = true;
+    verifyState.error = null;
+    verifyState.result = null;
+    renderVerify();
+    try {
+      var headers = { 'content-type': 'application/json' };
+      if (verifyState.apiKey) headers['authorization'] = 'Bearer ' + verifyState.apiKey;
+      var body = {
+        idOrKey: verifyState.idOrKey.trim(),
+        noVerifyChain: verifyState.noVerifyChain,
+        noVerifyTarget: verifyState.noVerifyTarget
+      };
+      var r = await fetch('/api/v1/verify', { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      verifyState.result = await r.json();
+    } catch(e) {
+      verifyState.error = e.message;
+    } finally {
+      verifyState.loading = false;
+    }
+    renderVerify();
+    updateUrlState();
+  };
+
+  async function fetchVerifyArticles() {
+    if (!isLocalServer()) return;
+    try {
+      var r = await fetch('/api/v1/list?limit=1000');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      verifyState.articles = data.articles || [];
+    } catch(e) {
+      verifyState.error = e.message;
+    }
+    if (viewMode === 'verify') renderVerify();
+  }
+  window.fetchVerifyArticles = fetchVerifyArticles;
+
+  window.setVerifyIdOrKey = function(val) {
+    verifyState.idOrKey = val || '';
+    updateUrlState();
+  };
+  window.setVerifyNoVerifyChain = function(checked) {
+    verifyState.noVerifyChain = !!checked;
+    updateUrlState();
+  };
+  window.setVerifyNoVerifyTarget = function(checked) {
+    verifyState.noVerifyTarget = !!checked;
+    updateUrlState();
+  };
+  window.setVerifyApiKey = function(val) {
+    verifyState.apiKey = val || '';
+  };
+  window.setVerifyArticle = function(key) {
+    verifyState.idOrKey = key || '';
+    renderVerify();
+    updateUrlState();
+  };
+
+  function renderVerify() {
+    if (viewMode !== 'verify') return;
+    var datalist = '';
+    if (verifyState.articles && verifyState.articles.length) {
+      datalist = '<datalist id="verifyArticleList">' + verifyState.articles.map(function(a) {
+        return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' — ' + esc(a.title || 'untitled') + '</option>';
+      }).join('') + '</datalist>';
+    }
+    var resultHtml = '';
+    if (verifyState.result) {
+      var res = verifyState.result;
+      var checks = (res.checks || []).map(function(c) {
+        var icon = c.ok ? '&#10003;' : '&#10007;';
+        var color = c.ok ? 'var(--green)' : 'var(--red)';
+        var detail = '';
+        if (c.error) detail = '<div style="font-size:0.8rem;color:var(--muted);margin-top:0.15rem">' + esc(c.error) + '</div>';
+        else if (c.note) detail = '<div style="font-size:0.8rem;color:var(--muted);margin-top:0.15rem">' + esc(c.note) + '</div>';
+        return '<tr><td style="color:' + color + '">' + icon + '</td><td>' + esc(c.name) + '</td><td>' + detail + '</td></tr>';
+      }).join('');
+      var meta = '';
+      if (res.type) meta += '<div><strong>Type:</strong> ' + esc(res.type) + '</div>';
+      if (res.id) meta += '<div><strong>ID:</strong> <code>' + esc(res.id) + '</code></div>';
+      if (res.article && res.article.key) meta += '<div><strong>Key:</strong> <code>' + esc(res.article.key) + '</code></div>';
+      if (res.article && res.article.title) meta += '<div><strong>Title:</strong> ' + esc(res.article.title) + '</div>';
+      if (res.article && res.article.authorAgentId) meta += '<div><strong>Author:</strong> ' + esc(res.article.authorAgentId) + '</div>';
+      if (res.attestation && res.attestation.targetKey) meta += '<div><strong>Target:</strong> <code>' + esc(res.attestation.targetKey) + '</code></div>';
+      resultHtml = '<div class="dashboard-section">' +
+        '<div class="stat-card" style="border-left:4px solid ' + (res.valid ? 'var(--green)' : 'var(--red)') + '">' +
+        '<h3>' + (res.valid ? '&#9989; Valid' : '&#10060; Invalid') + '</h3>' + meta + '</div>' +
+        '<h3>Checks</h3><table class="audit-table"><thead><tr><th></th><th>Check</th><th>Detail</th></tr></thead><tbody>' + checks + '</tbody></table>' +
+        '<div class="btn-row"><button class="btn-icon" onclick="window.copyVerifyJson()">&#128203; Copy JSON</button> <button class="btn-icon" onclick="window.downloadVerifyJson()">&#128229; Download JSON</button></div>' +
+        '</div>';
+    }
+    var html = '<div class="home"><h1>&#9989; <span>Verify</span></h1><p class="home-subtitle">Check DataItem signatures, article keys, and attestation chains</p>' +
+      '<div class="dashboard-toolbar"><button class="btn-icon" onclick="window.refreshVerify()">&#x21BB; Refresh</button></div>' +
+      '<div class="dashboard-section">' + datalist +
+      '<div class="form-row"><label>Article key or DataItem ID</label><input type="text" id="verifyIdOrKey" value="' + esc(verifyState.idOrKey) + '" placeholder="subject/example-article" list="verifyArticleList" oninput="window.setVerifyIdOrKey(this.value)"></div>' +
+      '<div class="form-row"><label>Local API key (optional)</label><input type="password" id="verifyApiKey" value="' + esc(verifyState.apiKey) + '" placeholder="Bearer token for local permabrain serve" oninput="window.setVerifyApiKey(this.value)"></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">' +
+      '<div class="form-row"><label><input type="checkbox" ' + (verifyState.noVerifyChain ? 'checked' : '') + ' onchange="window.setVerifyNoVerifyChain(this.checked)"> Skip chain verification</label></div>' +
+      '<div class="form-row"><label><input type="checkbox" ' + (verifyState.noVerifyTarget ? 'checked' : '') + ' onchange="window.setVerifyNoVerifyTarget(this.checked)"> Skip target verification</label></div>' +
+      '</div>' +
+      '<div class="btn-row"><button class="btn-primary" onclick="window.runVerify()" ' + (verifyState.loading ? 'disabled' : '') + '>Verify</button></div>' +
+      '</div>' + resultHtml + '</div>';
+
+    main.innerHTML = html;
+  }
+
+  window.renderVerify = renderVerify;
+
+  window.copyVerifyJson = function() {
+    if (!verifyState.result) return;
+    var text = JSON.stringify(verifyState.result, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).catch(function() {});
+  };
+  window.downloadVerifyJson = function() {
+    if (!verifyState.result) return;
+    var blob = new Blob([JSON.stringify(verifyState.result, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'verify-' + (verifyState.result.id || verifyState.idOrKey).replace(/[^a-z0-9_-]/gi, '_') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); a.remove(); }, 0);
+  };
+
   // --- Activity / notifications panel ---
   window.showActivity = async function() {
     viewMode = 'activity';
@@ -5488,7 +5654,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify';
   }
 
   function readFiltersFromDom() {
@@ -6262,6 +6428,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'attest') window.showAttest();
         else if (bootState.view === 'batch-attest') window.showBatchAttest();
         else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
+        else if (bootState.view === 'verify') window.showVerify();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -6288,6 +6455,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'batch-attest') window.showBatchAttest();
   else if (viewMode === 'threshold-attest') window.showThresholdAttest();
+  else if (viewMode === 'verify') window.showVerify();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
