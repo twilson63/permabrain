@@ -413,6 +413,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="tagsBtn" onclick="window.showTags()" title="Tags catalog">&#127991;</button>
     <button class="btn-icon" id="agentsBtn" onclick="window.showAgents()" title="Agents catalog">&#128100;</button>
     <button class="btn-icon" id="sourcesBtn" onclick="window.showSources()" title="Sources catalog">&#128279;</button>
+    <button class="btn-icon" id="kindsBtn" onclick="window.showKinds()" title="Kinds catalog">&#128230;</button>
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
@@ -572,7 +573,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -614,6 +615,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var tagsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var agentsState = { data: null, loading: false, error: null, sort: 'articles', limit: 100 };
   var sourcesState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
+  var kindsState = { data: null, loading: false, error: null, sort: 'count', limit: 100 };
   var historyData = {};       // key -> history payload from local API (used by article tab + modal)
   var historyLoading = false;
   var historyError = null;
@@ -1574,6 +1576,10 @@ function statCard(label, value, cls) {
       if (sourcesState.sort && sourcesState.sort !== 'count') params.set('sourcesSort', sourcesState.sort);
       if (sourcesState.limit && sourcesState.limit !== 100) params.set('sourcesLimit', String(sourcesState.limit));
     }
+    if (viewMode === 'kinds') {
+      if (kindsState.sort && kindsState.sort !== 'count') params.set('kindsSort', kindsState.sort);
+      if (kindsState.limit && kindsState.limit !== 100) params.set('kindsLimit', String(kindsState.limit));
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -1631,6 +1637,8 @@ function statCard(label, value, cls) {
       agentsLimit: params.get('agentsLimit') || '',
       sourcesSort: params.get('sourcesSort') || '',
       sourcesLimit: params.get('sourcesLimit') || '',
+      kindsSort: params.get('kindsSort') || '',
+      kindsLimit: params.get('kindsLimit') || '',
       peerRemoteUrl: params.get('peerRemoteUrl') || '',
       peerRemoteApiKey: params.get('peerRemoteApiKey') || '',
       peerDirection: params.get('peerDirection') || '',
@@ -1681,7 +1689,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','attest','batch-attest','threshold-attest','peer-sync'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1739,6 +1747,10 @@ function statCard(label, value, cls) {
     if (state.view === 'sources') {
       if (state.sourcesSort) sourcesState.sort = state.sourcesSort;
       if (state.sourcesLimit) { var sl = parseInt(state.sourcesLimit, 10); if (!isNaN(sl) && sl > 0) sourcesState.limit = sl; }
+    }
+    if (state.view === 'kinds') {
+      if (state.kindsSort) kindsState.sort = state.kindsSort;
+      if (state.kindsLimit) { var kl = parseInt(state.kindsLimit, 10); if (!isNaN(kl) && kl > 0) kindsState.limit = kl; }
     }
     if (state.view === 'peer-sync') {
       if (state.peerRemoteUrl) peerSyncState.remoteUrl = state.peerRemoteUrl;
@@ -2143,6 +2155,124 @@ function statCard(label, value, cls) {
   }
 
   window.renderTopics = renderTopics;
+
+  // --- Kinds catalog panel ---
+  window.showKinds = async function() {
+    viewMode = 'kinds';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchKinds();
+    updateUrlState();
+  };
+
+  window.refreshKinds = async function() {
+    await fetchKinds();
+    updateUrlState();
+  };
+
+  window.setKindsSort = async function(sort) {
+    kindsState.sort = sort || 'count';
+    await fetchKinds();
+    updateUrlState();
+  };
+
+  window.setKindsLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    kindsState.limit = (!isNaN(n) && n > 0) ? n : 100;
+    await fetchKinds();
+    updateUrlState();
+  };
+
+  async function fetchKinds() {
+    if (!isLocalServer()) return;
+    kindsState.loading = true;
+    kindsState.error = null;
+    if (viewMode === 'kinds') renderKinds();
+    try {
+      var params = new URLSearchParams();
+      params.set('sort', kindsState.sort || 'count');
+      if (kindsState.limit && kindsState.limit !== 100) params.set('limit', String(kindsState.limit));
+      var r = await fetch('/api/v1/kinds?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      kindsState.data = await r.json();
+      kindsState.loading = false;
+    } catch(e) {
+      kindsState.error = e.message;
+      kindsState.loading = false;
+    }
+    if (viewMode === 'kinds') renderKinds();
+  }
+
+  window.fetchKinds = fetchKinds;
+
+  function renderKinds() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Kinds catalog unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to browse article kinds.</p></div>';
+      return;
+    }
+    if (kindsState.loading && !kindsState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading kinds catalog...</div>';
+      return;
+    }
+    if (kindsState.error && !kindsState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Kinds catalog error</h2><p>' + esc(kindsState.error) + '</p><button class="btn-icon" onclick="window.refreshKinds()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = kindsState.data || {};
+    var kinds = data.kinds || [];
+    var totals = data.totals || {};
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshKinds()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Sort ' +
+      '<select onchange="window.setKindsSort(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="count"' + (kindsState.sort === 'count' ? ' selected' : '') + '>Count</option>' +
+      '<option value="name"' + (kindsState.sort === 'name' ? ' selected' : '') + '>Name</option>' +
+      '<option value="latest"' + (kindsState.sort === 'latest' ? ' selected' : '') + '>Latest</option>' +
+      '<option value="keys"' + (kindsState.sort === 'keys' ? ' selected' : '') + '>Unique keys</option>' +
+      '</select></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
+      '<input type="number" min="1" max="1000" value="' + esc(String(kindsState.limit)) + '" onchange="window.setKindsLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '</div>';
+
+    var stats = '<div class="stats-grid">' +
+      statCard('Kinds', String(totals.kinds || 0), 'kinds') +
+      statCard('Articles', String(totals.articles || 0), 'articles') +
+      '</div>';
+
+    if (!kinds.length) {
+      main.innerHTML = '<div class="home"><h1>&#128230; <span>Kinds</span></h1><p class="home-subtitle">Browse article kinds from the local catalog</p>' + toolbar + stats + '<p class="dashboard-empty">No kinds found.</p></div>';
+      return;
+    }
+
+    var rows = kinds.map(function(k) {
+      var topics = Object.entries(k.byTopic || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var languages = Object.entries(k.byLanguage || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var sources = Object.entries(k.bySource || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      var agents = Object.entries(k.byAgent || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
+      return '<tr><td class="mono"><a href="?view=home&kind=' + encodeURIComponent(k.name) + '" style="color:var(--accent);text-decoration:none">' + esc(k.name) + '</a></td>' +
+        '<td style="text-align:center">' + esc(String(k.count)) + '</td>' +
+        '<td style="text-align:center">' + esc(String(k.uniqueKeys)) + '</td>' +
+        '<td>' + esc(k.latestAt ? fmtDate(k.latestAt) : '—') + '</td>' +
+        '<td>' + (topics || '—') + '</td>' +
+        '<td>' + (languages || '—') + '</td>' +
+        '<td>' + (sources || '—') + '</td>' +
+        '<td>' + (agents || '—') + '</td></tr>';
+    }).join('');
+
+    var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+      '<th>Kind</th><th>Articles</th><th>Unique keys</th><th>Latest</th><th>Topics</th><th>Languages</th><th>Sources</th><th>Agents</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    main.innerHTML = '<div class="home"><h1>&#128230; <span>Kinds</span></h1><p class="home-subtitle">Browse article kinds from the local catalog</p>' + toolbar + stats + table + '</div>';
+  }
+
+  window.renderKinds = renderKinds;
 
   // --- Tags catalog panel ---
   window.showTags = async function() {
@@ -6153,6 +6283,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'tags') window.showTags();
   else if (viewMode === 'agents') window.showAgents();
   else if (viewMode === 'sources') window.showSources();
+  else if (viewMode === 'kinds') window.showKinds();
   else if (viewMode === 'activity') window.showActivity();
   else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'batch-attest') window.showBatchAttest();

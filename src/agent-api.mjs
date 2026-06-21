@@ -44,6 +44,7 @@ import { listTopics, topicsToMarkdown } from './topics.mjs';
 import { listTags, tagsToMarkdown } from './tag-index.mjs';
 import { listAgents, agentsToMarkdown } from './agents-catalog.mjs';
 import { listSources, sourcesToMarkdown } from './sources-catalog.mjs';
+import { listKinds, kindsToMarkdown } from './kinds-catalog.mjs';
 import { runConfigCommand, configToMarkdown } from './config-manager.mjs';
 import { listRemotes, addRemote, removeRemote, setDefaultRemote, probeRemote, queryRemote, syncRemote, remotesToMarkdown, buildRemoteConfig } from './remotes.mjs';
 import { archive, restore } from './archive.mjs';
@@ -2337,6 +2338,33 @@ const api = {
   async sourcesToMarkdown(opts = {}) {
     const report = await this.sources(opts);
     return sourcesToMarkdown(report);
+  },
+
+  /**
+   * List unique article kinds from the local cache with counts and metadata.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.topic] - Filter by topic
+   * @param {string} [opts.after] - ISO date lower bound
+   * @param {string} [opts.before] - ISO date upper bound
+   * @param {string} [opts.sort='count'] - Sort by 'count', 'name', 'latest', or 'keys'
+   * @param {number} [opts.limit] - Maximum kinds to return
+   * @returns {Promise<Object>} Kinds catalog report
+   */
+  async kinds(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return listKinds({ ...opts, home: this._home });
+  },
+
+  /**
+   * Render the kinds catalog as Markdown.
+   * @param {Object} [opts]
+   * @returns {Promise<string>} Markdown report
+   */
+  async kindsToMarkdown(opts = {}) {
+    const report = await this.kinds(opts);
+    return kindsToMarkdown(report);
   },
 
   /**

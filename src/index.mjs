@@ -51,6 +51,7 @@ export { listTopics, topicsToMarkdown } from './topics.mjs';
 export { listTags, tagsToMarkdown } from './tag-index.mjs';
 export { listAgents, agentsToMarkdown } from './agents-catalog.mjs';
 export { listSources, sourcesToMarkdown } from './sources-catalog.mjs';
+export { listKinds, kindsToMarkdown } from './kinds-catalog.mjs';
 
 // Export filtered article directory
 export { exportArticles, exportArticlesToMarkdown } from './export-articles.mjs';
