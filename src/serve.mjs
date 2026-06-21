@@ -1163,6 +1163,11 @@ async function handleRequest(req, res, home, options = {}) {
       let parsed;
       if (body.filePath) parsed = await api.goalFromFile(body.filePath, body.options || {});
       else parsed = await api.parseGoal(body.text, body.options || {});
+      // Normalize Set values in metadata so JSON.stringify includes them.
+      if (parsed && parsed.metadata) {
+        if (parsed.metadata.kinds instanceof Set) parsed.metadata.kinds = Array.from(parsed.metadata.kinds);
+        if (parsed.metadata.topics instanceof Set) parsed.metadata.topics = Array.from(parsed.metadata.topics);
+      }
       return sendJson(res, 200, parsed);
     }
 
