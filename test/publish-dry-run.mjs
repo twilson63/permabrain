@@ -31,7 +31,7 @@ assert(changelog.includes('## [Unreleased]'), 'CHANGELOG must have an Unreleased
 assert(changelog.includes(pkg.version), `CHANGELOG should mention current version ${pkg.version}`);
 
 // Run npm pack --dry-run and verify it succeeds and includes required files
-const child = spawnSync('npm', ['pack', '--dry-run'], { cwd: root, encoding: 'utf8' });
+const child = spawnSync('npm', ['pack', '--dry-run'], { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
 const dryRun = `${child.stdout}\n${child.stderr}`;
 assert(dryRun.includes('npm notice'), `npm pack --dry-run should produce notice output: ${dryRun.slice(0, 200)}`);
 for (const entry of ['src/', 'scripts/', 'viewer/', 'src/client.mjs']) {

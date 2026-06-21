@@ -32,7 +32,7 @@ assert.ok(pkg.type === 'module', 'type is module');
 assert.ok(Array.isArray(pkg.files), 'files array is defined');
 
 function runNpm(args) {
-  const child = spawnSync('npm', args, { cwd: root, encoding: 'utf8' });
+  const child = spawnSync('npm', args, { cwd: root, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
   return { stdout: child.stdout, stderr: child.stderr, status: child.status };
 }
 
