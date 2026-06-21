@@ -412,6 +412,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="importExportBtn" onclick="window.showImportExport()" title="Import / Export">&#128260;</button>
     <button class="btn-icon" id="composeBtn" onclick="window.showCompose()" title="Compose article">&#9998;</button>
     <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
+    <button class="btn-icon" id="searchBtn" onclick="window.showSearch()" title="Search articles">&#128269;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
     <button class="btn-icon" id="tagsBtn" onclick="window.showTags()" title="Tags catalog">&#127991;</button>
@@ -578,7 +579,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'search'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -639,6 +640,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var auditEventSource = null; // EventSource for live request log tail
   var auditTotal = 0;
   var bookmarksState = { list: [], loading: false, error: null, selectedName: '', importText: '', exportText: '' };
+  var searchState = { q: '', kind: '', topic: '', author: '', key: '', after: '', before: '', limit: 20, offset: 0, sort: 'relevance', loading: false, error: null, results: null, total: 0 };
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -1610,6 +1612,18 @@ function statCard(label, value, cls) {
     if (viewMode === 'bookmarks') {
       if (bookmarksState.selectedName) params.set('bookmark', bookmarksState.selectedName);
     }
+    if (viewMode === 'search') {
+      if (searchState.q) params.set('searchQ', searchState.q);
+      if (searchState.kind) params.set('searchKind', searchState.kind);
+      if (searchState.topic) params.set('searchTopic', searchState.topic);
+      if (searchState.author) params.set('searchAuthor', searchState.author);
+      if (searchState.key) params.set('searchKey', searchState.key);
+      if (searchState.after) params.set('searchAfter', searchState.after);
+      if (searchState.before) params.set('searchBefore', searchState.before);
+      if (searchState.limit && searchState.limit !== 20) params.set('searchLimit', String(searchState.limit));
+      if (searchState.offset) params.set('searchOffset', String(searchState.offset));
+      if (searchState.sort && searchState.sort !== 'relevance') params.set('searchSort', searchState.sort);
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -1692,7 +1706,17 @@ function statCard(label, value, cls) {
       exportMode: params.get('exportMode') || 'bundle',
       importName: params.get('importName') || '',
       importTab: params.get('importTab') || '',
-      bookmark: params.get('bookmark') || ''
+      bookmark: params.get('bookmark') || '',
+      searchQ: params.get('searchQ') || '',
+      searchKind: params.get('searchKind') || '',
+      searchTopic: params.get('searchTopic') || '',
+      searchAuthor: params.get('searchAuthor') || '',
+      searchKey: params.get('searchKey') || '',
+      searchAfter: params.get('searchAfter') || '',
+      searchBefore: params.get('searchBefore') || '',
+      searchLimit: params.get('searchLimit') || '',
+      searchOffset: params.get('searchOffset') || '',
+      searchSort: params.get('searchSort') || ''
     };
   }
 
@@ -1732,7 +1756,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1824,6 +1848,18 @@ function statCard(label, value, cls) {
     }
     if (state.view === 'bookmarks') {
       if (state.bookmark) bookmarksState.selectedName = state.bookmark;
+    }
+    if (state.view === 'search') {
+      if (state.searchQ) searchState.q = state.searchQ;
+      if (state.searchKind) searchState.kind = state.searchKind;
+      if (state.searchTopic) searchState.topic = state.searchTopic;
+      if (state.searchAuthor) searchState.author = state.searchAuthor;
+      if (state.searchKey) searchState.key = state.searchKey;
+      if (state.searchAfter) searchState.after = state.searchAfter;
+      if (state.searchBefore) searchState.before = state.searchBefore;
+      if (state.searchLimit) { var sl2 = parseInt(state.searchLimit, 10); if (!isNaN(sl2) && sl2 > 0) searchState.limit = sl2; }
+      if (state.searchOffset) { var so2 = parseInt(state.searchOffset, 10); if (!isNaN(so2) && so2 >= 0) searchState.offset = so2; }
+      if (state.searchSort) searchState.sort = state.searchSort;
     }
     if (state.tab) activeTab = state.tab;
     return state;
@@ -2871,6 +2907,163 @@ function statCard(label, value, cls) {
   }
 
   window.renderSources = renderSources;
+
+  // --- Search panel ---
+  window.showSearch = async function() {
+    viewMode = 'search';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await runSearch();
+    updateUrlState();
+  };
+
+  window.refreshSearch = async function() {
+    searchState.offset = 0;
+    await runSearch();
+    updateUrlState();
+  };
+
+  window.runSearch = async function() {
+    await fetchSearch();
+    updateUrlState();
+  };
+
+  window.setSearchSort = async function(sort) {
+    searchState.sort = sort || 'relevance';
+    searchState.offset = 0;
+    await runSearch();
+  };
+
+  window.setSearchLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    searchState.limit = (!isNaN(n) && n > 0) ? n : 20;
+    searchState.offset = 0;
+    await runSearch();
+  };
+
+  window.setSearchPage = async function(offset) {
+    var n = parseInt(offset, 10);
+    searchState.offset = (!isNaN(n) && n >= 0) ? n : 0;
+    await runSearch();
+  };
+
+  window.setSearchFilter = function(key, value) {
+    searchState[key] = value || '';
+    searchState.offset = 0;
+    renderSearch();
+    updateUrlState();
+  };
+
+  window.clearSearch = async function() {
+    searchState = { q: '', kind: '', topic: '', author: '', key: '', after: '', before: '', limit: 20, offset: 0, sort: 'relevance', loading: false, error: null, results: null, total: 0 };
+    await runSearch();
+  };
+
+  async function fetchSearch() {
+    if (!isLocalServer()) return;
+    searchState.loading = true;
+    searchState.error = null;
+    if (viewMode === 'search') renderSearch();
+    try {
+      var params = new URLSearchParams();
+      if (searchState.q) params.set('q', searchState.q);
+      if (searchState.kind) params.set('kind', searchState.kind);
+      if (searchState.topic) params.set('topic', searchState.topic);
+      if (searchState.author) params.set('author', searchState.author);
+      if (searchState.key) params.set('key', searchState.key);
+      if (searchState.after) params.set('after', searchState.after);
+      if (searchState.before) params.set('before', searchState.before);
+      if (searchState.limit && searchState.limit !== 20) params.set('limit', String(searchState.limit));
+      if (searchState.offset) params.set('offset', String(searchState.offset));
+      var r = await fetch('/api/v1/search?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      searchState.results = data.results || [];
+      searchState.total = data.total || 0;
+      searchState.loading = false;
+    } catch(e) {
+      searchState.error = e.message;
+      searchState.results = null;
+      searchState.total = 0;
+      searchState.loading = false;
+    }
+    if (viewMode === 'search') renderSearch();
+  }
+
+  window.fetchSearch = fetchSearch;
+
+  function renderSearch() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Search panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to search articles.</p></div>';
+      return;
+    }
+    var s = searchState;
+    var form = '<div class="dashboard-toolbar" style="flex-wrap:wrap;gap:0.5rem">' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Query <input type="text" id="searchQ" placeholder="Search..." value="' + esc(s.q || '') + '" onchange="window.setSearchFilter(\'q\', this.value)" style="width:12rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Kind <input type="text" id="searchKind" placeholder="subject" value="' + esc(s.kind || '') + '" onchange="window.setSearchFilter(\'kind\', this.value)" style="width:6rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Topic <input type="text" id="searchTopic" placeholder="topic" value="' + esc(s.topic || '') + '" onchange="window.setSearchFilter(\'topic\', this.value)" style="width:6rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Author <input type="text" id="searchAuthor" placeholder="agent id" value="' + esc(s.author || '') + '" onchange="window.setSearchFilter(\'author\', this.value)" style="width:8rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Key <input type="text" id="searchKey" placeholder="kind/slug" value="' + esc(s.key || '') + '" onchange="window.setSearchFilter(\'key\', this.value)" style="width:8rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">After <input type="date" id="searchAfter" value="' + esc(s.after || '') + '" onchange="window.setSearchFilter(\'after\', this.value)" style="font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Before <input type="date" id="searchBefore" value="' + esc(s.before || '') + '" onchange="window.setSearchFilter(\'before\', this.value)" style="font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Limit <input type="number" min="1" max="1000" value="' + esc(String(s.limit)) + '" onchange="window.setSearchLimit(this.value)" style="width:4rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '</div>' +
+      '<div class="dashboard-toolbar" style="gap:0.5rem">' +
+      '<button class="btn-icon" onclick="window.refreshSearch()">&#128269; Search</button>' +
+      '<button class="btn-icon" onclick="window.clearSearch()">Clear</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Sort ' +
+      '<select onchange="window.setSearchSort(this.value)" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="relevance"' + (s.sort === 'relevance' ? ' selected' : '') + '>Relevance</option>' +
+      '<option value="date"' + (s.sort === 'date' ? ' selected' : '') + '>Date</option>' +
+      '<option value="title"' + (s.sort === 'title' ? ' selected' : '') + '>Title</option>' +
+      '<option value="consensus"' + (s.sort === 'consensus' ? ' selected' : '') + '>Consensus</option>' +
+      '</select></label>' +
+      '</div>';
+
+    if (s.loading && !s.results) {
+      main.innerHTML = '<div class="home"><h1>&#128269; <span>Search</span></h1><p class="home-subtitle">Full-text search across articles</p>' + form + '<div class="loading"><div class="spinner"></div> Searching...</div></div>';
+      return;
+    }
+    if (s.error && !s.results) {
+      main.innerHTML = '<div class="home"><h1>&#128269; <span>Search</span></h1><p class="home-subtitle">Full-text search across articles</p>' + form + '<div class="empty-state"><h2>Search error</h2><p>' + esc(s.error) + '</p><button class="btn-icon" onclick="window.refreshSearch()">&#x21BB; Retry</button></div></div>';
+      return;
+    }
+
+    var results = s.results || [];
+    var total = s.total || 0;
+    var info = '<p style="font-size:0.8rem;color:var(--muted);margin:0.5rem 0">' + (s.q ? esc(total + ' result' + (total !== 1 ? 's' : '') + ' for "' + s.q + '"') : 'Enter a query and click Search') + '</p>';
+
+    var rows = results.map(function(r) {
+      var a = r.article || r;
+      var snippet = r.snippet || '';
+      var lock = a.encrypted ? '🔒 ' : '';
+      return '<div class="activity-row" style="align-items:flex-start;flex-direction:column;gap:0.25rem;padding:0.6rem 0">' +
+        '<div><strong><a href="?view=article&key=' + encodeURIComponent(a.key) + '" style="color:var(--accent);text-decoration:none">' + lock + esc(a.title || a.key) + '</a></strong> <code style="font-size:0.75rem">' + esc(a.key) + '</code></div>' +
+        '<div style="font-size:0.75rem;color:var(--muted)">' + esc(a.kind || '—') + ' · ' + esc(a.topic || '—') + (a.updatedAt ? ' · ' + fmtDate(a.updatedAt) : '') + (a.authorId ? ' · ' + esc(a.authorId) : '') + '</div>' +
+        (snippet ? '<div style="font-size:0.82rem;color:var(--text)">' + esc(snippet) + '</div>' : '') +
+        '</div>';
+    }).join('');
+
+    var pager = '';
+    if (total > 0) {
+      var prevDisabled = s.offset <= 0 ? 'disabled' : '';
+      var nextDisabled = (s.offset + results.length) >= total ? 'disabled' : '';
+      pager = '<div class="dashboard-toolbar" style="margin-top:0.5rem">' +
+        '<button class="btn-icon" onclick="window.setSearchPage(' + (s.offset - s.limit) + ')" ' + prevDisabled + '>← Prev</button>' +
+        '<span style="font-size:0.8rem;color:var(--muted)">offset ' + esc(String(s.offset)) + ' · page ' + esc(String(s.limit ? Math.floor(s.offset / s.limit) + 1 : 1)) + '</span>' +
+        '<button class="btn-icon" onclick="window.setSearchPage(' + (s.offset + s.limit) + ')" ' + nextDisabled + '>Next →</button>' +
+        '</div>';
+    }
+
+    var body = results.length ? '<div class="dashboard-section">' + rows + '</div>' + pager : (s.q ? '<p class="dashboard-empty">No results.</p>' : '');
+
+    main.innerHTML = '<div class="home"><h1>&#128269; <span>Search</span></h1><p class="home-subtitle">Full-text search across articles</p>' + form + info + body + '</div>';
+  }
+
+  window.renderSearch = renderSearch;
 
   // --- Bookmarks / Saved queries panel ---
   var BOOKMARKS_STORAGE_KEY = 'permabrain-bookmarks';
@@ -6173,7 +6366,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify' && viewMode !== 'search';
   }
 
   function readFiltersFromDom() {
@@ -6952,6 +7145,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
         else if (bootState.view === 'verify') window.showVerify();
         else if (bootState.view === 'bookmarks') window.showBookmarks();
+        else if (bootState.view === 'search') window.showSearch();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -6983,6 +7177,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'threshold-attest') window.showThresholdAttest();
   else if (viewMode === 'verify') window.showVerify();
   else if (viewMode === 'bookmarks') window.showBookmarks();
+  else if (viewMode === 'search') window.showSearch();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
