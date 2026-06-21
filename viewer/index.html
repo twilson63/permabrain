@@ -398,6 +398,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="copyLinkBtn" onclick="window.copyPermalink()" title="Copy link to this view">&#128279;</button>
     <button class="btn-icon" id="bookmarkViewBtn" onclick="window.saveBookmarkPrompt()" title="Bookmark current view">&#128278;</button>
     <button class="btn-icon" id="bookmarksBtn" onclick="window.showBookmarks()" title="Saved bookmarks">&#128214;</button>
+    <button class="btn-icon" id="releaseNotesBtn" onclick="window.showReleaseNotes()" title="Release notes">&#128196;</button>
     <button class="btn-icon" id="activityBtn" onclick="window.showActivity()" title="Notifications / Activity">&#128276;</button>
     <button class="btn-icon" id="historyBtn" onclick="window.showHistory()" title="Version history / diff">&#9200;</button>
     <button class="btn-icon" id="healthBtn" onclick="window.showHealth()" title="Health / diagnostics">&#10003;</button>
@@ -579,7 +580,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'search'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes'
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -640,6 +641,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var auditEventSource = null; // EventSource for live request log tail
   var auditTotal = 0;
   var bookmarksState = { list: [], loading: false, error: null, selectedName: '', importText: '', exportText: '' };
+  var releaseNotesState = { data: null, loading: false, error: null, markdown: false, version: '', unreleased: false };
   var searchState = { q: '', kind: '', topic: '', author: '', key: '', after: '', before: '', limit: 20, offset: 0, sort: 'relevance', loading: false, error: null, results: null, total: 0 };
 
   // --- Interactive local list state ---
@@ -1612,6 +1614,11 @@ function statCard(label, value, cls) {
     if (viewMode === 'bookmarks') {
       if (bookmarksState.selectedName) params.set('bookmark', bookmarksState.selectedName);
     }
+    if (viewMode === 'release-notes') {
+      if (releaseNotesState.version) params.set('releaseNotesVersion', releaseNotesState.version);
+      if (releaseNotesState.unreleased) params.set('releaseNotesUnreleased', 'true');
+      if (releaseNotesState.markdown) params.set('releaseNotesMarkdown', 'true');
+    }
     if (viewMode === 'search') {
       if (searchState.q) params.set('searchQ', searchState.q);
       if (searchState.kind) params.set('searchKind', searchState.kind);
@@ -1707,6 +1714,9 @@ function statCard(label, value, cls) {
       importName: params.get('importName') || '',
       importTab: params.get('importTab') || '',
       bookmark: params.get('bookmark') || '',
+      releaseNotesVersion: params.get('releaseNotesVersion') || '',
+      releaseNotesUnreleased: params.get('releaseNotesUnreleased') || '',
+      releaseNotesMarkdown: params.get('releaseNotesMarkdown') || '',
       searchQ: params.get('searchQ') || '',
       searchKind: params.get('searchKind') || '',
       searchTopic: params.get('searchTopic') || '',
@@ -1756,7 +1766,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','import-export','admin','publish','compose','support','health','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1848,6 +1858,11 @@ function statCard(label, value, cls) {
     }
     if (state.view === 'bookmarks') {
       if (state.bookmark) bookmarksState.selectedName = state.bookmark;
+    }
+    if (state.view === 'release-notes') {
+      if (state.releaseNotesVersion) releaseNotesState.version = state.releaseNotesVersion;
+      if (state.releaseNotesUnreleased === 'true') releaseNotesState.unreleased = true;
+      if (state.releaseNotesMarkdown === 'true') releaseNotesState.markdown = true;
     }
     if (state.view === 'search') {
       if (state.searchQ) searchState.q = state.searchQ;
@@ -5109,6 +5124,110 @@ function statCard(label, value, cls) {
 
   window.renderMetrics = renderMetrics;
 
+  window.showReleaseNotes = async function() {
+    viewMode = 'release-notes';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchReleaseNotes();
+    updateUrlState();
+  };
+
+  window.refreshReleaseNotes = async function() {
+    await fetchReleaseNotes();
+    updateUrlState();
+  };
+
+  window.setReleaseNotesVersion = async function(version) {
+    releaseNotesState.version = (version || '').trim();
+    await fetchReleaseNotes();
+    updateUrlState();
+  };
+
+  window.setReleaseNotesUnreleased = async function(flag) {
+    releaseNotesState.unreleased = !!flag;
+    await fetchReleaseNotes();
+    updateUrlState();
+  };
+
+  window.setReleaseNotesMarkdown = async function(flag) {
+    releaseNotesState.markdown = !!flag;
+    if (!releaseNotesState.data) await fetchReleaseNotes();
+    else renderReleaseNotes();
+    updateUrlState();
+  };
+
+  async function fetchReleaseNotes() {
+    releaseNotesState.loading = true;
+    releaseNotesState.error = null;
+    if (viewMode === 'release-notes') renderReleaseNotes();
+    try {
+      var params = new URLSearchParams();
+      if (releaseNotesState.version) params.set('version', releaseNotesState.version);
+      if (releaseNotesState.unreleased) params.set('unreleased', 'true');
+      var path = '/api/v1/release-notes' + (params.toString() ? '?' + params.toString() : '');
+      var r = await fetch(path, releaseNotesState.markdown ? { headers: { 'Accept': 'text/markdown' } } : {});
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (releaseNotesState.markdown) {
+        releaseNotesState.data = { markdown: await r.text(), generatedAt: new Date().toISOString() };
+      } else {
+        releaseNotesState.data = await r.json();
+      }
+      releaseNotesState.loading = false;
+    } catch(e) {
+      releaseNotesState.error = e.message;
+      releaseNotesState.loading = false;
+    }
+    if (viewMode === 'release-notes') renderReleaseNotes();
+  }
+
+  window.fetchReleaseNotes = fetchReleaseNotes;
+
+  function renderReleaseNotes() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Release notes unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to see release notes.</p></div>';
+      return;
+    }
+    if (releaseNotesState.loading && !releaseNotesState.data) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading release notes...</div>';
+      return;
+    }
+    if (releaseNotesState.error && !releaseNotesState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>Release notes error</h2><p>' + esc(releaseNotesState.error) + '</p><button class="btn-icon" onclick="window.refreshReleaseNotes()">&#x21BB; Retry</button></div>';
+      return;
+    }
+    if (!releaseNotesState.data) {
+      main.innerHTML = '<div class="empty-state"><h2>No release notes</h2><p>The release notes endpoint returned an empty response.</p></div>';
+      return;
+    }
+
+    var data = releaseNotesState.data || {};
+    var versionInput = '<input type="text" id="releaseNotesVersionInput" placeholder="e.g. 0.2.0" value="' + esc(releaseNotesState.version || '') + '" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:6rem" onchange="window.setReleaseNotesVersion(this.value)">';
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshReleaseNotes()">&#x21BB; Refresh</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Version ' + versionInput + '</label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)"><input type="checkbox" id="releaseNotesUnreleasedCheck" ' + (releaseNotesState.unreleased ? 'checked' : '') + ' onchange="window.setReleaseNotesUnreleased(this.checked)"> Unreleased</label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)"><input type="checkbox" id="releaseNotesMarkdownCheck" ' + (releaseNotesState.markdown ? 'checked' : '') + ' onchange="window.setReleaseNotesMarkdown(this.checked)"> Markdown</label>' +
+      '<span class="last-updated">' + (data.release ? 'Release ' + esc(data.release) : 'Release notes') + '</span>' +
+      '</div>';
+
+    var body = '';
+    if (releaseNotesState.markdown) {
+      body = '<pre class="support-bundle-json" style="white-space:pre-wrap;word-break:break-word">' + esc(data.markdown || '') + '</pre>';
+    } else {
+      body = '<pre class="support-bundle-json">' + esc(JSON.stringify(data.json || data, null, 2)) + '</pre>';
+      if (data.markdown) {
+        body += '<h2>Markdown</h2><pre class="support-bundle-json" style="white-space:pre-wrap;word-break:break-word">' + esc(data.markdown) + '</pre>';
+      }
+    }
+
+    main.innerHTML = '<div class="home"><h1>&#128196; <span>Release Notes</span></h1><p class="home-subtitle">PermaBrain changelog</p>' + toolbar + body + '</div>';
+  }
+
+  window.renderReleaseNotes = renderReleaseNotes;
+
   window.showAudit = async function() {
     viewMode = 'audit';
     selectedKey = null;
@@ -7146,6 +7265,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'verify') window.showVerify();
         else if (bootState.view === 'bookmarks') window.showBookmarks();
         else if (bootState.view === 'search') window.showSearch();
+        else if (bootState.view === 'release-notes') window.showReleaseNotes();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -7178,6 +7298,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'verify') window.showVerify();
   else if (viewMode === 'bookmarks') window.showBookmarks();
   else if (viewMode === 'search') window.showSearch();
+  else if (viewMode === 'release-notes') window.showReleaseNotes();
   else if (viewMode === 'history') window.showHistory();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
