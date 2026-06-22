@@ -196,6 +196,24 @@ export const ROUTES = [
     response: { results: 'array', count: 'number' }
   },
   {
+    route: '/api/v1/grep',
+    method: 'GET',
+    description: 'Local article body grep across cached markdown pages.',
+    public: false,
+    params: [
+      { name: 'q', in: 'query', type: 'string', required: true },
+      { name: 'regex', in: 'query', type: 'boolean', required: false },
+      { name: 'ignore-case', in: 'query', type: 'boolean', required: false },
+      { name: 'kind', in: 'query', type: 'string', required: false },
+      { name: 'topic', in: 'query', type: 'string', required: false },
+      { name: 'language', in: 'query', type: 'string', required: false },
+      { name: 'key', in: 'query', type: 'string', required: false },
+      { name: 'limit', in: 'query', type: 'integer', required: false },
+      { name: 'context', in: 'query', type: 'integer', required: false }
+    ],
+    response: { query: 'string', regex: 'boolean', ignoreCase: 'boolean', filters: 'object', total: 'number', matches: 'array' }
+  },
+  {
     route: '/api/v1/status',
     method: 'GET',
     description: 'Local node status overview.',

@@ -469,6 +469,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="encryptedBtn" onclick="window.showEncrypted()" title="Encrypted publish">&#128274;</button>
     <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
     <button class="btn-icon" id="searchBtn" onclick="window.showSearch()" title="Search articles">&#128269;</button>
+    <button class="btn-icon" id="grepBtn" onclick="window.showGrep()" title="Grep article bodies">&#128270;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
     <button class="btn-icon" id="topicsBtn" onclick="window.showTopics()" title="Topics catalog">&#128218;</button>
     <button class="btn-icon" id="tagsBtn" onclick="window.showTags()" title="Tags catalog">&#127991;</button>
@@ -658,7 +659,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'encrypted' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'template' | 'activity' | 'notifications' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'encrypted' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'template' | 'activity' | 'notifications' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'sync' | 'verify' | 'bookmarks' | 'search' | 'grep' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
   var previousViewMode = 'home';
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var notificationsState = loadNotificationsState();
@@ -752,6 +753,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var bookmarksState = { list: [], loading: false, error: null, selectedName: '', importText: '', exportText: '' };
   var releaseNotesState = { data: null, loading: false, error: null, markdown: false, version: '', unreleased: false };
   var searchState = { q: '', kind: '', topic: '', author: '', key: '', after: '', before: '', limit: 20, offset: 0, sort: 'relevance', loading: false, error: null, results: null, total: 0 };
+  var grepState = { q: '', regex: false, ignoreCase: false, kind: '', topic: '', language: '', key: '', limit: 50, context: 1, loading: false, error: null, results: null, total: 0 };
   var identityState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'markdown'
   var configState = { data: null, loading: false, error: null, message: null, envData: null, validationResult: null, editPath: '', editValue: '' };
   var goalState = { text: '', result: null, loading: false, error: null, message: null };
@@ -866,6 +868,7 @@ function statCard(label, value, cls) {
       case 'verify': window.showVerify(); break;
       case 'bookmarks': window.showBookmarks(); break;
       case 'search': window.showSearch(); break;
+      case 'grep': window.showGrep(); break;
       case 'release-notes': window.showReleaseNotes(); break;
       case 'identity': window.showIdentity(); break;
       case 'config': window.showConfig(); break;
@@ -892,6 +895,7 @@ function statCard(label, value, cls) {
     { key: 'Ctrl+K / Cmd+K', action: 'Open command palette' },
     { key: 'H', action: 'Go Home' },
     { key: 'S', action: 'Open Search' },
+    { key: 'G', action: 'Open Grep' },
     { key: 'A', action: 'Open Attest panel' },
     { key: 'B', action: 'Open Bookmarks' },
     { key: 'C', action: 'Open Compose article' },
@@ -913,6 +917,7 @@ function statCard(label, value, cls) {
     var navRows = [
       ['Home', 'homeBtn', 'H'],
       ['Search', 'searchBtn', 'S'],
+      ['Grep', 'grepBtn', 'G'],
       ['Compose', 'composeBtn', 'C'],
       ['Publish', 'publishBtn', 'P'],
       ['Attest', 'attestBtn', 'A'],
@@ -1269,6 +1274,7 @@ function statCard(label, value, cls) {
     if (key === '/' ) { e.preventDefault(); var s = document.getElementById('search'); if (s) s.focus(); return; }
     if (key === 'h' || key === 'H') { e.preventDefault(); window.showHome(); return; }
     if (key === 's' || key === 'S') { e.preventDefault(); window.showSearch(); return; }
+    if (key === 'g' || key === 'G') { e.preventDefault(); window.showGrep(); return; }
     if (key === 'a' || key === 'A') { e.preventDefault(); window.showAttest(); return; }
     if (key === 'b' || key === 'B') { e.preventDefault(); window.showBookmarks(); return; }
     if (key === 'c' || key === 'C') { e.preventDefault(); window.showCompose(); return; }
@@ -2175,6 +2181,17 @@ function statCard(label, value, cls) {
       if (searchState.offset) params.set('searchOffset', String(searchState.offset));
       if (searchState.sort && searchState.sort !== 'relevance') params.set('searchSort', searchState.sort);
     }
+    if (viewMode === 'grep') {
+      if (grepState.q) params.set('grepQ', grepState.q);
+      if (grepState.regex) params.set('grepRegex', 'true');
+      if (grepState.ignoreCase) params.set('grepIgnoreCase', 'true');
+      if (grepState.kind) params.set('grepKind', grepState.kind);
+      if (grepState.topic) params.set('grepTopic', grepState.topic);
+      if (grepState.language) params.set('grepLanguage', grepState.language);
+      if (grepState.key) params.set('grepKey', grepState.key);
+      if (grepState.limit && grepState.limit !== 50) params.set('grepLimit', String(grepState.limit));
+      if (grepState.context && grepState.context !== 1) params.set('grepContext', String(grepState.context));
+    }
     if (selectedKey && viewMode === 'article' && !isLocalListMode()) params.set('key', selectedKey);
     if (modalArticle && modalArticle.key && isLocalListMode()) params.set('key', modalArticle.key);
     if (activeTab && activeTab !== 'content' && (selectedKey || modalArticle)) params.set('tab', activeTab);
@@ -2320,7 +2337,16 @@ function statCard(label, value, cls) {
       encryptedSourceName: params.get('encryptedSourceName') || '',
       encryptedLanguage: params.get('encryptedLanguage') || '',
       encryptedApiKey: params.get('encryptedApiKey') || '',
-      encryptedRecipients: params.get('encryptedRecipients') || ''
+      encryptedRecipients: params.get('encryptedRecipients') || '',
+      grepQ: params.get('grepQ') || '',
+      grepRegex: params.get('grepRegex') === 'true',
+      grepIgnoreCase: params.get('grepIgnoreCase') === 'true',
+      grepKind: params.get('grepKind') || '',
+      grepTopic: params.get('grepTopic') || '',
+      grepLanguage: params.get('grepLanguage') || '',
+      grepKey: params.get('grepKey') || '',
+      grepLimit: params.get('grepLimit') || '',
+      grepContext: params.get('grepContext') || ''
     };
   }
 
@@ -2360,7 +2386,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','encrypted','support','health','identity','config','goal','template','activity','notifications','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','encrypted','support','health','identity','config','goal','template','activity','notifications','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','sync','verify','bookmarks','search','grep','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -2543,6 +2569,17 @@ function statCard(label, value, cls) {
       if (state.searchLimit) { var sl2 = parseInt(state.searchLimit, 10); if (!isNaN(sl2) && sl2 > 0) searchState.limit = sl2; }
       if (state.searchOffset) { var so2 = parseInt(state.searchOffset, 10); if (!isNaN(so2) && so2 >= 0) searchState.offset = so2; }
       if (state.searchSort) searchState.sort = state.searchSort;
+    }
+    if (state.view === 'grep') {
+      if (state.grepQ) grepState.q = state.grepQ;
+      if (state.grepRegex) grepState.regex = true;
+      if (state.grepIgnoreCase) grepState.ignoreCase = true;
+      if (state.grepKind) grepState.kind = state.grepKind;
+      if (state.grepTopic) grepState.topic = state.grepTopic;
+      if (state.grepLanguage) grepState.language = state.grepLanguage;
+      if (state.grepKey) grepState.key = state.grepKey;
+      if (state.grepLimit) { var gl = parseInt(state.grepLimit, 10); if (!isNaN(gl) && gl > 0) grepState.limit = gl; }
+      if (state.grepContext) { var gc = parseInt(state.grepContext, 10); if (!isNaN(gc) && gc >= 0) grepState.context = gc; }
     }
     if (state.tab) activeTab = state.tab;
     return state;
@@ -5747,6 +5784,219 @@ function statCard(label, value, cls) {
   }
 
   window.renderSearch = renderSearch;
+
+  // --- Grep panel ---
+  window.showGrep = async function() {
+    setViewMode('grep');
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    if (grepState.q) {
+      await runGrep();
+    } else {
+      renderGrep();
+    }
+    updateUrlState();
+    markActiveToolbarButton('grepBtn');
+  };
+
+  window.refreshGrep = async function() {
+    grepState.limit = 50;
+    grepState.offset = 0;
+    await runGrep();
+  };
+
+  window.runGrep = async function() {
+    await fetchGrep();
+    updateUrlState();
+  };
+
+  window.setGrepFlag = function(key, value) {
+    grepState[key] = !!value;
+    renderGrep();
+    updateUrlState();
+  };
+
+  window.setGrepLimit = async function(limit) {
+    var n = parseInt(limit, 10);
+    grepState.limit = (!isNaN(n) && n > 0) ? n : 50;
+    await runGrep();
+  };
+
+  window.setGrepContext = async function(context) {
+    var n = parseInt(context, 10);
+    grepState.context = (!isNaN(n) && n >= 0) ? n : 1;
+    await runGrep();
+  };
+
+  window.setGrepFilter = function(key, value) {
+    grepState[key] = value || '';
+    renderGrep();
+    updateUrlState();
+  };
+
+  window.clearGrep = async function() {
+    grepState = { q: '', regex: false, ignoreCase: false, kind: '', topic: '', language: '', key: '', limit: 50, context: 1, loading: false, error: null, results: null, total: 0 };
+    await runGrep();
+  };
+
+  window.copyGrepMarkdown = async function() {
+    try {
+      var params = new URLSearchParams();
+      params.set('q', grepState.q);
+      params.set('regex', grepState.regex ? 'true' : 'false');
+      params.set('ignore-case', grepState.ignoreCase ? 'true' : 'false');
+      if (grepState.kind) params.set('kind', grepState.kind);
+      if (grepState.topic) params.set('topic', grepState.topic);
+      if (grepState.language) params.set('language', grepState.language);
+      if (grepState.key) params.set('key', grepState.key);
+      if (grepState.limit && grepState.limit !== 50) params.set('limit', String(grepState.limit));
+      if (grepState.context && grepState.context !== 1) params.set('context', String(grepState.context));
+      var r = await fetch('/api/v1/grep?' + params.toString(), { headers: { 'Accept': 'text/markdown' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var md = await r.text();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(md);
+        showToast('Grep report copied as Markdown', 'success');
+      } else {
+        throw new Error('Clipboard not available');
+      }
+    } catch(e) {
+      showToast('Copy failed: ' + e.message, 'error');
+    }
+  };
+
+  window.downloadGrepMarkdown = function() {
+    if (!grepState.results) return;
+    try {
+      var md = grepState.results.markdown || '';
+      var blob = new Blob([md], { type: 'text/markdown' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'permabrain-grep-' + (grepState.q || 'report').replace(/[^a-zA-Z0-9_-]/g, '_') + '.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      showToast('Download failed: ' + e.message, 'error');
+    }
+  };
+
+  window.copyGrepJson = async function() {
+    try {
+      if (!grepState.results) throw new Error('No results to copy');
+      var json = JSON.stringify(grepState.results, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(json);
+        showToast('Grep results copied as JSON', 'success');
+      } else {
+        throw new Error('Clipboard not available');
+      }
+    } catch(e) {
+      showToast('Copy failed: ' + e.message, 'error');
+    }
+  };
+
+  async function fetchGrep() {
+    if (!isLocalServer()) return;
+    grepState.loading = true;
+    grepState.error = null;
+    if (viewMode === 'grep') renderGrep();
+    try {
+      var params = new URLSearchParams();
+      if (grepState.q) params.set('q', grepState.q);
+      params.set('regex', grepState.regex ? 'true' : 'false');
+      params.set('ignore-case', grepState.ignoreCase ? 'true' : 'false');
+      if (grepState.kind) params.set('kind', grepState.kind);
+      if (grepState.topic) params.set('topic', grepState.topic);
+      if (grepState.language) params.set('language', grepState.language);
+      if (grepState.key) params.set('key', grepState.key);
+      if (grepState.limit && grepState.limit !== 50) params.set('limit', String(grepState.limit));
+      if (grepState.context && grepState.context !== 1) params.set('context', String(grepState.context));
+      var r = await fetch('/api/v1/grep?' + params.toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var data = await r.json();
+      grepState.results = data;
+      grepState.total = data.total || 0;
+      grepState.loading = false;
+    } catch(e) {
+      grepState.error = e.message;
+      grepState.results = null;
+      grepState.total = 0;
+      grepState.loading = false;
+    }
+    if (viewMode === 'grep') renderGrep();
+  }
+
+  window.fetchGrep = fetchGrep;
+
+  function renderGrepMatchSnippet(lines) {
+    if (!Array.isArray(lines)) return '';
+    return lines.map(function(line) {
+      return '<div style="font-family:monospace;font-size:0.78rem;white-space:pre-wrap;word-break:break-word;padding:0.15rem 0;border-bottom:1px solid var(--border)">' + esc(line) + '</div>';
+    }).join('');
+  }
+
+  function renderGrep() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Grep panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to grep article bodies.</p></div>';
+      return;
+    }
+    var s = grepState;
+    var form = '<div class="dashboard-toolbar" style="flex-wrap:wrap;gap:0.5rem">' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Query <input type="text" id="grepQ" placeholder="Search article bodies..." value="' + esc(s.q || '') + '" onchange="window.setGrepFilter(\'q\', this.value)" style="width:16rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Kind <input type="text" id="grepKind" placeholder="subject" value="' + esc(s.kind || '') + '" onchange="window.setGrepFilter(\'kind\', this.value)" style="width:6rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Topic <input type="text" id="grepTopic" placeholder="topic" value="' + esc(s.topic || '') + '" onchange="window.setGrepFilter(\'topic\', this.value)" style="width:6rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Language <input type="text" id="grepLanguage" placeholder="en" value="' + esc(s.language || '') + '" onchange="window.setGrepFilter(\'language\', this.value)" style="width:4rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Key <input type="text" id="grepKey" placeholder="kind/slug" value="' + esc(s.key || '') + '" onchange="window.setGrepFilter(\'key\', this.value)" style="width:8rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Limit <input type="number" min="1" max="1000" value="' + esc(String(s.limit)) + '" onchange="window.setGrepLimit(this.value)" style="width:4rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.78rem;color:var(--muted)">Context <input type="number" min="0" max="10" value="' + esc(String(s.context)) + '" onchange="window.setGrepContext(this.value)" style="width:3.5rem;font-size:0.85rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '</div>' +
+      '<div class="dashboard-toolbar" style="gap:0.5rem">' +
+      '<button class="btn-icon" onclick="window.refreshGrep()">&#128270; Grep</button>' +
+      '<button class="btn-icon" onclick="window.clearGrep()">Clear</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted);display:flex;align-items:center;gap:0.25rem"><input type="checkbox" id="grepRegex"' + (s.regex ? ' checked' : '') + ' onchange="window.setGrepFlag(\'regex\', this.checked)"> Regex</label>' +
+      '<label style="font-size:0.75rem;color:var(--muted);display:flex;align-items:center;gap:0.25rem"><input type="checkbox" id="grepIgnoreCase"' + (s.ignoreCase ? ' checked' : '') + ' onchange="window.setGrepFlag(\'ignoreCase\', this.checked)"> Ignore case</label>' +
+      '<button class="btn-icon" onclick="window.copyGrepMarkdown()" ' + (s.q ? '' : 'disabled') + '>Copy Markdown</button>' +
+      '<button class="btn-icon" onclick="window.downloadGrepMarkdown()" ' + (s.results ? '' : 'disabled') + '>Download MD</button>' +
+      '<button class="btn-icon" onclick="window.copyGrepJson()" ' + (s.results ? '' : 'disabled') + '>Copy JSON</button>' +
+      '</div>';
+
+    if (s.loading && !s.results) {
+      main.innerHTML = '<div class="home"><h1>&#128270; <span>Grep</span></h1><p class="home-subtitle">Search inside article bodies across the local cache</p>' + form + '<div class="loading"><div class="spinner"></div> Grep running...</div></div>';
+      return;
+    }
+    if (s.error && !s.results) {
+      main.innerHTML = '<div class="home"><h1>&#128270; <span>Grep</span></h1><p class="home-subtitle">Search inside article bodies across the local cache</p>' + form + '<div class="empty-state"><h2>Grep error</h2><p>' + esc(s.error) + '</p><button class="btn-icon" onclick="window.refreshGrep()">&#x21BB; Retry</button></div></div>';
+      return;
+    }
+
+    var data = s.results || {};
+    var matches = data.matches || [];
+    var total = data.total || 0;
+    var info = '<p style="font-size:0.8rem;color:var(--muted);margin:0.5rem 0">' + (s.q ? esc(total + ' match' + (total !== 1 ? 'es' : '') + ' across ' + matches.length + ' article' + (matches.length !== 1 ? 's' : '') + ' for "' + s.q + '"') : 'Enter a query and click Grep') + '</p>';
+
+    var rows = matches.map(function(m) {
+      var a = m.article || {};
+      var key = a.key || m.key || '(unknown)';
+      var title = a.title || key;
+      return '<div class="dashboard-section" style="padding:0.75rem 1rem;margin-bottom:0.5rem">' +
+        '<div><strong><a href="?view=article&key=' + encodeURIComponent(key) + '" style="color:var(--accent);text-decoration:none">' + esc(title) + '</a></strong> <code style="font-size:0.75rem">' + esc(key) + '</code></div>' +
+        '<div style="font-size:0.75rem;color:var(--muted)">' + (m.matchCount || 0) + ' match' + ((m.matchCount || 0) !== 1 ? 'es' : '') + (a.kind ? ' · ' + esc(a.kind) : '') + (a.topic ? ' · ' + esc(a.topic) : '') + (a.language ? ' · ' + esc(a.language) : '') + '</div>' +
+        (m.lines && m.lines.length ? '<div style="margin-top:0.5rem;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:0.5rem">' + renderGrepMatchSnippet(m.lines.slice(0, s.context === 0 ? 1 : 12)) + '</div>' : '') +
+        '</div>';
+    }).join('');
+
+    var body = matches.length ? '<div style="margin-top:0.5rem">' + rows + '</div>' : (s.q ? '<p class="dashboard-empty">No matches.</p>' : '');
+
+    main.innerHTML = '<div class="home"><h1>&#128270; <span>Grep</span></h1><p class="home-subtitle">Search inside article bodies across the local cache</p>' + form + info + body + '</div>';
+  }
+
+  window.renderGrep = renderGrep;
 
   // --- Bookmarks / Saved queries panel ---
   var BOOKMARKS_STORAGE_KEY = 'permabrain-bookmarks';
@@ -9734,7 +9984,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify' && viewMode !== 'search' && viewMode !== 'backup' && viewMode !== 'archive' && viewMode !== 'webhooks' && viewMode !== 'sync';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify' && viewMode !== 'search' && viewMode !== 'grep' && viewMode !== 'backup' && viewMode !== 'archive' && viewMode !== 'webhooks' && viewMode !== 'sync';
   }
 
   function readFiltersFromDom() {
@@ -10584,6 +10834,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'verify') window.showVerify();
   else if (viewMode === 'bookmarks') window.showBookmarks();
   else if (viewMode === 'search') window.showSearch();
+  else if (viewMode === 'grep') window.showGrep();
   else if (viewMode === 'release-notes') window.showReleaseNotes();
   else if (viewMode === 'identity') window.showIdentity();
   else if (viewMode === 'config') window.showConfig();

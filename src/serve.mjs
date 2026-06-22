@@ -721,6 +721,48 @@ async function handleRequest(req, res, home, options = {}) {
       }
       return sendJson(res, 200, result);
     }
+    if (method === 'GET' && route === '/api/v1/search') {
+      const opts = {
+        q: url.searchParams.get('q') || '',
+        kind: url.searchParams.get('kind') || undefined,
+        topic: url.searchParams.get('topic') || undefined,
+        author: url.searchParams.get('author') || undefined,
+        key: url.searchParams.get('key') || undefined,
+        after: url.searchParams.get('after') || undefined,
+        before: url.searchParams.get('before') || undefined,
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined,
+        offset: url.searchParams.has('offset') ? Number(url.searchParams.get('offset')) : undefined,
+        useHyperbeam: parseBool(url.searchParams.get('use-hyperbeam'))
+      };
+      if (!opts.q) return sendError(res, 400, 'q is required');
+      const result = await api.search(opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/grep') {
+      const opts = {
+        q: url.searchParams.get('q') || '',
+        regex: url.searchParams.get('regex') === 'true',
+        ignoreCase: url.searchParams.get('ignore-case') === 'true' || url.searchParams.get('ignoreCase') === 'true',
+        kind: url.searchParams.get('kind') || undefined,
+        topic: url.searchParams.get('topic') || undefined,
+        language: url.searchParams.get('language') || undefined,
+        key: url.searchParams.get('key') || undefined,
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined,
+        context: url.searchParams.has('context') ? Number(url.searchParams.get('context')) : undefined,
+        markdown: false
+      };
+      if (!opts.q) return sendError(res, 400, 'q is required');
+      const accept = req.headers.accept || '';
+      const result = await api.grep(opts.q, opts);
+      if (accept.includes('text/markdown')) {
+        res.setHeader('content-type', 'text/markdown');
+        const markdown = result.markdown || await api.grepToMarkdown(opts.q, opts);
+        return res.end(markdown);
+      }
+      return sendJson(res, 200, result);
+    }
+
     if (topicMatch && method === 'GET') {
       const topic = decodeURIComponent(topicMatch[1]);
       const opts = {

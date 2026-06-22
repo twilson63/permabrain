@@ -90,6 +90,19 @@ const search = await client.search('SDK', { topic: 'client-sdk' });
 assert.ok(search.total >= 1, 'search has results');
 console.log('   ✓ search via client');
 
+console.log('10b. grep via client');
+const grep = await client.grep('Published', { key });
+assert.ok(typeof grep.total === 'number', 'grep total is number');
+assert.ok(Array.isArray(grep.matches), 'grep matches is array');
+assert.ok(grep.matches.some(m => (m.key || m.article?.key) === key), 'grep returns the published article');
+console.log('   ✓ grep via client');
+
+console.log('10c. grepMarkdown via client');
+const grepMd = await client.grepMarkdown('Published', { key });
+assert.ok(typeof grepMd === 'string', 'grepMarkdown returns string');
+assert.ok(grepMd.includes('Published'), 'grepMarkdown contains query');
+console.log('   ✓ grepMarkdown via client');
+
 console.log('11. status via client');
 const status = await client.status();
 assert.equal(status.transport, 'local', 'status transport');

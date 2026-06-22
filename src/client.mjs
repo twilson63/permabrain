@@ -155,6 +155,12 @@ export function createClient(options = {}) {
     search: (query, opts = {}) => request('GET', `/api/v1/search${toQuery({ q: query, ...opts })}`),
 
     /** @returns {Promise<Object>} */
+    grep: (query, opts = {}) => request('GET', `/api/v1/grep${toQuery({ q: query, ...opts })}`),
+
+    /** @returns {Promise<string>} Markdown grep report. */
+    grepMarkdown: (query, opts = {}) => request('GET', `/api/v1/grep${toQuery({ q: query, ...opts })}`, undefined, { accept: 'text/markdown' }),
+
+    /** @returns {Promise<Object>} */
     status: (opts = {}) => request('GET', `/api/v1/status${toQuery(opts)}`),
 
     /** @returns {Promise<Object>} */
