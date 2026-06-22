@@ -44,9 +44,20 @@ export function renderTemplate(templateSource, variables = {}) {
     return val === undefined ? match : String(val);
   });
   if (frontmatter && Object.keys(frontmatter).length) {
-    rendered = serializeFrontmatter(frontmatter, rendered);
+    const renderedFrontmatter = Object.fromEntries(
+      Object.entries(frontmatter).map(([k, v]) => [k, typeof v === 'string' ? substituteVariables(v, mergedVars) : v])
+    );
+    rendered = serializeFrontmatter(renderedFrontmatter, rendered);
   }
   return { frontmatter, body, rendered, variables: mergedVars };
+}
+
+export function substituteVariables(text, variables = {}) {
+  if (typeof text !== 'string') return text;
+  return text.replace(/\{\{\s*([a-zA-Z0-9_\-.]+)\s*\}\}/g, (match, key) => {
+    const val = key.split('.').reduce((obj, k) => (obj && k in obj ? obj[k] : undefined), variables);
+    return val === undefined ? match : String(val);
+  });
 }
 
 export function readTemplateFile(filePath) {
@@ -91,7 +102,7 @@ export async function createArticleFromTemplate(sourceOrPath, options = {}) {
   const { rendered, frontmatter } = renderTemplate(source, variables);
   const articleKind = validateKind(kind || frontmatter.kind || 'subject');
   const articleTopic = topic || frontmatter.topic || 'general';
-  const publishTitle = options.title || frontmatter.title || deriveTitleFromContent(rendered) || `${articleKind}/${articleTopic}`;
+  const publishTitle = options.title || substituteVariables(frontmatter.title, variables) || deriveTitleFromContent(rendered) || `${articleKind}/${articleTopic}`;
   const articleTags = buildArticleTags(frontmatter, { topic: articleTopic, kind: articleKind, title: publishTitle, extraTags, app: options.app });
   const canonicalKey = options.key || deriveKey({ key: undefined, kind: articleTags.Kind, title: publishTitle });
 

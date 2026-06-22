@@ -448,6 +448,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="webhooksBtn" onclick="window.showWebhooks()" title="Outgoing webhooks">&#128225;</button>
     <button class="btn-icon" id="configBtn" onclick="window.showConfig()" title="Node configuration">&#128295;</button>
     <button class="btn-icon" id="goalBtn" onclick="window.showGoal()" title="Goal / PRD planner">&#127919;</button>
+    <button class="btn-icon" id="templateBtn" onclick="window.showTemplate()" title="Template publisher">&#128221;</button>
     <button class="btn-icon" id="backupBtn" onclick="window.showBackup()" title="Backup / archive">&#128424;</button>
     <button class="btn-icon" id="archiveBtn" onclick="window.showArchive()" title="Archive / restore">&#128230;</button>
     <button class="btn-icon" id="helpBtn" onclick="window.showHelp()" title="Keyboard shortcuts (?)" style="margin-left:auto">&#10067;</button>
@@ -607,7 +608,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'template' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
   var previousViewMode = 'home';
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
@@ -672,6 +673,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var identityState = { data: null, loading: false, error: null, format: 'json' }; // 'json' | 'markdown'
   var configState = { data: null, loading: false, error: null, message: null, envData: null, validationResult: null, editPath: '', editValue: '' };
   var goalState = { text: '', result: null, loading: false, error: null, message: null };
+  var templateState = { source: '', variablesText: '', variables: {}, topic: '', kind: 'subject', title: '', key: '', sourceUrl: '', app: 'PermaBrain', apiKey: '', encrypt: false, recipients: '', loading: false, error: null, result: null, message: null, preview: null };
   var remotesState = { data: null, loading: false, error: null, message: null, actionLoading: false, showJson: true, apiKey: '', form: { name: '', url: '', transport: 'auto', description: '' } };
   var backupState = { data: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', backupName: '', keep: '10', maxAgeDays: '', showJson: false };
   var archiveState = { archive: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', recipients: '', dryRun: false, importText: '', restorePassphrase: '', restoreOptions: 'dryRun=false' };
@@ -783,6 +785,7 @@ function statCard(label, value, cls) {
       case 'identity': window.showIdentity(); break;
       case 'config': window.showConfig(); break;
       case 'goal': window.showGoal(); break;
+      case 'template': window.showTemplate(); break;
       case 'remotes': window.showRemotes(); break;
       case 'webhooks': window.showWebhooks(); break;
       case 'history': window.showHistory(); break;
@@ -814,7 +817,8 @@ function statCard(label, value, cls) {
     { key: 'P', action: 'Open Publish (batch)' },
     { key: 'R', action: 'Refresh current view' },
     { key: 'T', action: 'Toggle theme' },
-    { key: 'V', action: 'Open Verify panel' }
+    { key: 'V', action: 'Open Verify panel' },
+    { key: '—', action: 'Open Template publisher' }
   ];
   function buildHelpPanelHtml() {
     var rows = helpShortcuts.map(function(s) {
@@ -849,6 +853,7 @@ function statCard(label, value, cls) {
       ['Webhooks', 'webhooksBtn', '—'],
       ['Config', 'configBtn', '—'],
       ['Goal / PRD', 'goalBtn', '—'],
+      ['Template', 'templateBtn', '—'],
       ['Backup', 'backupBtn', '—'],
       ['Archive', 'archiveBtn', '—'],
       ['Health', 'healthBtn', '—'],
@@ -923,6 +928,7 @@ function statCard(label, value, cls) {
       { id: 'go-webhooks', icon: '&#128225;', title: 'Go to Webhooks / Integrations', action: function() { window.showWebhooks(); } },
       { id: 'go-config', icon: '&#128295;', title: 'Go to Node configuration', action: function() { window.showConfig(); } },
       { id: 'go-goal', icon: '&#127919;', title: 'Go to Goal / PRD planner', action: function() { window.showGoal(); } },
+      { id: 'go-template', icon: '&#128221;', title: 'Go to Template publisher', action: function() { window.showTemplate(); } },
       { id: 'go-backup', icon: '&#128424;', title: 'Go to Backup panel', action: function() { window.showBackup(); } },
       { id: 'go-archive', icon: '&#128230;', title: 'Go to Archive / Restore', action: function() { window.showArchive(); } },
       { id: 'go-health', icon: '&#10003;', title: 'Go to Health / diagnostics', action: function() { window.showHealth(); } },
@@ -1899,6 +1905,19 @@ function statCard(label, value, cls) {
     if (settings.pageSize && settings.pageSize !== 100) params.set('pageSize', String(settings.pageSize));
     if (settings.liveTail === false) params.set('liveTail', 'false');
     if (viewMode && viewMode !== 'home') params.set('view', viewMode);
+    if (viewMode === 'template') {
+      if (templateState.source) params.set('templateSource', templateState.source);
+      if (templateState.variablesText) params.set('templateVars', templateState.variablesText);
+      if (templateState.topic) params.set('templateTopic', templateState.topic);
+      if (templateState.kind && templateState.kind !== 'subject') params.set('templateKind', templateState.kind);
+      if (templateState.title) params.set('templateTitle', templateState.title);
+      if (templateState.key) params.set('templateKey', templateState.key);
+      if (templateState.sourceUrl) params.set('templateSourceUrl', templateState.sourceUrl);
+      if (templateState.app && templateState.app !== 'PermaBrain') params.set('templateApp', templateState.app);
+      if (templateState.apiKey) params.set('templateApiKey', templateState.apiKey);
+      if (templateState.encrypt) params.set('templateEncrypt', 'true');
+      if (templateState.recipients) params.set('templateRecipients', templateState.recipients);
+    }
     if (viewMode === 'import-export') {
       if (exportImportState.activeTab) params.set('importTab', exportImportState.activeTab);
       if (exportImportState.exportKey) params.set('exportKey', exportImportState.exportKey);
@@ -2169,7 +2188,18 @@ function statCard(label, value, cls) {
       archiveDryRun: params.get('archiveDryRun') || '',
       archiveImportText: params.get('archiveImportText') || '',
       archiveRestorePassphrase: params.get('archiveRestorePassphrase') || '',
-      archiveRestoreOptions: params.get('archiveRestoreOptions') || ''
+      archiveRestoreOptions: params.get('archiveRestoreOptions') || '',
+      templateSource: params.get('templateSource') || '',
+      templateVars: params.get('templateVars') || '',
+      templateTopic: params.get('templateTopic') || '',
+      templateKind: params.get('templateKind') || '',
+      templateTitle: params.get('templateTitle') || '',
+      templateKey: params.get('templateKey') || '',
+      templateSourceUrl: params.get('templateSourceUrl') || '',
+      templateApp: params.get('templateApp') || '',
+      templateApiKey: params.get('templateApiKey') || '',
+      templateEncrypt: params.get('templateEncrypt') || '',
+      templateRecipients: params.get('templateRecipients') || ''
     };
   }
 
@@ -2209,7 +2239,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','template','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -2347,6 +2377,19 @@ function statCard(label, value, cls) {
       if (state.archiveImportText) archiveState.importText = state.archiveImportText;
       if (state.archiveRestorePassphrase) archiveState.restorePassphrase = state.archiveRestorePassphrase;
       if (state.archiveRestoreOptions) archiveState.restoreOptions = state.archiveRestoreOptions;
+    }
+    if (state.view === 'template') {
+      if (state.templateSource) templateState.source = state.templateSource;
+      if (state.templateVars) templateState.variablesText = state.templateVars;
+      if (state.templateTopic) templateState.topic = state.templateTopic;
+      if (state.templateKind) templateState.kind = state.templateKind;
+      if (state.templateTitle) templateState.title = state.templateTitle;
+      if (state.templateKey) templateState.key = state.templateKey;
+      if (state.templateSourceUrl) templateState.sourceUrl = state.templateSourceUrl;
+      if (state.templateApp) templateState.app = state.templateApp;
+      if (state.templateApiKey) templateState.apiKey = state.templateApiKey;
+      if (state.templateEncrypt === 'true') templateState.encrypt = true;
+      if (state.templateRecipients) templateState.recipients = state.templateRecipients;
     }
     if (state.view === 'search') {
       if (state.searchQ) searchState.q = state.searchQ;
@@ -3635,6 +3678,333 @@ function statCard(label, value, cls) {
   }
 
   window.renderGoal = renderGoal;
+
+  // --- Template publisher panel ---
+  const TEMPLATE_DRAFT_KEY = 'permabrain-template-draft';
+
+  function loadTemplateDraft() {
+    try {
+      var raw = localStorage.getItem(TEMPLATE_DRAFT_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        templateState.source = parsed.source || '';
+        templateState.variablesText = parsed.variablesText || '';
+        templateState.topic = parsed.topic || '';
+        templateState.kind = parsed.kind || 'subject';
+        templateState.title = parsed.title || '';
+        templateState.key = parsed.key || '';
+        templateState.sourceUrl = parsed.sourceUrl || '';
+        templateState.app = parsed.app || 'PermaBrain';
+        templateState.encrypt = !!parsed.encrypt;
+        templateState.recipients = parsed.recipients || '';
+      }
+    } catch (e) {}
+  }
+
+  function saveTemplateDraft() {
+    try {
+      localStorage.setItem(TEMPLATE_DRAFT_KEY, JSON.stringify({
+        source: templateState.source || '',
+        variablesText: templateState.variablesText || '',
+        topic: templateState.topic || '',
+        kind: templateState.kind || 'subject',
+        title: templateState.title || '',
+        key: templateState.key || '',
+        sourceUrl: templateState.sourceUrl || '',
+        app: templateState.app || 'PermaBrain',
+        encrypt: !!templateState.encrypt,
+        recipients: templateState.recipients || ''
+      }));
+    } catch (e) {}
+  }
+
+  window.showTemplate = async function() {
+    setViewMode('template');
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    loadTemplateDraft();
+    await renderTemplatePanel();
+    updateUrlState();
+
+    markActiveToolbarButton('templateBtn');
+  };
+
+  window.refreshTemplate = async function() {
+    await renderTemplatePanel();
+    updateUrlState();
+  };
+
+  window.setTemplateSource = function(v) {
+    templateState.source = v || '';
+    templateState.preview = null;
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateVariables = function(v) {
+    templateState.variablesText = v || '';
+    templateState.preview = null;
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateTopic = function(v) {
+    templateState.topic = v || '';
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateKind = function(v) {
+    templateState.kind = v || 'subject';
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateTitle = function(v) {
+    templateState.title = v || '';
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateKey = function(v) {
+    templateState.key = v || '';
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateSourceUrl = function(v) {
+    templateState.sourceUrl = v || '';
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateApp = function(v) {
+    templateState.app = v || 'PermaBrain';
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateApiKey = function(v) {
+    templateState.apiKey = v || '';
+    updateUrlState();
+  };
+
+  window.setTemplateEncrypt = function(v) {
+    templateState.encrypt = !!v;
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  window.setTemplateRecipients = function(v) {
+    templateState.recipients = v || '';
+    saveTemplateDraft();
+    updateUrlState();
+  };
+
+  function parseTemplateVariables() {
+    var text = (templateState.variablesText || '').trim();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      return { _parseError: e.message };
+    }
+  }
+
+  window.runTemplatePreview = async function() {
+    if (!isLocalServer()) return;
+    var source = (document.getElementById('templateSource')?.value || '').trim();
+    var varsText = (document.getElementById('templateVariables')?.value || '').trim();
+    templateState.source = source;
+    templateState.variablesText = varsText;
+    saveTemplateDraft();
+    var variables = parseTemplateVariables();
+    if (variables._parseError) {
+      templateState.error = 'Variables JSON: ' + variables._parseError;
+      templateState.preview = null;
+      renderTemplatePanel();
+      return;
+    }
+    templateState.loading = true;
+    templateState.error = null;
+    templateState.message = null;
+    templateState.preview = null;
+    templateState.result = null;
+    renderTemplatePanel();
+    try {
+      var r = await fetch('/api/v1/template', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ source: source, variables: variables, topic: templateState.topic, kind: templateState.kind, title: templateState.title, key: templateState.key, sourceUrl: templateState.sourceUrl, app: templateState.app, encrypt: false })
+      });
+      if (!r.ok) {
+        var errBody = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
+        throw new Error(errBody.error || 'HTTP ' + r.status);
+      }
+      templateState.preview = await r.json();
+      templateState.message = 'Preview generated: ' + (templateState.preview.key || '—');
+    } catch (e) {
+      templateState.error = e.message;
+    }
+    templateState.loading = false;
+    renderTemplatePanel();
+    updateUrlState();
+  };
+
+  window.runTemplatePublish = async function() {
+    if (!isLocalServer()) return;
+    var source = (document.getElementById('templateSource')?.value || '').trim();
+    var varsText = (document.getElementById('templateVariables')?.value || '').trim();
+    templateState.source = source;
+    templateState.variablesText = varsText;
+    saveTemplateDraft();
+    if (!source) {
+      templateState.error = 'Template source is required.';
+      renderTemplatePanel();
+      return;
+    }
+    var variables = parseTemplateVariables();
+    if (variables._parseError) {
+      templateState.error = 'Variables JSON: ' + variables._parseError;
+      templateState.preview = null;
+      renderTemplatePanel();
+      return;
+    }
+    var apiKey = (document.getElementById('templateApiKey')?.value || '').trim();
+    if (apiKey) templateState.apiKey = apiKey;
+    var encrypt = document.getElementById('templateEncrypt')?.checked || false;
+    templateState.encrypt = encrypt;
+    var recipients = (document.getElementById('templateRecipients')?.value || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    templateState.recipients = recipients.join(', ');
+    saveTemplateDraft();
+    templateState.loading = true;
+    templateState.error = null;
+    templateState.message = null;
+    templateState.result = null;
+    renderTemplatePanel();
+    try {
+      var headers = { 'content-type': 'application/json' };
+      if (templateState.apiKey) headers.authorization = 'Bearer ' + templateState.apiKey;
+      var body = {
+        source: source,
+        variables: variables,
+        topic: templateState.topic,
+        kind: templateState.kind,
+        title: templateState.title,
+        key: templateState.key,
+        sourceUrl: templateState.sourceUrl,
+        app: templateState.app,
+        encrypt: templateState.encrypt
+      };
+      if (templateState.encrypt && recipients.length) body.recipients = recipients;
+      var r = await fetch('/api/v1/template', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) {
+        var errBody = await r.json().catch(function() { return { error: 'HTTP ' + r.status }; });
+        throw new Error(errBody.error || 'HTTP ' + r.status);
+      }
+      templateState.result = await r.json();
+      templateState.message = 'Published from template: ' + (templateState.result.key || '—') + (templateState.result.encrypted ? ' (encrypted)' : '');
+    } catch (e) {
+      templateState.error = e.message;
+    }
+    templateState.loading = false;
+    renderTemplatePanel();
+    updateUrlState();
+  };
+
+  window.clearTemplate = function() {
+    templateState.source = '';
+    templateState.variablesText = '';
+    templateState.variables = {};
+    templateState.topic = '';
+    templateState.kind = 'subject';
+    templateState.title = '';
+    templateState.key = '';
+    templateState.sourceUrl = '';
+    templateState.app = 'PermaBrain';
+    templateState.apiKey = '';
+    templateState.encrypt = false;
+    templateState.recipients = '';
+    templateState.result = null;
+    templateState.preview = null;
+    templateState.error = null;
+    templateState.message = null;
+    saveTemplateDraft();
+    renderTemplatePanel();
+    updateUrlState();
+  };
+
+  window.loadTemplateExample = function() {
+    var source = '---\ntopic: general\nkind: subject\ntitle: Hello {{name}}\n---\n\n# Welcome, {{name}}\n\nThis article was generated from a template for the **{{project}}** project on {{date}}.\n';
+    var vars = JSON.stringify({ name: 'PermaBrain', project: 'PermaBrain', date: new Date().toISOString().slice(0, 10) }, null, 2);
+    templateState.source = source;
+    templateState.variablesText = vars;
+    saveTemplateDraft();
+    renderTemplatePanel();
+    updateUrlState();
+  };
+
+  async function renderTemplatePanel() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Template publisher unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to publish articles from markdown templates.</p></div>';
+      return;
+    }
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.runTemplatePreview()">&#128208; Preview</button>' +
+      '<button class="btn-icon" onclick="window.runTemplatePublish()">&#128228; Publish</button>' +
+      '<button class="btn-icon" onclick="window.loadTemplateExample()">Load example</button>' +
+      '<button class="btn-icon" onclick="window.clearTemplate()">Clear</button>' +
+      '</div>';
+
+    var message = '';
+    if (templateState.message) message += '<p style="margin:0.5rem 0;color:var(--green)">' + esc(templateState.message) + '</p>';
+    if (templateState.error) message += '<p style="margin:0.5rem 0;color:var(--red)">' + esc(templateState.error) + '</p>';
+
+    var form = '<div style="display:grid;gap:0.6rem;margin:0.5rem 0;">' +
+      '<div><label for="templateSource" style="font-size:0.85rem;color:var(--muted)">Template source (markdown with optional YAML frontmatter and {{var}} placeholders)</label>' +
+      '<textarea id="templateSource" data-testid="template-source" style="min-height:10rem;font-family:monospace;font-size:0.85rem;padding:0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);resize:vertical;" oninput="window.setTemplateSource(this.value)">' + esc(templateState.source || '') + '</textarea></div>' +
+      '<div><label for="templateVariables" style="font-size:0.85rem;color:var(--muted)">Variables (JSON)</label>' +
+      '<textarea id="templateVariables" data-testid="template-variables" style="min-height:5rem;font-family:monospace;font-size:0.85rem;padding:0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);resize:vertical;" oninput="window.setTemplateVariables(this.value)">' + esc(templateState.variablesText || '') + '</textarea></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:0.6rem;">' +
+      '<div><label for="templateTopic" style="font-size:0.85rem;color:var(--muted)">Topic</label><input id="templateTopic" data-testid="template-topic" type="text" value="' + esc(templateState.topic || '') + '" oninput="window.setTemplateTopic(this.value)" placeholder="general"></div>' +
+      '<div><label for="templateKind" style="font-size:0.85rem;color:var(--muted)">Kind</label><input id="templateKind" data-testid="template-kind" type="text" value="' + esc(templateState.kind || 'subject') + '" oninput="window.setTemplateKind(this.value)" placeholder="subject"></div>' +
+      '<div><label for="templateTitle" style="font-size:0.85rem;color:var(--muted)">Title override</label><input id="templateTitle" data-testid="template-title" type="text" value="' + esc(templateState.title || '') + '" oninput="window.setTemplateTitle(this.value)" placeholder="From template/frontmatter"></div>' +
+      '<div><label for="templateKey" style="font-size:0.85rem;color:var(--muted)">Key override</label><input id="templateKey" data-testid="template-key" type="text" value="' + esc(templateState.key || '') + '" oninput="window.setTemplateKey(this.value)" placeholder="auto-derived"></div>' +
+      '<div><label for="templateSourceUrl" style="font-size:0.85rem;color:var(--muted)">Source URL</label><input id="templateSourceUrl" data-testid="template-source-url" type="text" value="' + esc(templateState.sourceUrl || '') + '" oninput="window.setTemplateSourceUrl(this.value)" placeholder="https://..."></div>' +
+      '<div><label for="templateApp" style="font-size:0.85rem;color:var(--muted)">App</label><input id="templateApp" data-testid="template-app" type="text" value="' + esc(templateState.app || 'PermaBrain') + '" oninput="window.setTemplateApp(this.value)" placeholder="PermaBrain"></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap;">' +
+      '<label style="display:flex;align-items:center;gap:0.3rem;font-size:0.85rem;color:var(--muted);"><input type="checkbox" id="templateEncrypt" data-testid="template-encrypt" ' + (templateState.encrypt ? 'checked' : '') + ' onchange="window.setTemplateEncrypt(this.checked)"> Encrypt article</label>' +
+      '<div style="flex:1;min-width:14rem;"><label for="templateRecipients" style="font-size:0.85rem;color:var(--muted)">Recipients (X25519 public keys, comma separated)</label><input id="templateRecipients" data-testid="template-recipients" type="text" value="' + esc(templateState.recipients || '') + '" oninput="window.setTemplateRecipients(this.value)" placeholder="base64url public keys" style="width:100%"></div>' +
+      '<div style="min-width:14rem;"><label for="templateApiKey" style="font-size:0.85rem;color:var(--muted)">API key</label><input id="templateApiKey" data-testid="template-api-key" type="password" value="' + esc(templateState.apiKey || '') + '" oninput="window.setTemplateApiKey(this.value)" placeholder="Bearer token for publish" style="width:100%"></div>' +
+      '</div>' +
+      '</div>';
+
+    var resultHtml = '';
+    if (templateState.loading) {
+      resultHtml = '<div class="loading"><div class="spinner"></div> Working...</div>';
+    } else if (templateState.result || templateState.preview) {
+      var r = templateState.result || templateState.preview;
+      var header = templateState.result ? '<h2>Published article</h2>' : '<h2>Preview</h2>';
+      var tags = r.tags ? Object.entries(r.tags).map(function(kv) { return '<span class="badge">' + esc(kv[0]) + '=' + esc(String(kv[1]).slice(0, 40)) + '</span>'; }).join(' ') : '';
+      var link = r.key ? '<p><a href="?key=' + encodeURIComponent(r.key) + '" onclick="window.selectArticle(' + esc(JSON.stringify(r.key)) + '); return false;">Open article</a></p>' : '';
+      resultHtml = '<div class="section">' + header + '<p><strong>Key:</strong> <code>' + esc(r.key || '—') + '</code></p>' + '<p><strong>Encrypted:</strong> ' + (r.encrypted ? 'yes' : 'no') + '</p>' + '<p>' + tags + '</p>' + link + '<h3>Raw result JSON</h3><pre class="support-bundle-json">' + esc(JSON.stringify(r, null, 2)) + '</pre></div>';
+    }
+
+    main.innerHTML = '<div class="home"><h1>&#128221; <span>Template publisher</span></h1><p class="home-subtitle">Publish an article from a markdown template with YAML frontmatter and variable substitution</p>' + toolbar + message + form + resultHtml + '</div>';
+  }
+
+  window.renderTemplatePanel = renderTemplatePanel;
+
 
   // --- Topics catalog panel ---
   window.showTopics = async function() {
@@ -9482,6 +9852,7 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'identity') window.showIdentity();
         else if (bootState.view === 'config') window.showConfig();
         else if (bootState.view === 'goal') window.showGoal();
+        else if (bootState.view === 'template') window.showTemplate();
         else if (bootState.view === 'remotes') {
           if (bootState.remotesApiKey) remotesState.apiKey = bootState.remotesApiKey;
           if (bootState.remotesShowJson === 'false') remotesState.showJson = false;
@@ -9535,6 +9906,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'identity') window.showIdentity();
   else if (viewMode === 'config') window.showConfig();
   else if (viewMode === 'goal') window.showGoal();
+  else if (viewMode === 'template') window.showTemplate();
   else if (viewMode === 'remotes') window.showRemotes();
   else if (viewMode === 'webhooks') window.showWebhooks();
   else if (viewMode === 'history') window.showHistory();
