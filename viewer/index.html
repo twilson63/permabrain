@@ -321,6 +321,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .compose-status.err{color:var(--red)}
 .compose-hint{font-size:0.75rem;color:var(--muted)}
 .compose-draft-note{font-size:0.75rem;color:var(--muted);font-style:italic}
+/* Encrypted publish panel */
+.encrypted-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
+.encrypted-recipients{display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;margin:0.5rem 0;min-height:2rem}
+.encrypted-recipient-chip{display:inline-flex;align-items:center;gap:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:0.25rem 0.6rem;font-size:0.8rem}
+.encrypted-recipient-chip button{background:none;border:none;color:var(--red);cursor:pointer;font-size:0.85rem;line-height:1;padding:0}
+.encrypted-recipient-input{flex:1;min-width:10rem;border:none;background:transparent;color:var(--text);font-size:0.9rem;padding:0.25rem}
+.encrypted-recipient-input:focus{outline:none}
+.encrypted-recipient-box{border:1px solid var(--border);border-radius:6px;padding:0.35rem 0.5rem;background:var(--bg);display:flex;flex-wrap:wrap;gap:0.4rem}
+.encrypted-hint-box{background:rgba(9,105,218,0.06);border:1px solid var(--accent);border-radius:var(--radius);padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.85rem;color:var(--text)}
+[data-theme="dark"] .encrypted-hint-box{background:rgba(88,166,255,0.08)}
+.encrypted-lock-toggle{display:flex;gap:0.5rem;align-items:center;margin:0.5rem 0}
+.encrypted-lock-toggle label{font-size:0.8rem;color:var(--muted)}
+.encrypted-result-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-top:1rem}
+.encrypted-result-card h4{margin:0 0 0.5rem;font-size:1rem;color:var(--muted)}
+.encrypted-recipient-help{font-size:0.72rem;color:var(--muted);margin-top:0.25rem}
 /* Publish batch panel */
 .publish-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1rem}
 .publish-dropzone{border:2px dashed var(--border);border-radius:var(--radius);padding:2rem;text-align:center;color:var(--muted);cursor:pointer;transition:border-color .15s,background .15s}
@@ -431,6 +446,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="compareBtn" onclick="window.showCompare()" title="Compare articles">&#128260;</button>
     <button class="btn-icon" id="importExportBtn" onclick="window.showImportExport()" title="Import / Export">&#128260;</button>
     <button class="btn-icon" id="composeBtn" onclick="window.showCompose()" title="Compose article">&#9998;</button>
+    <button class="btn-icon" id="encryptedBtn" onclick="window.showEncrypted()" title="Encrypted publish">&#128274;</button>
     <button class="btn-icon" id="publishBtn" onclick="window.showPublish()" title="Batch publish">&#128228;&#10133;</button>
     <button class="btn-icon" id="searchBtn" onclick="window.showSearch()" title="Search articles">&#128269;</button>
     <button class="btn-icon" id="homeBtn" onclick="window.showHome()" title="Home">&#127968;</button>
@@ -608,7 +624,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'template' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'encrypted' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'template' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
   var previousViewMode = 'home';
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
@@ -674,6 +690,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var configState = { data: null, loading: false, error: null, message: null, envData: null, validationResult: null, editPath: '', editValue: '' };
   var goalState = { text: '', result: null, loading: false, error: null, message: null };
   var templateState = { source: '', variablesText: '', variables: {}, topic: '', kind: 'subject', title: '', key: '', sourceUrl: '', app: 'PermaBrain', apiKey: '', encrypt: false, recipients: '', loading: false, error: null, result: null, message: null, preview: null };
+  var encryptedState = { content: '', title: '', topic: 'general', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', recipients: [], apiKey: '', locked: true, preview: false, loading: false, error: null, result: null, message: null, lastSaved: null };
   var remotesState = { data: null, loading: false, error: null, message: null, actionLoading: false, showJson: true, apiKey: '', form: { name: '', url: '', transport: 'auto', description: '' } };
   var backupState = { data: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', backupName: '', keep: '10', maxAgeDays: '', showJson: false };
   var archiveState = { archive: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', recipients: '', dryRun: false, importText: '', restorePassphrase: '', restoreOptions: 'dryRun=false' };
@@ -765,6 +782,7 @@ function statCard(label, value, cls) {
       case 'import-export': window.showImportExport(); break;
       case 'publish': window.showPublish(); break;
       case 'compose': window.showCompose(); break;
+      case 'encrypted': window.showEncrypted(); break;
       case 'support': window.showSupportBundle(); break;
       case 'health': window.showHealth(); break;
       case 'topics': window.showTopics(); break;
@@ -810,6 +828,7 @@ function statCard(label, value, cls) {
     { key: 'A', action: 'Open Attest panel' },
     { key: 'B', action: 'Open Bookmarks' },
     { key: 'C', action: 'Open Compose article' },
+    { key: 'E', action: 'Open Encrypted publish panel' },
     { key: 'D', action: 'Open Dashboard' },
     { key: 'I', action: 'Open Identity panel' },
     { key: 'M', action: 'Open Metrics panel' },
@@ -904,6 +923,7 @@ function statCard(label, value, cls) {
       { id: 'go-home', icon: '&#127968;', title: 'Go to Home', shortcut: 'H', action: function() { window.showHome(); } },
       { id: 'go-search', icon: '&#128269;', title: 'Go to Search', shortcut: 'S', action: function() { window.showSearch(); } },
       { id: 'go-compose', icon: '&#9998;', title: 'Go to Compose article', shortcut: 'C', action: function() { window.showCompose(); } },
+      { id: 'go-encrypted', icon: '&#128274;', title: 'Go to Encrypted publish panel', shortcut: 'E', action: function() { window.showEncrypted(); } },
       { id: 'go-publish', icon: '&#128228;&#10133;', title: 'Go to Batch publish', shortcut: 'P', action: function() { window.showPublish(); } },
       { id: 'go-attest', icon: '&#9997;', title: 'Go to Attest panel', shortcut: 'A', action: function() { window.showAttest(); } },
       { id: 'go-batch-attest', icon: '&#9997;&#10133;', title: 'Go to Batch attest panel', action: function() { window.showBatchAttest(); } },
@@ -1183,6 +1203,7 @@ function statCard(label, value, cls) {
     if (key === 'a' || key === 'A') { e.preventDefault(); window.showAttest(); return; }
     if (key === 'b' || key === 'B') { e.preventDefault(); window.showBookmarks(); return; }
     if (key === 'c' || key === 'C') { e.preventDefault(); window.showCompose(); return; }
+    if (key === 'e' || key === 'E') { e.preventDefault(); window.showEncrypted(); return; }
     if (key === 'd' || key === 'D') { e.preventDefault(); window.showDashboard(); return; }
     if (key === 'i' || key === 'I') { e.preventDefault(); window.showIdentity(); return; }
     if (key === 'm' || key === 'M') { e.preventDefault(); window.showMetrics(); return; }
@@ -1918,6 +1939,16 @@ function statCard(label, value, cls) {
       if (templateState.encrypt) params.set('templateEncrypt', 'true');
       if (templateState.recipients) params.set('templateRecipients', templateState.recipients);
     }
+    if (viewMode === 'encrypted') {
+      if (encryptedState.topic && encryptedState.topic !== 'general') params.set('encryptedTopic', encryptedState.topic);
+      if (encryptedState.kind && encryptedState.kind !== 'subject') params.set('encryptedKind', encryptedState.kind);
+      if (encryptedState.title) params.set('encryptedTitle', encryptedState.title);
+      if (encryptedState.sourceUrl) params.set('encryptedSourceUrl', encryptedState.sourceUrl);
+      if (encryptedState.sourceName) params.set('encryptedSourceName', encryptedState.sourceName);
+      if (encryptedState.language && encryptedState.language !== 'en') params.set('encryptedLanguage', encryptedState.language);
+      if (encryptedState.apiKey) params.set('encryptedApiKey', encryptedState.apiKey);
+      if (Array.isArray(encryptedState.recipients) && encryptedState.recipients.length) params.set('encryptedRecipients', encryptedState.recipients.join(','));
+    }
     if (viewMode === 'import-export') {
       if (exportImportState.activeTab) params.set('importTab', exportImportState.activeTab);
       if (exportImportState.exportKey) params.set('exportKey', exportImportState.exportKey);
@@ -2199,7 +2230,15 @@ function statCard(label, value, cls) {
       templateApp: params.get('templateApp') || '',
       templateApiKey: params.get('templateApiKey') || '',
       templateEncrypt: params.get('templateEncrypt') || '',
-      templateRecipients: params.get('templateRecipients') || ''
+      templateRecipients: params.get('templateRecipients') || '',
+      encryptedTopic: params.get('encryptedTopic') || '',
+      encryptedKind: params.get('encryptedKind') || '',
+      encryptedTitle: params.get('encryptedTitle') || '',
+      encryptedSourceUrl: params.get('encryptedSourceUrl') || '',
+      encryptedSourceName: params.get('encryptedSourceName') || '',
+      encryptedLanguage: params.get('encryptedLanguage') || '',
+      encryptedApiKey: params.get('encryptedApiKey') || '',
+      encryptedRecipients: params.get('encryptedRecipients') || ''
     };
   }
 
@@ -2239,11 +2278,22 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','template','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','encrypted','support','health','identity','config','goal','template','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
       loadComposeDraft();
+    }
+    if (state.view === 'encrypted') {
+      if (state.encryptedTopic) encryptedState.topic = state.encryptedTopic;
+      if (state.encryptedKind) encryptedState.kind = state.encryptedKind;
+      if (state.encryptedTitle) encryptedState.title = state.encryptedTitle;
+      if (state.encryptedSourceUrl) encryptedState.sourceUrl = state.encryptedSourceUrl;
+      if (state.encryptedSourceName) encryptedState.sourceName = state.encryptedSourceName;
+      if (state.encryptedLanguage) encryptedState.language = state.encryptedLanguage;
+      if (state.encryptedApiKey) encryptedState.apiKey = state.encryptedApiKey;
+      if (state.encryptedRecipients) encryptedState.recipients = state.encryptedRecipients.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+      loadEncryptedDraft();
     }
     if (state.view === 'activity') {
       if (state.activityKind) activityState.filters.eventKind = state.activityKind;
@@ -8030,6 +8080,271 @@ function statCard(label, value, cls) {
 
   window.renderCompose = renderCompose;
 
+  // --- Encrypted publish panel ---
+  window.showEncrypted = async function() {
+    setViewMode('encrypted');
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    loadEncryptedDraft();
+    renderEncrypted();
+    updateUrlState();
+    markActiveToolbarButton('encryptedBtn');
+  };
+
+  function loadEncryptedDraft() {
+    try {
+      var saved = localStorage.getItem('permabrain-encrypted-draft');
+      if (saved) {
+        var parsed = JSON.parse(saved);
+        encryptedState.content = parsed.content || '';
+        encryptedState.title = parsed.title || '';
+        encryptedState.topic = parsed.topic || 'general';
+        encryptedState.kind = parsed.kind || 'subject';
+        encryptedState.sourceUrl = parsed.sourceUrl || '';
+        encryptedState.sourceName = parsed.sourceName || '';
+        encryptedState.language = parsed.language || 'en';
+        encryptedState.recipients = Array.isArray(parsed.recipients) ? parsed.recipients : [];
+        encryptedState.locked = parsed.locked !== false;
+        encryptedState.lastSaved = parsed.lastSaved || null;
+      }
+    } catch(e) {}
+  }
+
+  function saveEncryptedDraft() {
+    try {
+      encryptedState.lastSaved = new Date().toISOString();
+      localStorage.setItem('permabrain-encrypted-draft', JSON.stringify({
+        content: encryptedState.content,
+        title: encryptedState.title,
+        topic: encryptedState.topic,
+        kind: encryptedState.kind,
+        sourceUrl: encryptedState.sourceUrl,
+        sourceName: encryptedState.sourceName,
+        language: encryptedState.language,
+        recipients: encryptedState.recipients,
+        locked: encryptedState.locked,
+        lastSaved: encryptedState.lastSaved
+      }));
+    } catch(e) {}
+  }
+
+  function clearEncryptedDraft() {
+    try { localStorage.removeItem('permabrain-encrypted-draft'); } catch(e) {}
+    encryptedState = { content: '', title: '', topic: 'general', kind: 'subject', sourceUrl: '', sourceName: '', language: 'en', recipients: [], apiKey: '', locked: true, preview: false, loading: false, error: null, result: null, message: null, lastSaved: null };
+  }
+
+  function deriveEncryptedSlug(title) {
+    if (!title) return 'untitled';
+    return title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-{2,}/g, '-') || 'untitled';
+  }
+
+  function deriveEncryptedTitle(content) {
+    if (!content) return '';
+    var heading = content.match(/^#{1,2}\s+(.+)/m);
+    if (heading) return heading[1].trim();
+    var first = content.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 0 && l.length < 120; })[0];
+    return first || '';
+  }
+
+  function buildEncryptedBody() {
+    var title = encryptedState.title.trim() || deriveEncryptedTitle(encryptedState.content);
+    var slug = deriveEncryptedSlug(title);
+    var sourceUrl = encryptedState.sourceUrl.trim() || ('encrypted://' + slug);
+    var sourceName = encryptedState.sourceName.trim() || 'Encrypted publish';
+    return {
+      content: encryptedState.content,
+      title: title,
+      key: encryptedState.kind + '/' + slug,
+      kind: encryptedState.kind,
+      topic: encryptedState.topic,
+      sourceUrl: sourceUrl,
+      sourceName: sourceName,
+      sourceLicense: '',
+      language: encryptedState.language,
+      visibility: 'encrypted',
+      encryptedFor: encryptedState.recipients.filter(function(r){ return r.length > 0; })
+    };
+  }
+
+  function encryptedHeaders() {
+    var headers = { 'content-type': 'application/json' };
+    if (encryptedState.apiKey) headers['authorization'] = 'Bearer ' + encryptedState.apiKey;
+    return headers;
+  }
+
+  window.updateEncryptedDraft = function(field, value) {
+    encryptedState[field] = value;
+    saveEncryptedDraft();
+  };
+
+  window.addEncryptedRecipient = function(raw) {
+    var values = (raw || '').split(/[,\s]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+    values.forEach(function(v) {
+      if (encryptedState.recipients.indexOf(v) < 0) encryptedState.recipients.push(v);
+    });
+    saveEncryptedDraft();
+    renderEncrypted();
+  };
+
+  window.removeEncryptedRecipient = function(value) {
+    encryptedState.recipients = encryptedState.recipients.filter(function(r){ return r !== value; });
+    saveEncryptedDraft();
+    renderEncrypted();
+  };
+
+  window.setEncryptedApiKey = function(value) {
+    encryptedState.apiKey = value;
+  };
+
+  window.toggleEncryptedPreview = function() {
+    encryptedState.preview = !encryptedState.preview;
+    renderEncrypted();
+  };
+
+  window.clearEncrypted = function() {
+    clearEncryptedDraft();
+    renderEncrypted();
+    updateUrlState();
+  };
+
+  window.runEncryptedPublish = async function() {
+    if (!isLocalServer()) return;
+    if (!encryptedState.content.trim()) {
+      encryptedState.error = 'Content is required.';
+      encryptedState.result = null;
+      renderEncrypted();
+      return;
+    }
+    if (!encryptedState.recipients.length) {
+      encryptedState.error = 'At least one recipient key is required for encrypted publishing.';
+      encryptedState.result = null;
+      renderEncrypted();
+      return;
+    }
+    encryptedState.loading = true;
+    encryptedState.error = null;
+    encryptedState.result = null;
+    renderEncrypted();
+    try {
+      var r = await fetch('/api/v1/articles', {
+        method: 'POST',
+        headers: encryptedHeaders(),
+        body: JSON.stringify(buildEncryptedBody())
+      });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+      encryptedState.result = data;
+      clearEncryptedDraft();
+      if (isLocalListMode()) fetchLocalList();
+    } catch(e) {
+      encryptedState.error = e.message;
+    } finally {
+      encryptedState.loading = false;
+    }
+    renderEncrypted();
+    updateUrlState();
+  };
+
+  window.refreshEncryptedPreview = function() {
+    var el = document.getElementById('encryptedPreviewBody');
+    var ta = document.getElementById('encryptedContent');
+    if (el && ta) {
+      var html = '';
+      if (ta.value.trim()) {
+        try { html = window.marked ? window.marked.parse(ta.value) : '<pre style="white-space:pre-wrap">' + esc(ta.value) + '</pre>'; }
+        catch(e) { html = '<pre style="white-space:pre-wrap">' + esc(ta.value) + '</pre>'; }
+      } else {
+        html = '<p style="color:var(--muted)">Start typing to see a preview.</p>';
+      }
+      el.innerHTML = html;
+    }
+  };
+
+  window.onEncryptedRecipientInput = function(el, event) {
+    if (event && (event.key === 'Enter' || event.key === ',' || event.key === ' ')) {
+      event.preventDefault();
+      window.addEncryptedRecipient(el.value);
+      el.value = '';
+    } else if (!event) {
+      window.addEncryptedRecipient(el.value);
+      el.value = '';
+    }
+  };
+
+  function renderEncryptedRecipients() {
+    var chips = encryptedState.recipients.map(function(r) {
+      return '<span class="encrypted-recipient-chip"><code>' + esc(r) + '</code><button type="button" onclick="window.removeEncryptedRecipient(\'' + esc(r).replace(/'/g, "\\'") + '\')" title="Remove">\u2715</button></span>';
+    }).join('');
+    return chips;
+  }
+
+  function renderEncrypted() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Encrypted publish unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to publish encrypted articles.</p></div>';
+      return;
+    }
+    var title = encryptedState.title.trim() || deriveEncryptedTitle(encryptedState.content);
+    var derivedKey = encryptedState.kind + '/' + deriveEncryptedSlug(title);
+    var lockIcon = encryptedState.preview ? '&#128275;' : '&#128274;';
+    var lockLabel = encryptedState.preview ? 'Show editor' : 'Show preview';
+
+    var form = '<div class="compose-form">' +
+      '<label>Title <input type="text" id="encryptedTitle" placeholder="Article title (derived from first heading if empty)" value="' + esc(encryptedState.title) + '" oninput="window.updateEncryptedDraft(\'title\', this.value)"></label>' +
+      '<div style="display:flex;gap:0.75rem;flex-wrap:wrap">' +
+        '<label style="flex:1;min-width:8rem">Topic <input type="text" id="encryptedTopic" placeholder="general" value="' + esc(encryptedState.topic) + '" oninput="window.updateEncryptedDraft(\'topic\', this.value)"></label>' +
+        '<label style="flex:1;min-width:8rem">Kind <select id="encryptedKind" onchange="window.updateEncryptedDraft(\'kind\', this.value)">' +
+          '<option value="subject"' + (encryptedState.kind === 'subject' ? ' selected' : '') + '>subject</option>' +
+          '<option value="person"' + (encryptedState.kind === 'person' ? ' selected' : '') + '>person</option>' +
+          '<option value="event"' + (encryptedState.kind === 'event' ? ' selected' : '') + '>event</option>' +
+          '<option value="organization"' + (encryptedState.kind === 'organization' ? ' selected' : '') + '>organization</option>' +
+          '<option value="source"' + (encryptedState.kind === 'source' ? ' selected' : '') + '>source</option>' +
+          '<option value="news"' + (encryptedState.kind === 'news' ? ' selected' : '') + '>news</option>' +
+        '</select></label>' +
+        '<label style="flex:1;min-width:8rem">Language <input type="text" id="encryptedLanguage" placeholder="en" value="' + esc(encryptedState.language) + '" oninput="window.updateEncryptedDraft(\'language\', this.value)"></label>' +
+      '</div>' +
+      '<label>Recipients (X25519 public keys) ' +
+        '<div class="encrypted-recipient-box" id="encryptedRecipientBox" onclick="document.getElementById(\'encryptedRecipientInput\').focus()">' +
+          renderEncryptedRecipients() +
+          '<input type="text" id="encryptedRecipientInput" class="encrypted-recipient-input" placeholder="Paste or type a key, press Enter" onkeydown="window.onEncryptedRecipientInput(this, event)" onblur="window.onEncryptedRecipientInput(this)">' +
+        '</div>' +
+        '<div class="encrypted-recipient-help">Type or paste keys separated by spaces, commas, or Enter. Duplicates are ignored.</div>' +
+      '</label>' +
+      '<label>Content (Markdown) <textarea id="encryptedContent" placeholder="# Title\n\nWrite your encrypted article in markdown..." oninput="window.updateEncryptedDraft(\'content\', this.value); window.refreshEncryptedPreview()">' + esc(encryptedState.content) + '</textarea></label>' +
+      '<div style="display:flex;gap:0.75rem;flex-wrap:wrap">' +
+        '<label style="flex:1;min-width:10rem">Source URL <input type="text" id="encryptedSourceUrl" placeholder="https://example.com" value="' + esc(encryptedState.sourceUrl) + '" oninput="window.updateEncryptedDraft(\'sourceUrl\', this.value)"></label>' +
+        '<label style="flex:1;min-width:10rem">Source name <input type="text" id="encryptedSourceName" placeholder="Encrypted publish" value="' + esc(encryptedState.sourceName) + '" oninput="window.updateEncryptedDraft(\'sourceName\', this.value)"></label>' +
+      '</div>' +
+      '<label>API key (if required) <input type="password" id="encryptedApiKey" placeholder="Bearer token" value="' + esc(encryptedState.apiKey) + '" oninput="window.setEncryptedApiKey(this.value)"></label>' +
+      '<div class="encrypted-hint-box">&#128274; This article will be published with <strong>visibility: encrypted</strong>. Derived key: <code>' + esc(derivedKey) + '</code></div>' +
+      '<div class="compose-actions">' +
+        '<button class="btn-icon" onclick="window.runEncryptedPublish()" ' + (encryptedState.content.trim() && encryptedState.recipients.length && !encryptedState.loading ? '' : 'disabled') + '>Publish encrypted</button>' +
+        '<button class="btn-icon" onclick="window.toggleEncryptedPreview()" title="' + esc(lockLabel) + '">' + lockIcon + ' ' + lockLabel + '</button>' +
+        '<button class="btn-icon" onclick="window.clearEncrypted()">Clear draft</button>' +
+      '</div>' +
+      '<div class="compose-draft-note">' + (encryptedState.lastSaved ? 'Draft saved ' + fmtDate(encryptedState.lastSaved) : 'No draft saved yet') + '</div>' +
+      (encryptedState.error ? '<div class="error-box">' + esc(encryptedState.error) + '</div>' : '') +
+      (encryptedState.loading ? '<div class="loading"><div class="spinner"></div> Publishing encrypted article...</div>' : '') +
+      (encryptedState.result ? '<div class="compose-status ok">Published encrypted <code>' + esc(encryptedState.result.summary.key) + '</code> · ID <code>' + esc(encryptedState.result.summary.id) + '</code> · v' + esc(String(encryptedState.result.summary.version)) + '</div>' : '') +
+    '</div>';
+
+    var previewPanel = '<div class="compose-preview"><h3>Preview</h3><div id="encryptedPreviewBody">' + (encryptedState.preview ? '' : '<p style="color:var(--muted)">Click the lock button to preview rendered markdown.</p>') + '</div></div>';
+    var bodyHtml = encryptedState.preview ?
+      '<div class="compose-grid">' + form + previewPanel + '</div>' :
+      '<div>' + form + '</div>';
+
+    main.innerHTML = '<div class="home"><h1>&#128274; <span>Encrypted publish</span></h1><p class="home-subtitle">Publish a markdown article encrypted for specific recipients</p>' + bodyHtml + '</div>';
+    if (encryptedState.preview) window.refreshEncryptedPreview();
+  }
+
+  window.renderEncrypted = renderEncrypted;
+
   window.pickPublishFiles = function() {
     var input = document.getElementById('publishFileInput');
     if (input) input.click();
@@ -9833,6 +10148,7 @@ function statCard(label, value, cls) {
         }
         else if (bootState.view === 'publish') window.showPublish();
         else if (bootState.view === 'compose') window.showCompose();
+        else if (bootState.view === 'encrypted') window.showEncrypted();
         else if (bootState.view === 'history') {
           if (bootState.historyKey) historyPanelState.key = bootState.historyKey;
           window.showHistory();
@@ -9886,6 +10202,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'import-export') window.showImportExport();
   else if (viewMode === 'publish') window.showPublish();
   else if (viewMode === 'compose') window.showCompose();
+  else if (viewMode === 'encrypted') window.showEncrypted();
   else if (viewMode === 'support') window.showSupportBundle();
   else if (viewMode === 'health') window.showHealth();
   else if (viewMode === 'topics') window.showTopics();
