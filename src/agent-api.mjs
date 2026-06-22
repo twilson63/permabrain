@@ -34,6 +34,7 @@ import { forkArticle, listForks } from './fork.mjs';
 import { mergeArticles } from './merge.mjs';
 import { syncWithMerge } from './sync.mjs';
 import { searchArticles } from './search.mjs';
+import { grepArticles, grepToMarkdown } from './grep.mjs';
 import { topicFeed } from './topic-feed.mjs';
 import { activityFeed } from './activity.mjs';
 import { listArticles } from './list.mjs';
@@ -1199,6 +1200,45 @@ const api = {
     requireInit(this._home);
     if (!query) throw new Error('query is required');
     return searchArticles(query, { ...opts, home: this._home });
+  },
+
+  /**
+   * Search article bodies in the local page cache for plain-text matches.
+   *
+   * @param {string} query - Text or regex pattern to search for
+   * @param {Object} [opts]
+   * @param {boolean} [opts.regex] - Treat `query` as a regular expression
+   * @param {boolean} [opts.ignoreCase] - Case-insensitive matching
+   * @param {string} [opts.kind] - Filter by article kind
+   * @param {string} [opts.topic] - Filter by article topic
+   * @param {string} [opts.language] - Filter by article language
+   * @param {string} [opts.key] - Search a single canonical key
+   * @param {number} [opts.limit=50] - Maximum matches to return
+   * @param {number} [opts.context=80] - Snippet context width in characters
+   * @returns {Promise<{query, regex, ignoreCase, filters, total, matches}>}
+   */
+  async grep(query, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!query) throw new Error('query is required');
+    const result = await grepArticles(query, { ...opts, home: this._home });
+    if (opts.markdown) result.markdown = grepToMarkdown(result);
+    return result;
+  },
+
+  /**
+   * Search article bodies and render the results as Markdown.
+   *
+   * @param {string} query
+   * @param {Object} [opts] - Same options as api.grep()
+   * @returns {Promise<string>} Markdown report
+   */
+  async grepToMarkdown(query, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    if (!query) throw new Error('query is required');
+    const result = await this.grep(query, { ...opts, markdown: false });
+    return grepToMarkdown(result);
   },
 
   async topicFeed(topic, opts = {}) {

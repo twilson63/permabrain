@@ -76,8 +76,9 @@ export { diffArticles, diffLocalVsRemote } from './diff.mjs';
 // Status
 export { status } from './status.mjs';
 
-// Search
+// Search + local content grep
 export { searchArticles } from './search.mjs';
+export { grepArticles, grepToMarkdown } from './grep.mjs';
 
 // Topic feed
 export { topicFeed, feedToMarkdown } from './topic-feed.mjs';

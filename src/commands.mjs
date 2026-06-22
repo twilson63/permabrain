@@ -24,6 +24,7 @@ import { syncWithMerge } from './sync.mjs';
 import { diffArticles, diffLocalVsRemote } from './diff.mjs';
 import { status } from './status.mjs';
 import { searchArticles } from './search.mjs';
+import { grepArticles, grepToMarkdown } from './grep.mjs';
 import { topicFeed, feedToMarkdown } from './topic-feed.mjs';
 import { activityFeed, activityToMarkdown } from './activity.mjs';
 import { listArticles, listToMarkdown } from './list.mjs';
@@ -158,6 +159,7 @@ export async function runCommand(command, args) {
   if (command === 'version' || command === '--version' || command === '-v') return versionCommand(args);
   if (command === 'whoami') return whoamiCommand(args);
   if (command === 'health') return healthCommand(args);
+  if (command === 'grep') return grepCommand(args);
   throw new Error(`Command '${command}' is planned but not implemented yet.`);
 }
 
@@ -3180,6 +3182,91 @@ Examples:
   console.log('\nChecks:');
   for (const check of result.checks) {
     console.log(`  ${check.ok ? '✓' : '✗'} ${check.name}${check.error ? `: ${check.error}` : ''}`);
+  }
+  return result;
+}
+
+async function grepCommand(args) {
+  if (args.help || args.h) {
+    console.log(`Usage: permabrain grep <query> [options]
+
+Search article bodies in the local page cache for plain-text matches.
+
+Options:
+  --regex              Treat query as a regular expression
+  --ignore-case        Case-insensitive matching
+  --kind <kind>        Filter by article kind
+  --topic <topic>      Filter by article topic
+  --language <lang>    Filter by article language
+  --key <key>          Search a single canonical key
+  --limit <n>          Maximum matches to return (default 50)
+  --context <n>        Snippet context width in characters (default 80)
+  --json               Output structured JSON
+  --markdown           Output markdown report
+  --output <path>      Write output to file
+
+Examples:
+  permabrain grep "neural network"
+  permabrain grep "^# " --regex
+  permabrain grep "TODO" --ignore-case --topic ai
+`);
+    return { ok: true, help: true };
+  }
+  const query = args._[0];
+  if (!query) {
+    console.error('Error: grep query is required');
+    process.exitCode = 1;
+    return { ok: false, error: 'query is required' };
+  }
+  const { api } = await import('./agent-api.mjs');
+  await api.init();
+  const result = await api.grep(query, {
+    regex: args.regex,
+    ignoreCase: args['ignore-case'],
+    kind: args.kind,
+    topic: args.topic,
+    language: args.language,
+    key: args.key,
+    limit: args.limit ? Number(args.limit) : undefined,
+    context: args.context ? Number(args.context) : undefined,
+    markdown: args.markdown
+  });
+
+  if (args.markdown) {
+    const md = result.markdown || grepToMarkdown(result);
+    if (args.output) {
+      fs.writeFileSync(args.output, md, 'utf8');
+      console.log(`Grep report written to ${args.output}`);
+    } else {
+      console.log(md);
+    }
+    return result;
+  }
+
+  if (args.json) {
+    const content = JSON.stringify(result, null, 2);
+    if (args.output) {
+      fs.writeFileSync(args.output, content, 'utf8');
+      console.log(`Grep report written to ${args.output}`);
+    } else {
+      console.log(content);
+    }
+    return result;
+  }
+
+  if (result.total === 0) {
+    console.log('No matches found.');
+    return result;
+  }
+  console.log(`PermaBrain grep: ${result.total} match(es) for "${result.query}"`);
+  for (const file of result.matches) {
+    console.log(`\n${file.title || file.key} (${file.key}) — ${file.count} match(es)`);
+    if (file.kind || file.topic) {
+      console.log(`  kind: ${file.kind || '-'}, topic: ${file.topic || '-'}`);
+    }
+    for (const m of file.matches) {
+      console.log(`  line ${m.line}: ${m.snippet}`);
+    }
   }
   return result;
 }

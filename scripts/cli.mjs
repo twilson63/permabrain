@@ -52,6 +52,7 @@ const COMMANDS = [
   'diff',
   'status',
   'health',
+  'grep',
   'search',
   'topic',
   'activity',
@@ -152,6 +153,7 @@ Commands:
   diff                         Compare two article versions or local vs remote
   status                       Show working-state overview (articles, divergences, forks, merges)
   health                       Show local node health and optionally check a remote server
+  grep <query>                 Search article bodies in the local page cache
   export-articles              Export a filtered article directory to JSON or markdown
   metrics                      Show aggregate article/attestation metrics
   stats                        Show dashboard-style aggregate overview
@@ -469,6 +471,26 @@ Options:
   --json               Output structured JSON report
   --markdown           Output markdown report
   --output <path>      Write the JSON/markdown report to a file`,
+  'grep': `Usage: permabrain grep <query> [--regex] [--ignore-case] [--kind <kind>] [--topic <topic>] [--language <lang>] [--key <key>] [--limit <n>] [--context <n>] [--json] [--markdown] [--output <path>]
+
+Search article bodies in the local page cache for plain-text matches.
+
+By default the query is treated as a literal string. Use --regex to interpret
+it as a regular expression. Results include the key, title, and a snippet
+around each matching line.
+
+Options:
+  --regex              Treat query as a regular expression
+  --ignore-case        Case-insensitive matching
+  --kind <kind>       Filter by article kind
+  --topic <topic>     Filter by article topic
+  --language <lang>   Filter by article language
+  --key <key>         Search a single canonical key
+  --limit <n>          Maximum number of matches to return (default 50)
+  --context <n>        Snippet context width in characters (default 80)
+  --json               Output structured JSON report
+  --markdown           Output markdown report
+  --output <path>     Write the JSON/markdown report to a file`,
   'export-bundle': `Usage: permabrain export-bundle <canonical-key> [--id <id>] [--no-attestations] [--no-versions] [--output <path>] [--json]
 
 Exports a single article, its version chain, and attestations into a
