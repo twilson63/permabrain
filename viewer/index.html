@@ -380,7 +380,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .toast.error{border-left-color:var(--red)}
 .toast.success{border-left-color:var(--green)}
 .toast.warn{border-left-color:var(--orange)}
-.toast-title{font-weight:600;margin-bottom:0.25rem}
+.notifications-badge{position:absolute;top:0.2rem;right:0.2rem;min-width:1rem;height:1rem;padding:0 0.3rem;background:var(--red);color:#fff;border-radius:50%;font-size:0.65rem;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--bg)}
+#notificationsBtn{position:relative}
+.notifications-dropdown{display:none;position:fixed;top:3.2rem;right:1rem;width:22rem;max-width:calc(100vw - 2rem);max-height:70vh;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);z-index:135;overflow:hidden;flex-direction:column}
+.notifications-dropdown.show{display:flex}
+.notifications-header{display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;border-bottom:1px solid var(--border);background:var(--surface)}
+.notifications-header h3{margin:0;font-size:0.95rem}
+.notifications-list{flex:1;overflow-y:auto;padding:0.5rem}
+.notifications-empty{padding:1rem;text-align:center;color:var(--muted);font-size:0.85rem}
+.notifications-row{display:flex;gap:0.6rem;padding:0.55rem 0.4rem;border-bottom:1px solid var(--border);font-size:0.82rem;align-items:flex-start;cursor:pointer;border-radius:6px}
+.notifications-row:hover{background:var(--surface)}
+.notifications-row.unread{background:rgba(9,105,218,0.06)}
+[data-theme="dark"] .notifications-row.unread{background:rgba(88,166,255,0.08)}
+.notifications-row .badge{align-self:flex-start}
+.notifications-row .n-meta{color:var(--muted);font-size:0.72rem;margin-top:0.15rem}
+.notifications-actions{display:flex;gap:0.5rem;padding:0.5rem 1rem;border-top:1px solid var(--border);background:var(--surface)}
+.notifications-actions .btn-icon{font-size:0.75rem;padding:0.35rem 0.5rem}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
 .toast-body{color:var(--muted);font-size:0.78rem}
 .toast-close{float:right;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;margin-left:0.5rem}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
@@ -433,6 +449,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="releaseNotesBtn" onclick="window.showReleaseNotes()" title="Release notes">&#128196;</button>
     <button class="btn-icon" id="identityBtn" onclick="window.showIdentity()" title="Identity">&#127380;</button>
     <button class="btn-icon" id="activityBtn" onclick="window.showActivity()" title="Notifications / Activity">&#128276;</button>
+    <button class="btn-icon" id="notificationsBtn" onclick="window.toggleNotifications()" title="Recent notifications">
+      &#128239;
+      <span id="notificationsBadge" class="notifications-badge" style="display:none">0</span>
+    </button>
     <button class="btn-icon" id="historyBtn" onclick="window.showHistory()" title="Version history / diff">&#9200;</button>
     <button class="btn-icon" id="healthBtn" onclick="window.showHealth()" title="Health / diagnostics">&#10003;</button>
     <button class="btn-icon" id="adminBtn" onclick="window.showAdminPanel()" title="Admin / monitoring">&#128202;</button>
@@ -572,6 +592,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 
 <div class="toast-container" id="toastContainer"></div>
 
+<div class="notifications-dropdown" id="notificationsDropdown" aria-hidden="true">
+  <div class="notifications-header">
+    <h3>&#128239; Notifications</h3>
+    <button class="btn-icon" onclick="window.toggleNotifications()" aria-label="Close">&times;</button>
+  </div>
+  <div class="notifications-list" id="notificationsList"></div>
+  <div class="notifications-actions">
+    <button class="btn-icon" onclick="window.markNotificationsRead()">Mark read</button>
+    <button class="btn-icon" onclick="window.clearNotifications()">Clear</button>
+    <button class="btn-icon" style="margin-left:auto" onclick="window.showActivity()">Activity feed &rarr;</button>
+  </div>
+</div>
+
 <div class="main" id="main">
 <div class="empty-state" id="emptyState">
   <h2>&#x1F9E0; PermaBrain Viewer</h2>
@@ -625,9 +658,31 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'encrypted' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'template' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'encrypted' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'template' | 'activity' | 'notifications' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
   var previousViewMode = 'home';
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
+  var notificationsState = loadNotificationsState();
+  function loadNotificationsState() {
+    try {
+      var raw = localStorage.getItem('permabrain-notifications');
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.history)) return parsed;
+      }
+    } catch(e) {}
+    return { enabled: true, unread: 0, history: [], maxHistory: 100, open: false };
+  }
+  function saveNotificationsState() {
+    try { localStorage.setItem('permabrain-notifications', JSON.stringify(notificationsState)); } catch(e) {}
+    updateNotificationsBadge();
+  }
+  function updateNotificationsBadge() {
+    var badge = document.getElementById('notificationsBadge');
+    if (badge) {
+      badge.textContent = notificationsState.unread > 99 ? '99+' : String(notificationsState.unread || '');
+      badge.style.display = notificationsState.unread > 0 ? 'flex' : 'none';
+    }
+  }
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
   var thresholdAttestState = {
@@ -804,6 +859,7 @@ function statCard(label, value, cls) {
       case 'kinds': window.showKinds(); break;
       case 'languages': window.showLanguages(); break;
       case 'activity': window.showActivity(); break;
+      case 'notifications': window.showNotifications(); break;
       case 'attest': window.showAttest(); break;
       case 'batch-attest': window.showBatchAttest(); break;
       case 'threshold-attest': window.showThresholdAttest(); break;
@@ -848,7 +904,7 @@ function statCard(label, value, cls) {
     { key: 'R', action: 'Refresh current view' },
     { key: 'T', action: 'Toggle theme' },
     { key: 'V', action: 'Open Verify panel' },
-    { key: '—', action: 'Open Template publisher' }
+    { key: '-', action: 'Open Template publisher' }
   ];
   function buildHelpPanelHtml() {
     var rows = helpShortcuts.map(function(s) {
@@ -860,46 +916,46 @@ function statCard(label, value, cls) {
       ['Compose', 'composeBtn', 'C'],
       ['Publish', 'publishBtn', 'P'],
       ['Attest', 'attestBtn', 'A'],
-      ['Batch Attest', 'batchAttestBtn', '—'],
-      ['Threshold Attest', 'thresholdAttestBtn', '—'],
+      ['Batch Attest', 'batchAttestBtn', '-'],
+      ['Threshold Attest', 'thresholdAttestBtn', '-'],
       ['Verify', 'verifyBtn', 'V'],
-      ['Batch verify', '—', '—'],
+      ['Batch verify', '-', '-'],
       ['Dashboard', 'dashboardBtn', 'D'],
-      ['Stats', 'statsBtn', '—'],
+      ['Stats', 'statsBtn', '-'],
       ['Metrics', 'metricsBtn', 'M'],
-      ['History', 'historyBtn', '—'],
-      ['Forks', 'forksBtn', '—'],
-      ['Compare', 'compareBtn', '—'],
+      ['History', 'historyBtn', '-'],
+      ['Forks', 'forksBtn', '-'],
+      ['Compare', 'compareBtn', '-'],
       ['Bookmarks', 'bookmarksBtn', 'B'],
-      ['Import / Export', 'importExportBtn', '—'],
-      ['Topics', 'topicsBtn', '—'],
-      ['Tags', 'tagsBtn', '—'],
-      ['Agents', 'agentsBtn', '—'],
-      ['Sources', 'sourcesBtn', '—'],
-      ['Kinds', 'kindsBtn', '—'],
-      ['Languages', 'languagesBtn', '—'],
-      ['Peer sync', 'peerSyncBtn', '—'],
-      ['Sync remote', 'syncBtn', '—'],
-      ['Remotes', 'remotesBtn', '—'],
-      ['Webhooks', 'webhooksBtn', '—'],
-      ['Config', 'configBtn', '—'],
-      ['Goal / PRD', 'goalBtn', '—'],
-      ['Template', 'templateBtn', '—'],
-      ['Backup', 'backupBtn', '—'],
-      ['Archive', 'archiveBtn', '—'],
-      ['Health', 'healthBtn', '—'],
-      ['Admin', 'adminBtn', '—'],
-      ['Support bundle', 'supportBundleBtn', '—'],
-      ['Activity', 'activityBtn', '—'],
-      ['Audit', 'auditBtn', '—'],
+      ['Import / Export', 'importExportBtn', '-'],
+      ['Topics', 'topicsBtn', '-'],
+      ['Tags', 'tagsBtn', '-'],
+      ['Agents', 'agentsBtn', '-'],
+      ['Sources', 'sourcesBtn', '-'],
+      ['Kinds', 'kindsBtn', '-'],
+      ['Languages', 'languagesBtn', '-'],
+      ['Peer sync', 'peerSyncBtn', '-'],
+      ['Sync remote', 'syncBtn', '-'],
+      ['Remotes', 'remotesBtn', '-'],
+      ['Webhooks', 'webhooksBtn', '-'],
+      ['Config', 'configBtn', '-'],
+      ['Goal / PRD', 'goalBtn', '-'],
+      ['Template', 'templateBtn', '-'],
+      ['Backup', 'backupBtn', '-'],
+      ['Archive', 'archiveBtn', '-'],
+      ['Health', 'healthBtn', '-'],
+      ['Admin', 'adminBtn', '-'],
+      ['Support bundle', 'supportBundleBtn', '-'],
+      ['Activity', 'activityBtn', '-'],
+      ['Audit', 'auditBtn', '-'],
       ['Release Notes', 'releaseNotesBtn', 'N'],
       ['Identity', 'identityBtn', 'I'],
       ['Settings', 'settingsBtn', ','],
       ['Command palette', 'commandPaletteBtn', 'Ctrl+K'],
       ['Theme', 'themeToggle', 'T']
     ].map(function(r) {
-      var shortcut = r[2] && r[2] !== '—' ? '<kbd>' + esc(r[2]) + '</kbd>' : '—';
-      var target = r[1] && r[1] !== '—' ? ' <button class="btn-icon" onclick="window.focusToolbarButton(\'' + esc(r[1]) + '\')">Show</button>' : '';
+      var shortcut = r[2] && r[2] !== '-' ? '<kbd>' + esc(r[2]) + '</kbd>' : '-';
+      var target = r[1] && r[1] !== '-' ? ' <button class="btn-icon" onclick="window.focusToolbarButton(\'' + esc(r[1]) + '\')">Show</button>' : '';
       return '<tr><td>' + esc(r[0]) + '</td><td>' + shortcut + '</td><td>' + target + '</td></tr>';
     }).join('');
     return '<div class="home">' +
@@ -1673,7 +1729,7 @@ function statCard(label, value, cls) {
   function renderHome() {
     if (viewMode !== 'home') return;
     if (isLocalListMode()) {
-      document.getElementById('main').innerHTML = '<div class="home"><h1>&#x1F9E0; <span>PermaBrain</span></h1><p class="home-subtitle">Local viewer — select an article from the sidebar, or use the filters above.</p><div class="stats-row">' +
+      document.getElementById('main').innerHTML = '<div class="home"><h1>&#x1F9E0; <span>PermaBrain</span></h1><p class="home-subtitle">Local viewer - select an article from the sidebar, or use the filters above.</p><div class="stats-row">' +
         '<div class="stat-card"><div class="stat-value">' + (localList.total || 0) + '</div><div class="stat-label">Articles</div></div>' +
         '</div></div>';
       return;
@@ -1706,7 +1762,7 @@ function statCard(label, value, cls) {
       '<div class="stat-card"><div class="stat-value">' + totalAtts + '</div><div class="stat-label">Attestations</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + kinds.size + '</div><div class="stat-label">Kinds</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + topicSet.size + '</div><div class="stat-label">Topics</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (scored > 0 ? avgScore : '—') + '</div><div class="stat-label">Avg Score</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (scored > 0 ? avgScore : '-') + '</div><div class="stat-label">Avg Score</div></div>' +
       '</div>';
 
     // Sort by updated date
@@ -1810,7 +1866,7 @@ function statCard(label, value, cls) {
 
     // Encrypted hint + decrypt panel for non-content tabs too
     var encrypted = a._content === 'ENCRYPTED' || isEncryptedEnvelope(a._content || '');
-    var encryptedBanner = encrypted ? '<div class="encrypted-hint">&#128274; Encrypted article — content hidden without recipient seed</div>' : '';
+    var encryptedBanner = encrypted ? '<div class="encrypted-hint">&#128274; Encrypted article - content hidden without recipient seed</div>' : '';
 
     // Version history
     var versions = allVersions[a.key] || [];
@@ -1940,6 +1996,8 @@ function statCard(label, value, cls) {
     if (settings.pageSize && settings.pageSize !== 100) params.set('pageSize', String(settings.pageSize));
     if (settings.liveTail === false) params.set('liveTail', 'false');
     if (viewMode && viewMode !== 'home') params.set('view', viewMode);
+    if (notificationsState.open) params.set('notifications', 'true');
+    // notifications=true deep-link also supported without explicit view param
     if (viewMode === 'template') {
       if (templateState.source) params.set('templateSource', templateState.source);
       if (templateState.variablesText) params.set('templateVars', templateState.variablesText);
@@ -2302,7 +2360,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','encrypted','support','health','identity','config','goal','template','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','encrypted','support','health','identity','config','goal','template','activity','notifications','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -2327,6 +2385,9 @@ function statCard(label, value, cls) {
       if (state.activityAfter) activityState.filters.after = state.activityAfter;
       if (state.activityBefore) activityState.filters.before = state.activityBefore;
       if (state.activityLimit) { var al = parseInt(state.activityLimit, 10); if (!isNaN(al) && al > 0) activityState.limit = al; }
+    }
+    if (state.view === 'notifications' || state.notifications === 'true') {
+      notificationsState.open = true;
     }
     if (state.exportKey) exportImportState.exportKey = state.exportKey;
     if (state.exportMode) exportImportState.exportMode = state.exportMode;
@@ -2570,7 +2631,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchAdminPanel();
     updateUrlState();
-  
+
     markActiveToolbarButton('adminBtn');
   };
 
@@ -2619,17 +2680,17 @@ function statCard(label, value, cls) {
 
     var toolbar = '<div class="dashboard-toolbar">' +
       '<button class="btn-icon" onclick="window.fetchAdminPanel()">&#x21BB; Refresh</button>' +
-      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '-') + '</span>' +
       '</div>';
 
     var statusCards = '<div class="stats-grid">' +
-      statCard('Agent', data.agentId || '—', 'agent') +
-      statCard('Transport', data.transport || '—', 'transport') +
-      statCard('Key type', data.keyType || '—', 'key') +
+      statCard('Agent', data.agentId || '-', 'agent') +
+      statCard('Transport', data.transport || '-', 'transport') +
+      statCard('Key type', data.keyType || '-', 'key') +
       '</div>';
 
     var metricCards = '<div class="stats-grid">' +
-      statCard('Uptime', r.uptime || '—', 'uptime') +
+      statCard('Uptime', r.uptime || '-', 'uptime') +
       statCard('Requests', String(req.total || 0), 'requests') +
       statCard('Errors', String(req.errors || 0), 'errors') +
       statCard('Rate limited', String(req.rateLimited || 0), 'rateLimited') +
@@ -2643,7 +2704,7 @@ function statCard(label, value, cls) {
       var entries = (data.accessLog && data.accessLog.entries) || [];
       if (!entries.length) return '<p class="empty">No recent requests recorded.</p>';
       var rows = entries.map(function(e) {
-        return '<tr><td>' + fmtDate(e.timestamp) + '</td><td class="mono">' + esc(e.requestId || '—') + '</td><td>' + esc(e.method || '—') + '</td><td class="mono">' + esc(e.path || '—') + '</td><td style="color:' + statusColor(e.statusCode) + '">' + (e.statusCode || 0) + '</td><td>' + (e.durationMs || 0) + 'ms</td></tr>';
+        return '<tr><td>' + fmtDate(e.timestamp) + '</td><td class="mono">' + esc(e.requestId || '-') + '</td><td>' + esc(e.method || '-') + '</td><td class="mono">' + esc(e.path || '-') + '</td><td style="color:' + statusColor(e.statusCode) + '">' + (e.statusCode || 0) + '</td><td>' + (e.durationMs || 0) + 'ms</td></tr>';
       }).join('');
       return '<table class="audit-table"><thead><tr><th>Time</th><th>Request ID</th><th>Method</th><th>Path</th><th>Status</th><th>Duration</th></tr></thead><tbody>' + rows + '</tbody></table>';
     }
@@ -2656,7 +2717,7 @@ function statCard(label, value, cls) {
         return '<div class="audit-row">' +
           '<span class="mono muted">' + fmtDate(e.createdAt) + '</span>' +
           '<span class="status-badge ' + (e.status === 'ok' ? 'ok' : e.status === 'error' ? 'error' : '') + '">' + icon + ' ' + esc(e.status) + '</span>' +
-          '<span><strong>' + esc(e.action) + '</strong>' + (e.key ? ' <code>' + esc(e.key) + '</code>' : '') + (e.message ? ' — ' + esc(e.message) : '') + '</span>' +
+          '<span><strong>' + esc(e.action) + '</strong>' + (e.key ? ' <code>' + esc(e.key) + '</code>' : '') + (e.message ? ' - ' + esc(e.message) : '') + '</span>' +
           '</div>';
       }).join('');
     }
@@ -2675,7 +2736,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchSupportBundle();
     updateUrlState();
-  
+
     markActiveToolbarButton('supportBundleBtn');
   };
 
@@ -2687,7 +2748,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchHealth();
     updateUrlState();
-  
+
     markActiveToolbarButton('healthBtn');
   };
 
@@ -2744,22 +2805,22 @@ function statCard(label, value, cls) {
 
     var toolbar = '<div class="dashboard-toolbar">' +
       '<button class="btn-icon" onclick="window.refreshHealth()">&#x21BB; Refresh</button>' +
-      '<span class="last-updated">generated ' + (admin.generatedAt ? fmtDate(admin.generatedAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (admin.generatedAt ? fmtDate(admin.generatedAt) : '-') + '</span>' +
       '</div>';
 
     var statusCards = '<div class="stats-grid">' +
-      statCard('Status', data.status || '—', data.status === 'ok' ? 'good' : 'low') +
-      statCard('Service', data.service || '—', 'service') +
-      statCard('Agent', admin.agentId || data.agentId || '—', 'agent') +
-      statCard('Transport', admin.transport || data.transport || '—', 'transport') +
-      statCard('Key type', admin.keyType || '—', 'key') +
-      statCard('Uptime', runtime.uptime || '—', 'uptime') +
+      statCard('Status', data.status || '-', data.status === 'ok' ? 'good' : 'low') +
+      statCard('Service', data.service || '-', 'service') +
+      statCard('Agent', admin.agentId || data.agentId || '-', 'agent') +
+      statCard('Transport', admin.transport || data.transport || '-', 'transport') +
+      statCard('Key type', admin.keyType || '-', 'key') +
+      statCard('Uptime', runtime.uptime || '-', 'uptime') +
       '</div>';
 
     var streamInfo = data.streams || {};
     var articlesStream = streamInfo.articles || {};
     var streamHtml = '<div class="dashboard-section"><h2>Stream transport</h2>' +
-      '<p style="font-size:0.85rem">Default: <code>' + esc(articlesStream.default || data.streamTransport || 'sse') + '</code> · SSE: <code>' + esc(articlesStream.sse || streamInfo.sse || '—') + '</code> · WebSocket: <code>' + esc(articlesStream.websocket || streamInfo.websocket || '—') + '</code></p></div>';
+      '<p style="font-size:0.85rem">Default: <code>' + esc(articlesStream.default || data.streamTransport || 'sse') + '</code> · SSE: <code>' + esc(articlesStream.sse || streamInfo.sse || '-') + '</code> · WebSocket: <code>' + esc(articlesStream.websocket || streamInfo.websocket || '-') + '</code></p></div>';
 
     var routeRows = (routes || []).map(function(r) {
       var authBadge = r.requiresAuth ? '<span style="font-size:0.7rem;color:var(--orange)">auth</span>' : '<span style="font-size:0.7rem;color:var(--green)">public</span>';
@@ -2789,7 +2850,7 @@ function statCard(label, value, cls) {
     var streamInfo = data.streams || {};
     var articlesStream = streamInfo.articles || {};
     return '<div class="dashboard-section"><h2>Stream transport</h2>' +
-      '<p style="font-size:0.85rem">Default: <code>' + esc(articlesStream.default || data.streamTransport || 'sse') + '</code> · SSE: <code>' + esc(articlesStream.sse || streamInfo.sse || '—') + '</code> · WebSocket: <code>' + esc(articlesStream.websocket || streamInfo.websocket || '—') + '</code></p></div>';
+      '<p style="font-size:0.85rem">Default: <code>' + esc(articlesStream.default || data.streamTransport || 'sse') + '</code> · SSE: <code>' + esc(articlesStream.sse || streamInfo.sse || '-') + '</code> · WebSocket: <code>' + esc(articlesStream.websocket || streamInfo.websocket || '-') + '</code></p></div>';
   }
 
   window.renderHealth = renderHealth;
@@ -2803,7 +2864,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchIdentity();
     updateUrlState();
-  
+
     markActiveToolbarButton('identityBtn');
   };
 
@@ -2874,7 +2935,7 @@ function statCard(label, value, cls) {
       '<button class="btn-icon" onclick="window.setIdentityFormat(\'markdown\')"' + (identityState.format === 'markdown' ? ' class="btn-icon active"' : '') + '>Markdown</button>' +
       '<button class="btn-icon" onclick="window.copyIdentityField(\'agentId\')">Copy agent ID</button>' +
       '<button class="btn-icon" onclick="window.downloadIdentityJson()">Download JSON</button>' +
-      '<span class="last-updated">generated ' + (data.createdAt ? fmtDate(data.createdAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (data.createdAt ? fmtDate(data.createdAt) : '-') + '</span>' +
       '</div>';
 
     if (identityState.format === 'markdown' && data._markdown) {
@@ -2883,10 +2944,10 @@ function statCard(label, value, cls) {
     }
 
     var rows = [
-      ['Agent ID', data.agentId || '—'],
-      ['Key type', data.keyType || '—'],
-      ['Transport', data.transport || '—'],
-      ['Home', data.home || '—']
+      ['Agent ID', data.agentId || '-'],
+      ['Key type', data.keyType || '-'],
+      ['Transport', data.transport || '-'],
+      ['Home', data.home || '-']
     ];
     if (data.hyperbeamUrl) rows.push(['HyperBEAM URL', data.hyperbeamUrl]);
     if (data.publicKey) rows.push(['Public key', data.publicKey]);
@@ -2919,7 +2980,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchBackups();
     updateUrlState();
-  
+
     markActiveToolbarButton('backupBtn');
   };
 
@@ -3109,7 +3170,7 @@ function statCard(label, value, cls) {
   };
 
   function fmtBytes(n) {
-    if (typeof n !== 'number') return '—';
+    if (typeof n !== 'number') return '-';
     if (n < 1024) return n + ' B';
     if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
     return (n / (1024 * 1024)).toFixed(1) + ' MB';
@@ -3180,8 +3241,8 @@ function statCard(label, value, cls) {
       return '<tr>' +
         '<td class="mono">' + (i + 1) + '</td>' +
         '<td class="mono">' + esc(b.name) + '</td>' +
-        '<td>' + (b.createdAt ? fmtDate(b.createdAt) : '—') + '</td>' +
-        '<td class="mono">' + esc(b.agentId || '—') + '</td>' +
+        '<td>' + (b.createdAt ? fmtDate(b.createdAt) : '-') + '</td>' +
+        '<td class="mono">' + esc(b.agentId || '-') + '</td>' +
         '<td>' + (b.entries || 0) + '</td>' +
         '<td>' + (b.hasPassphrase ? 'yes' : 'no') + '</td>' +
         '<td>' + (b.recipientCount || 0) + '</td>' +
@@ -3210,7 +3271,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await renderArchive();
     updateUrlState();
-  
+
     markActiveToolbarButton('archiveBtn');
   };
 
@@ -3373,8 +3434,8 @@ function statCard(label, value, cls) {
       preview += '<div class="dashboard-section" style="margin-top:1rem">' +
         '<h3>Latest archive</h3>' +
         '<table class="audit-table"><tbody>' +
-        '<tr><th>Agent</th><td class="mono">' + esc(ar.agentId || '—') + '</td></tr>' +
-        '<tr><th>Created</th><td>' + (ar.createdAt ? fmtDate(ar.createdAt) : '—') + '</td></tr>' +
+        '<tr><th>Agent</th><td class="mono">' + esc(ar.agentId || '-') + '</td></tr>' +
+        '<tr><th>Created</th><td>' + (ar.createdAt ? fmtDate(ar.createdAt) : '-') + '</td></tr>' +
         '<tr><th>Files</th><td>' + (ar.entries ? ar.entries.length : 0) + '</td></tr>' +
         '<tr><th>Recipients</th><td>' + (ar.encryption ? ar.encryption.recipientCount : 0) + '</td></tr>' +
         '<tr><th>Passphrase</th><td>' + (ar.encryption && ar.encryption.hasPassphrase ? 'yes' : 'no') + '</td></tr>' +
@@ -3397,7 +3458,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchConfig();
     updateUrlState();
-  
+
     markActiveToolbarButton('configBtn');
   };
 
@@ -3581,7 +3642,7 @@ function statCard(label, value, cls) {
     if (configState.envData) {
       var envRows = Object.keys(configState.envData).map(function(name) {
         var info = configState.envData[name];
-        return '<tr><td><code>' + esc(name) + '</code></td><td>' + (info.active ? '<code>' + esc(String(info.value)) + '</code>' : '—') + '</td><td>' + esc(info.mapsTo) + '</td><td>' + esc(info.type) + '</td></tr>';
+        return '<tr><td><code>' + esc(name) + '</code></td><td>' + (info.active ? '<code>' + esc(String(info.value)) + '</code>' : '-') + '</td><td>' + esc(info.mapsTo) + '</td><td>' + esc(info.type) + '</td></tr>';
       }).join('');
       sections.push('<h2>Environment variables</h2><table class="audit-table"><thead><tr><th>Variable</th><th>Value</th><th>Maps to</th><th>Type</th></tr></thead><tbody>' + envRows + '</tbody></table>';
     }
@@ -3616,7 +3677,7 @@ function statCard(label, value, cls) {
     loadGoalDraft();
     await renderGoal();
     updateUrlState();
-  
+
     markActiveToolbarButton('goalBtn');
   };
 
@@ -3925,7 +3986,7 @@ function statCard(label, value, cls) {
         throw new Error(errBody.error || 'HTTP ' + r.status);
       }
       templateState.preview = await r.json();
-      templateState.message = 'Preview generated: ' + (templateState.preview.key || '—');
+      templateState.message = 'Preview generated: ' + (templateState.preview.key || '-');
     } catch (e) {
       templateState.error = e.message;
     }
@@ -3990,7 +4051,7 @@ function statCard(label, value, cls) {
         throw new Error(errBody.error || 'HTTP ' + r.status);
       }
       templateState.result = await r.json();
-      templateState.message = 'Published from template: ' + (templateState.result.key || '—') + (templateState.result.encrypted ? ' (encrypted)' : '');
+      templateState.message = 'Published from template: ' + (templateState.result.key || '-') + (templateState.result.encrypted ? ' (encrypted)' : '');
     } catch (e) {
       templateState.error = e.message;
     }
@@ -4077,7 +4138,7 @@ function statCard(label, value, cls) {
       var header = templateState.result ? '<h2>Published article</h2>' : '<h2>Preview</h2>';
       var tags = r.tags ? Object.entries(r.tags).map(function(kv) { return '<span class="badge">' + esc(kv[0]) + '=' + esc(String(kv[1]).slice(0, 40)) + '</span>'; }).join(' ') : '';
       var link = r.key ? '<p><a href="?key=' + encodeURIComponent(r.key) + '" onclick="window.selectArticle(' + esc(JSON.stringify(r.key)) + '); return false;">Open article</a></p>' : '';
-      resultHtml = '<div class="section">' + header + '<p><strong>Key:</strong> <code>' + esc(r.key || '—') + '</code></p>' + '<p><strong>Encrypted:</strong> ' + (r.encrypted ? 'yes' : 'no') + '</p>' + '<p>' + tags + '</p>' + link + '<h3>Raw result JSON</h3><pre class="support-bundle-json">' + esc(JSON.stringify(r, null, 2)) + '</pre></div>';
+      resultHtml = '<div class="section">' + header + '<p><strong>Key:</strong> <code>' + esc(r.key || '-') + '</code></p>' + '<p><strong>Encrypted:</strong> ' + (r.encrypted ? 'yes' : 'no') + '</p>' + '<p>' + tags + '</p>' + link + '<h3>Raw result JSON</h3><pre class="support-bundle-json">' + esc(JSON.stringify(r, null, 2)) + '</pre></div>';
     }
 
     main.innerHTML = '<div class="home"><h1>&#128221; <span>Template publisher</span></h1><p class="home-subtitle">Publish an article from a markdown template with YAML frontmatter and variable substitution</p>' + toolbar + message + form + resultHtml + '</div>';
@@ -4095,7 +4156,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchTopics();
     updateUrlState();
-  
+
     markActiveToolbarButton('topicsBtn');
   };
 
@@ -4168,7 +4229,7 @@ function statCard(label, value, cls) {
       '</select></label>' +
       '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
       '<input type="number" min="1" max="1000" value="' + esc(String(topicsState.limit)) + '" onchange="window.setTopicsLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
-      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '-') + '</span>' +
       '</div>';
 
     var stats = '<div class="stats-grid">' +
@@ -4187,9 +4248,9 @@ function statCard(label, value, cls) {
       return '<tr><td class="mono"><a href="?view=home&topic=' + encodeURIComponent(t.name) + '" style="color:var(--accent);text-decoration:none">' + esc(t.name) + '</a></td>' +
         '<td style="text-align:center">' + esc(String(t.count)) + '</td>' +
         '<td style="text-align:center">' + esc(String(t.uniqueKeys)) + '</td>' +
-        '<td>' + esc(t.latestAt ? fmtDate(t.latestAt) : '—') + '</td>' +
-        '<td>' + (kinds || '—') + '</td>' +
-        '<td>' + (languages || '—') + '</td></tr>';
+        '<td>' + esc(t.latestAt ? fmtDate(t.latestAt) : '-') + '</td>' +
+        '<td>' + (kinds || '-') + '</td>' +
+        '<td>' + (languages || '-') + '</td></tr>';
     }).join('');
 
     var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
@@ -4210,7 +4271,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchKinds();
     updateUrlState();
-  
+
     markActiveToolbarButton('kindsBtn');
   };
 
@@ -4284,7 +4345,7 @@ function statCard(label, value, cls) {
       '</select></label>' +
       '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
       '<input type="number" min="1" max="1000" value="' + esc(String(kindsState.limit)) + '" onchange="window.setKindsLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
-      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '-') + '</span>' +
       '</div>';
 
     var stats = '<div class="stats-grid">' +
@@ -4305,11 +4366,11 @@ function statCard(label, value, cls) {
       return '<tr><td class="mono"><a href="?view=home&kind=' + encodeURIComponent(k.name) + '" style="color:var(--accent);text-decoration:none">' + esc(k.name) + '</a></td>' +
         '<td style="text-align:center">' + esc(String(k.count)) + '</td>' +
         '<td style="text-align:center">' + esc(String(k.uniqueKeys)) + '</td>' +
-        '<td>' + esc(k.latestAt ? fmtDate(k.latestAt) : '—') + '</td>' +
-        '<td>' + (topics || '—') + '</td>' +
-        '<td>' + (languages || '—') + '</td>' +
-        '<td>' + (sources || '—') + '</td>' +
-        '<td>' + (agents || '—') + '</td></tr>';
+        '<td>' + esc(k.latestAt ? fmtDate(k.latestAt) : '-') + '</td>' +
+        '<td>' + (topics || '-') + '</td>' +
+        '<td>' + (languages || '-') + '</td>' +
+        '<td>' + (sources || '-') + '</td>' +
+        '<td>' + (agents || '-') + '</td></tr>';
     }).join('');
 
     var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
@@ -4330,7 +4391,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchLanguages();
     updateUrlState();
-  
+
     markActiveToolbarButton('languagesBtn');
   };
 
@@ -4425,7 +4486,7 @@ function statCard(label, value, cls) {
       '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
       '<input type="number" min="1" max="1000" value="' + esc(String(languagesState.limit)) + '" onchange="window.setLanguagesLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
       '<button class="btn-icon" onclick="window.resetLanguagesFilters()">Reset filters</button>' +
-      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '-') + '</span>' +
       '</div>';
 
     var filterRow = '<div class="dashboard-toolbar" style="flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem">' +
@@ -4461,11 +4522,11 @@ function statCard(label, value, cls) {
       return '<tr><td class="mono"><a href="?view=home&language=' + encodeURIComponent(l.name) + '" style="color:var(--accent);text-decoration:none">' + esc(l.name) + '</a></td>' +
         '<td style="text-align:center">' + esc(String(l.count)) + '</td>' +
         '<td style="text-align:center">' + esc(String(l.uniqueKeys)) + '</td>' +
-        '<td>' + esc(l.latestAt ? fmtDate(l.latestAt) : '—') + '</td>' +
-        '<td>' + (topics || '—') + '</td>' +
-        '<td>' + (kinds || '—') + '</td>' +
-        '<td>' + (sources || '—') + '</td>' +
-        '<td>' + (agents || '—') + '</td></tr>';
+        '<td>' + esc(l.latestAt ? fmtDate(l.latestAt) : '-') + '</td>' +
+        '<td>' + (topics || '-') + '</td>' +
+        '<td>' + (kinds || '-') + '</td>' +
+        '<td>' + (sources || '-') + '</td>' +
+        '<td>' + (agents || '-') + '</td></tr>';
     }).join('');
 
     var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
@@ -4486,7 +4547,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchTags();
     updateUrlState();
-  
+
     markActiveToolbarButton('tagsBtn');
   };
 
@@ -4560,7 +4621,7 @@ function statCard(label, value, cls) {
       '</select></label>' +
       '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
       '<input type="number" min="1" max="1000" value="' + esc(String(tagsState.limit)) + '" onchange="window.setTagsLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
-      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '-') + '</span>' +
       '</div>';
 
     var stats = '<div class="stats-grid">' +
@@ -4580,9 +4641,9 @@ function statCard(label, value, cls) {
         '<td style="text-align:center">' + esc(String(t.count)) + '</td>' +
         '<td style="text-align:center">' + esc(String(t.uniqueKeys)) + '</td>' +
         '<td style="text-align:center">' + esc(String(t.uniqueValues)) + '</td>' +
-        '<td>' + esc(t.latestAt ? fmtDate(t.latestAt) : '—') + '</td>' +
-        '<td>' + (kinds || '—') + '</td>' +
-        '<td>' + (topValues || '—') + '</td></tr>';
+        '<td>' + esc(t.latestAt ? fmtDate(t.latestAt) : '-') + '</td>' +
+        '<td>' + (kinds || '-') + '</td>' +
+        '<td>' + (topValues || '-') + '</td></tr>';
     }).join('');
 
     var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
@@ -4603,7 +4664,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchAgents();
     updateUrlState();
-  
+
     markActiveToolbarButton('agentsBtn');
   };
 
@@ -4679,7 +4740,7 @@ function statCard(label, value, cls) {
       '</select></label>' +
       '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
       '<input type="number" min="1" max="1000" value="' + esc(String(agentsState.limit)) + '" onchange="window.setAgentsLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
-      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '-') + '</span>' +
       '</div>';
 
     var stats = '<div class="stats-grid">' +
@@ -4697,17 +4758,17 @@ function statCard(label, value, cls) {
       var topics = Object.entries(a.byTopic || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
       var kinds = Object.entries(a.byKind || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
       var opinions = Object.entries(a.byOpinion || {}).map(function(kv) { return esc(kv[0]) + ':' + esc(String(kv[1])); }).join(', ');
-      var trust = a.trustScore !== null && a.trustScore !== undefined ? a.trustScore.toFixed(3) : '—';
+      var trust = a.trustScore !== null && a.trustScore !== undefined ? a.trustScore.toFixed(3) : '-';
       return '<tr><td class="mono"><a href="?view=home&author=' + encodeURIComponent(a.agentId) + '" style="color:var(--accent);text-decoration:none">' + esc(a.agentId) + '</a></td>' +
         '<td style="text-align:center">' + esc(String(a.articles)) + '</td>' +
         '<td style="text-align:center">' + esc(String(a.uniqueKeys)) + '</td>' +
         '<td style="text-align:center">' + esc(String(a.attestationsGiven)) + '</td>' +
         '<td style="text-align:center">' + esc(String(a.attestationsReceived)) + '</td>' +
         '<td style="text-align:center">' + trust + '</td>' +
-        '<td>' + esc(a.latestAt ? fmtDate(a.latestAt) : '—') + '</td>' +
-        '<td>' + (topics || '—') + '</td>' +
-        '<td>' + (kinds || '—') + '</td>' +
-        '<td>' + (opinions || '—') + '</td></tr>';
+        '<td>' + esc(a.latestAt ? fmtDate(a.latestAt) : '-') + '</td>' +
+        '<td>' + (topics || '-') + '</td>' +
+        '<td>' + (kinds || '-') + '</td>' +
+        '<td>' + (opinions || '-') + '</td></tr>';
     }).join('');
 
     var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
@@ -4728,7 +4789,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchSources();
     updateUrlState();
-  
+
     markActiveToolbarButton('sourcesBtn');
   };
 
@@ -4802,7 +4863,7 @@ function statCard(label, value, cls) {
       '</select></label>' +
       '<label style="font-size:0.75rem;color:var(--muted)">Limit ' +
       '<input type="number" min="1" max="1000" value="' + esc(String(sourcesState.limit)) + '" onchange="window.setSourcesLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
-      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '—') + '</span>' +
+      '<span class="last-updated">generated ' + (data.generatedAt ? fmtDate(data.generatedAt) : '-') + '</span>' +
       '</div>';
 
     var stats = '<div class="stats-grid">' +
@@ -4824,11 +4885,11 @@ function statCard(label, value, cls) {
       return '<tr><td class="mono">' + name + '</td>' +
         '<td style="text-align:center">' + esc(String(s.count)) + '</td>' +
         '<td style="text-align:center">' + esc(String(s.uniqueKeys)) + '</td>' +
-        '<td>' + esc(s.latestAt ? fmtDate(s.latestAt) : '—') + '</td>' +
-        '<td>' + (kinds || '—') + '</td>' +
-        '<td>' + (topics || '—') + '</td>' +
-        '<td>' + (languages || '—') + '</td>' +
-        '<td>' + (agents || '—') + '</td></tr>';
+        '<td>' + esc(s.latestAt ? fmtDate(s.latestAt) : '-') + '</td>' +
+        '<td>' + (kinds || '-') + '</td>' +
+        '<td>' + (topics || '-') + '</td>' +
+        '<td>' + (languages || '-') + '</td>' +
+        '<td>' + (agents || '-') + '</td></tr>';
     }).join('');
 
     var table = '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
@@ -4849,7 +4910,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchRemotes();
     updateUrlState();
-  
+
     markActiveToolbarButton('remotesBtn');
   };
 
@@ -5040,8 +5101,8 @@ function statCard(label, value, cls) {
         return '<tr><td class="mono">' + esc(name) + (isDefault ? ' <span style="font-size:0.7rem;color:var(--green)">[default]</span>' : '') + '</td>' +
           '<td class="mono">' + esc(renderRemoteUrl(r)) + '</td>' +
           '<td>' + esc(renderRemoteTransport(r)) + '</td>' +
-          '<td>' + esc(r.description || '—') + '</td>' +
-          '<td>' + esc(r.createdAt ? fmtDate(r.createdAt) : '—') + '</td>' +
+          '<td>' + esc(r.description || '-') + '</td>' +
+          '<td>' + esc(r.createdAt ? fmtDate(r.createdAt) : '-') + '</td>' +
           '<td style="white-space:nowrap">' +
           '<button class="btn-icon" data-testid="remote-probe-' + esc(name) + '" onclick="window.probeRemoteByName(\'' + esc(name) + '\')">Probe</button>' +
           (isDefault ? '' : '<button class="btn-icon" data-testid="remote-default-' + esc(name) + '" onclick="window.setDefaultRemoteByName(\'' + esc(name) + '\')">Set default</button>') +
@@ -5067,7 +5128,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchWebhooks();
     updateUrlState();
-  
+
     markActiveToolbarButton('webhooksBtn');
   };
 
@@ -5336,7 +5397,7 @@ function statCard(label, value, cls) {
           '<td class="mono">' + esc(s.url) + '</td>' +
           '<td>' + esc((s.events || []).join(', ')) + '</td>' +
           '<td>' + (s.active ? '<span style="color:var(--green)">active</span>' : '<span style="color:var(--red)">inactive</span>') + '</td>' +
-          '<td>' + esc(s.createdAt ? fmtDate(s.createdAt) : '—') + '</td>' +
+          '<td>' + esc(s.createdAt ? fmtDate(s.createdAt) : '-') + '</td>' +
           '<td style="white-space:nowrap">' +
           '<button class="btn-icon" data-testid="webhook-toggle-' + esc(s.id) + '" onclick="window.toggleWebhookById(\'' + esc(s.id) + '\')">Toggle</button>' +
           '<button class="btn-icon" data-testid="webhook-delete-' + esc(s.id) + '" onclick="window.deleteWebhookById(\'' + esc(s.id) + '\')">Delete</button>' +
@@ -5353,11 +5414,11 @@ function statCard(label, value, cls) {
     } else {
       var hrows = deliveries.map(function(d) {
         return '<tr><td class="mono">' + esc(d.id.slice(0, 16)) + '...</td>' +
-          '<td>' + esc(d.createdAt ? fmtDate(d.createdAt) : '—') + '</td>' +
+          '<td>' + esc(d.createdAt ? fmtDate(d.createdAt) : '-') + '</td>' +
           '<td>' + esc(d.event) + '</td>' +
           '<td class="mono">' + esc(d.url) + '</td>' +
           '<td style="color:' + (d.status === 'ok' ? 'var(--green)' : 'var(--red)') + '">' + esc(d.status) + '</td>' +
-          '<td>' + (d.httpStatus || '—') + '</td></tr>';
+          '<td>' + (d.httpStatus || '-') + '</td></tr>';
       }).join('');
       historyBody += '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
         '<th>ID</th><th>Time</th><th>Event</th><th>URL</th><th>Status</th><th>HTTP</th>' +
@@ -5378,7 +5439,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchForks();
     updateUrlState();
-  
+
     markActiveToolbarButton('forksBtn');
   };
 
@@ -5537,7 +5598,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await runSearch();
     updateUrlState();
-  
+
     markActiveToolbarButton('searchBtn');
   };
 
@@ -5664,7 +5725,7 @@ function statCard(label, value, cls) {
       var lock = a.encrypted ? '🔒 ' : '';
       return '<div class="activity-row" style="align-items:flex-start;flex-direction:column;gap:0.25rem;padding:0.6rem 0">' +
         '<div><strong><a href="?view=article&key=' + encodeURIComponent(a.key) + '" style="color:var(--accent);text-decoration:none">' + lock + esc(a.title || a.key) + '</a></strong> <code style="font-size:0.75rem">' + esc(a.key) + '</code></div>' +
-        '<div style="font-size:0.75rem;color:var(--muted)">' + esc(a.kind || '—') + ' · ' + esc(a.topic || '—') + (a.updatedAt ? ' · ' + fmtDate(a.updatedAt) : '') + (a.authorId ? ' · ' + esc(a.authorId) : '') + '</div>' +
+        '<div style="font-size:0.75rem;color:var(--muted)">' + esc(a.kind || '-') + ' · ' + esc(a.topic || '-') + (a.updatedAt ? ' · ' + fmtDate(a.updatedAt) : '') + (a.authorId ? ' · ' + esc(a.authorId) : '') + '</div>' +
         (snippet ? '<div style="font-size:0.82rem;color:var(--text)">' + esc(snippet) + '</div>' : '') +
         '</div>';
     }).join('');
@@ -5799,7 +5860,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     renderBookmarks();
     updateUrlState();
-  
+
     markActiveToolbarButton('bookmarksBtn');
   };
 
@@ -5837,14 +5898,14 @@ function statCard(label, value, cls) {
     var rows = list.map(function(b) {
       var st = b.state || {};
       var viewLabel = st.view || 'home';
-      var queryLabel = st.q ? 'q=' + esc(st.q) : '—';
+      var queryLabel = st.q ? 'q=' + esc(st.q) : '-';
       var topicLabel = st.topic ? 'topic=' + esc(st.topic) : '';
       var isSelected = selected === b.name ? ' style="background:rgba(var(--accent-rgb),0.08)"' : '';
       return '<tr' + isSelected + '>' +
         '<td class="mono">' + esc(b.name) + '</td>' +
         '<td>' + esc(viewLabel) + '</td>' +
         '<td>' + esc(queryLabel) + (topicLabel ? ' <span style="opacity:0.7">' + esc(topicLabel) + '</span>' : '') + '</td>' +
-        '<td>' + esc(b.createdAt ? fmtDate(b.createdAt) : '—') + '</td>' +
+        '<td>' + esc(b.createdAt ? fmtDate(b.createdAt) : '-') + '</td>' +
         '<td style="white-space:nowrap">' +
         '<button class="btn-icon" onclick="window.loadBookmark(\'' + esc(b.name).replace(/'/g, "&#39;") + '\')">Load</button> ' +
         '<button class="btn-icon" onclick="window.copyText(window.location.origin + window.location.pathname + \'?view=bookmarks&bookmark=\' + encodeURIComponent(\'' + esc(b.name).replace(/'/g, "&#39;") + '\'))">Link</button> ' +
@@ -5872,7 +5933,7 @@ function statCard(label, value, cls) {
     if (attestState.selectedKey) await fetchConsensus();
     renderAttest();
     updateUrlState();
-  
+
     markActiveToolbarButton('attestBtn');
   };
 
@@ -6005,7 +6066,7 @@ function statCard(label, value, cls) {
       return;
     }
 
-    var options = '<option value="">— Select an article —</option>' +
+    var options = '<option value="">- Select an article -</option>' +
       attestState.articles.map(function(a) {
         return '<option value="' + esc(a.key) + '"' + (a.key === attestState.selectedKey ? ' selected' : '') + '>' + esc(a.key) + (a.title ? ' · ' + esc(a.title) : '') + '</option>';
       }).join('');
@@ -6016,7 +6077,7 @@ function statCard(label, value, cls) {
       if (c.error) {
         consensusHtml = '<div class="error-box" style="margin-top:1rem">Consensus error: ' + esc(c.error) + '</div>';
       } else {
-        var score = typeof c.score === 'number' ? c.score.toFixed(2) : '—';
+        var score = typeof c.score === 'number' ? c.score.toFixed(2) : '-';
         var attCount = Array.isArray(c.attestations) ? c.attestations.length : (c.totalAttestations || 0);
         consensusHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Current consensus</h3>' +
           '<div class="stats-grid">' +
@@ -6065,7 +6126,7 @@ function statCard(label, value, cls) {
     if (!batchAttestState.rows.length) window.addBatchAttestRow();
     renderBatchAttest();
     updateUrlState();
-  
+
     markActiveToolbarButton('batchAttestBtn');
   };
 
@@ -6216,7 +6277,7 @@ function statCard(label, value, cls) {
     if (batchAttestState.result) {
       var rows = batchAttestState.result.map(function(res) {
         var cls = res.status === 'ok' ? 'good' : 'low';
-        var summary = res.status === 'ok' ? (res.summary ? ' (' + esc(res.summary) + ')' : '') : (' — ' + esc(res.error || 'failed'));
+        var summary = res.status === 'ok' ? (res.summary ? ' (' + esc(res.summary) + ')' : '') : (' - ' + esc(res.error || 'failed'));
         return '<tr><td>' + esc(res.key) + '</td><td style="color:' + (cls === 'good' ? 'var(--green)' : 'var(--red)') + '">' + esc(res.status) + '</td><td>' + esc(summary) + '</td></tr>';
       }).join('');
       resultHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Results: ' + batchAttestState.successCount + ' succeeded, ' + batchAttestState.failedCount + ' failed</h3>' +
@@ -6270,7 +6331,7 @@ function statCard(label, value, cls) {
     await fetchThresholdArticles();
     renderThresholdAttest();
     updateUrlState();
-  
+
     markActiveToolbarButton('thresholdAttestBtn');
   };
 
@@ -6405,7 +6466,7 @@ function statCard(label, value, cls) {
       var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
       if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
       thresholdAttestState.envelope = body;
-      thresholdAttestState.success = 'Threshold envelope created: ' + (body.envelopeId || '').substring(0, 8) + '…';
+      thresholdAttestState.success = 'Threshold envelope created: ' + (body.envelopeId || '').substring(0, 8) + '...';
     } catch(e) {
       thresholdAttestState.error = e.message;
     } finally {
@@ -6440,7 +6501,7 @@ function statCard(label, value, cls) {
       if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
       thresholdAttestState.envelope = body;
       thresholdAttestState.importText = '';
-      thresholdAttestState.success = 'Envelope imported: ' + (body.envelopeId || '').substring(0, 8) + '…';
+      thresholdAttestState.success = 'Envelope imported: ' + (body.envelopeId || '').substring(0, 8) + '...';
     } catch(e) {
       thresholdAttestState.error = e.message;
     } finally {
@@ -6532,7 +6593,7 @@ function statCard(label, value, cls) {
       });
       var body = await r.json().catch(function() { return { message: 'Invalid response' }; });
       if (!r.ok) throw new Error(body.message || body.error || 'HTTP ' + r.status);
-      thresholdAttestState.success = 'Threshold attestation published. id: ' + ((body.item && body.item.id) || (body.summary && body.summary.id) || '').substring(0, 12) + '…';
+      thresholdAttestState.success = 'Threshold attestation published. id: ' + ((body.item && body.item.id) || (body.summary && body.summary.id) || '').substring(0, 12) + '...';
       thresholdAttestState.envelope = body.envelope || thresholdAttestState.envelope;
     } catch(e) {
       thresholdAttestState.error = e.message;
@@ -6589,7 +6650,7 @@ function statCard(label, value, cls) {
       return;
     }
 
-    var options = '<option value="">— Select an article —</option>' +
+    var options = '<option value="">- Select an article -</option>' +
       thresholdAttestState.articles.map(function(a) {
         return '<option value="' + esc(a.key) + '"' + (a.key === thresholdAttestState.selectedKey ? ' selected' : '') + '>' + esc(a.key) + (a.title ? ' · ' + esc(a.title) : '') + '</option>';
       }).join('');
@@ -6602,7 +6663,7 @@ function statCard(label, value, cls) {
       var env = thresholdAttestState.envelope;
       var sigStatus = (env.signers || []).length + ' signer(s)';
       envelopeHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Active envelope</h3>' +
-        '<p style="font-size:0.85rem;color:var(--muted)">ID: <code>' + esc(env.envelopeId || '') + '</code> · Policy ' + (env.policy && env.policy.threshold || '—') + '-of-' + ((env.policy && env.policy.coSignerAgentIds && env.policy.coSignerAgentIds.length) || 0) + ' · ' + sigStatus + '</p>' +
+        '<p style="font-size:0.85rem;color:var(--muted)">ID: <code>' + esc(env.envelopeId || '') + '</code> · Policy ' + (env.policy && env.policy.threshold || '-') + '-of-' + ((env.policy && env.policy.coSignerAgentIds && env.policy.coSignerAgentIds.length) || 0) + ' · ' + sigStatus + '</p>' +
         '<textarea id="thresholdEnvelopeJson" rows="8" readonly>' + esc(JSON.stringify(env, null, 2)) + '</textarea>' +
         '<div class="btn-row">' +
         '<button class="btn-icon" onclick="window.copyThresholdEnvelope()">Copy JSON</button> ' +
@@ -6616,7 +6677,7 @@ function statCard(label, value, cls) {
       var vr = thresholdAttestState.verifyResult;
       var verifyClass = vr.ok ? 'good' : 'low';
       verifyHtml = '<div class="dashboard-section" style="margin-top:1rem"><h3>Verification</h3>' +
-        '<p style="color:' + (vr.ok ? 'var(--green)' : 'var(--red)') + '">' + (vr.ok ? '✓ Threshold met' : '✗ Threshold not met') + ' — ' + (vr.valid || 0) + ' of ' + (vr.required || 0) + ' valid signatures</p>' +
+        '<p style="color:' + (vr.ok ? 'var(--green)' : 'var(--red)') + '">' + (vr.ok ? '✓ Threshold met' : '✗ Threshold not met') + ' - ' + (vr.valid || 0) + ' of ' + (vr.required || 0) + ' valid signatures</p>' +
         (vr.invalid && vr.invalid.length ? '<p style="color:var(--red);font-size:0.85rem">Invalid: ' + esc(vr.invalid.join(', ')) + '</p>' : '') +
         '</div>';
     }
@@ -6669,7 +6730,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     renderPeerSync();
     updateUrlState();
-  
+
     markActiveToolbarButton('peerSyncBtn');
   };
 
@@ -6999,7 +7060,7 @@ function statCard(label, value, cls) {
     await fetchVerifyArticles();
     renderVerify();
     updateUrlState();
-  
+
     markActiveToolbarButton('verifyBtn');
   };
 
@@ -7080,7 +7141,7 @@ function statCard(label, value, cls) {
     var datalist = '';
     if (verifyState.articles && verifyState.articles.length) {
       datalist = '<datalist id="verifyArticleList">' + verifyState.articles.map(function(a) {
-        return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' — ' + esc(a.title || 'untitled') + '</option>';
+        return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' - ' + esc(a.title || 'untitled') + '</option>';
       }).join('') + '</datalist>';
     }
     var resultHtml = '';
@@ -7290,6 +7351,36 @@ function statCard(label, value, cls) {
   window.renderSync = renderSync;
 
   // --- Activity / notifications panel ---
+  function showNotifications() {
+    notificationsState.open = true;
+    markNotificationsRead();
+    renderNotificationsDropdown();
+    updateUrlState();
+  }
+
+  function toggleNotifications() {
+    notificationsState.open = !notificationsState.open;
+    if (notificationsState.open) markNotificationsRead();
+    renderNotificationsDropdown();
+    updateUrlState();
+  }
+
+  function hideNotifications() {
+    notificationsState.open = false;
+    renderNotificationsDropdown();
+    updateUrlState();
+  }
+
+  window.showNotifications = showNotifications;
+  window.toggleNotifications = toggleNotifications;
+  window.hideNotifications = hideNotifications;
+  window.renderNotificationsDropdown = renderNotificationsDropdown;
+  window.renderNotificationsList = renderNotificationsList;
+  window.markNotificationsRead = markNotificationsRead;
+  window.clearNotifications = clearNotifications;
+  window.handleNotificationClick = handleNotificationClick;
+  updateNotificationsBadge();
+
   window.showActivity = async function() {
     setViewMode('activity');
     selectedKey = null;
@@ -7298,7 +7389,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchActivity();
     updateUrlState();
-  
+
     markActiveToolbarButton('activityBtn');
   };
 
@@ -7310,7 +7401,7 @@ function statCard(label, value, cls) {
     stopAuditStream();
     await fetchHistory();
     updateUrlState();
-  
+
     markActiveToolbarButton('historyBtn');
   };
 
@@ -7406,10 +7497,10 @@ function statCard(label, value, cls) {
         var badge = selectedIndex === 0 ? ' <span style="font-size:0.65rem;background:var(--orange);color:#fff;border-radius:4px;padding:0.05rem 0.3rem">base</span>' : (selectedIndex === 1 ? ' <span style="font-size:0.65rem;background:var(--accent);color:#fff;border-radius:4px;padding:0.05rem 0.3rem">head</span>' : '');
         return '<div class="timeline-item version">' +
           '<div class="tl-ts">' + fmtTs(v.updatedAt) + '</div>' +
-          '<div class="tl-title">Version ' + (v.version || '—') + badge + '</div>' +
+          '<div class="tl-title">Version ' + (v.version || '-') + badge + '</div>' +
           '<div class="tl-meta">' +
-          '<a class="version-link" href="https://arweave.net/' + (v.id || '') + '" target="_blank">' + (v.id || '').substring(0, 12) + '…</a>' +
-          (v.contentHash ? ' · hash ' + v.contentHash.substring(0, 16) + '…' : '') +
+          '<a class="version-link" href="https://arweave.net/' + (v.id || '') + '" target="_blank">' + (v.id || '').substring(0, 12) + '...</a>' +
+          (v.contentHash ? ' · hash ' + v.contentHash.substring(0, 16) + '...' : '') +
           '</div>' +
           '<div class="tl-meta" style="margin-top:0.35rem">' +
           '<button class="btn-icon" onclick="window.selectHistoryVersion(\'' + esc(v.id) + '\', 0)">Set base</button> ' +
@@ -7437,7 +7528,7 @@ function statCard(label, value, cls) {
       if (historyPanelState.selected.length === 2) return '<p style="color:var(--muted)">Diff result unavailable.</p>';
       return '<p style="color:var(--muted)">Select two versions from the timeline to compare.</p>';
     }
-    var meta = '<div class="diff-meta">' + esc(historyPanelState.selected[0].substring(0, 12)) + '… → ' + esc(historyPanelState.selected[1].substring(0, 12)) + '…' +
+    var meta = '<div class="diff-meta">' + esc(historyPanelState.selected[0].substring(0, 12)) + '... → ' + esc(historyPanelState.selected[1].substring(0, 12)) + '...' +
       ' · ' + (result.changes || 0) + ' change(s)' +
       (typeof result.additions === 'number' ? ' · +' + result.additions : '') +
       (typeof result.deletions === 'number' ? ' · -' + result.deletions : '') + '</div>';
@@ -7461,11 +7552,11 @@ function statCard(label, value, cls) {
 
     var source = isLocalListMode() ? (localList.articles || []) : articles;
     var options = source.map(function(a) {
-      return '<option value="' + esc(a.key) + '"' + (a.key === historyPanelState.key ? ' selected' : '') + '>' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+      return '<option value="' + esc(a.key) + '"' + (a.key === historyPanelState.key ? ' selected' : '') + '>' + esc(a.key) + ' - ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
     }).join('');
 
     var toolbar = '<div class="dashboard-toolbar">' +
-      '<label>Article <select id="historyKeySelect" onchange="window.setHistoryKey(this.value)" style="min-width:16rem"><option value="">Select article…</option>' + options + '</select></label>' +
+      '<label>Article <select id="historyKeySelect" onchange="window.setHistoryKey(this.value)" style="min-width:16rem"><option value="">Select article...</option>' + options + '</select></label>' +
       '<button class="btn-icon" onclick="window.refreshHistory()">&#x21BB; Refresh</button>' +
       '<span class="last-updated">' + ((historyPanelState.data && historyPanelState.data.versionCount) || 0) + ' versions</span>' +
       '</div>';
@@ -7520,22 +7611,22 @@ function statCard(label, value, cls) {
     var detail = '';
     if (kind === 'publish') {
       title = 'Article published';
-      detail = (e.title || '(untitled)') + ' · <code>' + esc(e.key || '') + '</code> v' + (e.version || 1) + ' by ' + esc(e.agentId || '—');
+      detail = (e.title || '(untitled)') + ' · <code>' + esc(e.key || '') + '</code> v' + (e.version || 1) + ' by ' + esc(e.agentId || '-');
     } else if (kind === 'attest') {
       title = 'Attestation';
-      detail = esc(e.opinion || '') + ' on <code>' + esc(e.targetKey || '') + '</code> by ' + esc(e.agentId || '—') + (e.confidence ? ' · confidence ' + e.confidence : '');
+      detail = esc(e.opinion || '') + ' on <code>' + esc(e.targetKey || '') + '</code> by ' + esc(e.agentId || '-') + (e.confidence ? ' · confidence ' + e.confidence : '');
     } else if (kind === 'fork') {
       title = 'Forked';
-      detail = '<code>' + esc(e.sourceKey || '') + '</code> → <code>' + esc(e.key || '') + '</code> by ' + esc(e.agentId || '—');
+      detail = '<code>' + esc(e.sourceKey || '') + '</code> → <code>' + esc(e.key || '') + '</code> by ' + esc(e.agentId || '-');
     } else if (kind === 'merge') {
       title = 'Merged';
-      detail = '<code>' + esc(e.sourceKey || '') + '</code> → <code>' + esc(e.key || '') + '</code> by ' + esc(e.agentId || '—') + (e.hasConflicts ? ' · ⚠ conflicts' : '');
+      detail = '<code>' + esc(e.sourceKey || '') + '</code> → <code>' + esc(e.key || '') + '</code> by ' + esc(e.agentId || '-') + (e.hasConflicts ? ' · ⚠ conflicts' : '');
     }
     var lock = e.encrypted ? '🔒 ' : '';
     return '<div class="activity-row">' +
       '<span class="ts">' + ts + '</span>' +
       '<span class="badge" style="background:' + badgeColor + ';color:#fff;border:none">' + esc(kind) + '</span>' +
-      '<span>' + lock + '<strong>' + esc(title) + '</strong> — ' + detail + '</span>' +
+      '<span>' + lock + '<strong>' + esc(title) + '</strong> - ' + detail + '</span>' +
       '</div>';
   }
 
@@ -7606,6 +7697,98 @@ function statCard(label, value, cls) {
     return el;
   }
 
+  function notificationsDropdown() {
+    var el = document.getElementById('notificationsDropdown');
+    return el;
+  }
+
+  function addNotification(title, body, type, link) {
+    if (!notificationsState.enabled) return;
+    var item = {
+      id: 'n-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      title: title || '',
+      body: body || '',
+      type: type || 'info',
+      link: link || '',
+      read: false,
+      createdAt: Date.now()
+    };
+    notificationsState.history.unshift(item);
+    if (notificationsState.history.length > (notificationsState.maxHistory || 100)) {
+      notificationsState.history.length = notificationsState.maxHistory || 100;
+    }
+    notificationsState.unread = notificationsState.history.filter(function(n) { return !n.read; }).length;
+    saveNotificationsState();
+    if (notificationsState.open) renderNotificationsList();
+    return item;
+  }
+
+  function renderNotificationsList() {
+    var list = document.getElementById('notificationsList');
+    if (!list) return;
+    var history = notificationsState.history || [];
+    if (!history.length) {
+      list.innerHTML = '<div class="notifications-empty">No recent notifications.</div>';
+      return;
+    }
+    list.innerHTML = history.map(function(n) {
+      var badgeColor = n.type === 'success' ? 'var(--green)' : n.type === 'warn' ? 'var(--orange)' : n.type === 'error' ? 'var(--red)' : 'var(--accent)';
+      var badge = '<span class="badge" style="background:' + badgeColor + ';color:#fff;border:none;flex-shrink:0">' + esc(n.type) + '</span>';
+      var linkAttr = n.link ? ' onclick="window.handleNotificationClick(\'' + esc(n.id) + '\')"' : '';
+      return '<div class="notifications-row' + (n.read ? '' : ' unread') + '" data-id="' + esc(n.id) + '"' + linkAttr + '>' +
+        badge +
+        '<div style="flex:1;min-width:0">' +
+        '<div><strong>' + esc(n.title) + '</strong></div>' +
+        '<div class="n-meta">' + esc(n.body) + '</div>' +
+        '<div class="n-meta">' + fmtTs(n.createdAt) + '</div>' +
+        '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function renderNotificationsDropdown() {
+    var dropdown = notificationsDropdown();
+    if (!dropdown) return;
+    if (notificationsState.open) {
+      dropdown.classList.add('show');
+      dropdown.setAttribute('aria-hidden', 'false');
+      renderNotificationsList();
+    } else {
+      dropdown.classList.remove('show');
+      dropdown.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function showNotifications() {
+    notificationsState.open = true;
+    markNotificationsRead();
+    renderNotificationsDropdown();
+    updateUrlState();
+  }
+
+  function toggleNotifications() {
+    notificationsState.open = !notificationsState.open;
+    if (notificationsState.open) {
+      markNotificationsRead();
+    }
+    renderNotificationsDropdown();
+    updateUrlState();
+  }
+
+  function hideNotifications() {
+    notificationsState.open = false;
+    renderNotificationsDropdown();
+    updateUrlState();
+  }
+
+  window.showNotifications = showNotifications;
+  window.toggleNotifications = toggleNotifications;
+  window.hideNotifications = hideNotifications;
+  window.markNotificationsRead = markNotificationsRead;
+  window.clearNotifications = clearNotifications;
+  window.handleNotificationClick = handleNotificationClick;
+
+  // --- Public API ---
   function showToast(title, body, type) {
     if (!isLocalServer()) return;
     var container = toastContainer();
@@ -7616,6 +7799,7 @@ function statCard(label, value, cls) {
       '<div class="toast-body">' + esc(body) + '</div>';
     container.appendChild(toast);
     activityState.toasts.push(toast);
+    addNotification(title, body, type, '?view=activity');
     setTimeout(function() {
       if (toast.parentElement) toast.remove();
     }, 6000);
@@ -7671,7 +7855,7 @@ function statCard(label, value, cls) {
 
     var data = supportBundleState.data || {};
     var isMarkdown = supportBundleState.format === 'markdown';
-    var generatedAt = data.generatedAt ? fmtDate(data.generatedAt) : '—';
+    var generatedAt = data.generatedAt ? fmtDate(data.generatedAt) : '-';
 
     var toolbar = '<div class="dashboard-toolbar">' +
       '<button class="btn-icon" onclick="window.refreshSupportBundle()">&#x21BB; Refresh</button>' +
@@ -7683,7 +7867,7 @@ function statCard(label, value, cls) {
       '<span class="last-updated">generated ' + generatedAt + '</span>' +
       '</div>';
 
-    var redactionNotice = '<div class="encrypted-hint"><strong>&#128272; Redacted</strong> — API keys, secrets, and private values are masked. Pass <code>?redact=false</code> on the API only when you control the destination.</div>';
+    var redactionNotice = '<div class="encrypted-hint"><strong>&#128272; Redacted</strong> - API keys, secrets, and private values are masked. Pass <code>?redact=false</code> on the API only when you control the destination.</div>';
 
     var body = '';
     if (isMarkdown && data._markdown) {
@@ -9006,7 +9190,7 @@ function statCard(label, value, cls) {
     var importPanel = '';
     if (activeTab === 'import') {
       var fileName = exportImportState.importFile ? esc(exportImportState.importFile.name) : 'No file selected';
-      var preview = exportImportState.importText ? '<pre style="max-height:10rem;overflow:auto;font-size:0.78rem;margin-top:0.5rem">' + esc(exportImportState.importText.substring(0, 2000)) + (exportImportState.importText.length > 2000 ? '…' : '') + '</pre>' : '';
+      var preview = exportImportState.importText ? '<pre style="max-height:10rem;overflow:auto;font-size:0.78rem;margin-top:0.5rem">' + esc(exportImportState.importText.substring(0, 2000)) + (exportImportState.importText.length > 2000 ? '...' : '') + '</pre>' : '';
       var summary = '';
       if (exportImportState.importText) {
         try {
@@ -9039,13 +9223,13 @@ function statCard(label, value, cls) {
     if (activeTab === 'export') {
       var source = isLocalListMode() ? (localList.articles || []) : articles;
       var options = source.map(function(a) {
-        return '<option value="' + esc(a.key) + '"' + (a.key === exportImportState.exportKey ? ' selected' : '') + '>' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+        return '<option value="' + esc(a.key) + '"' + (a.key === exportImportState.exportKey ? ' selected' : '') + '>' + esc(a.key) + ' - ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
       }).join('');
       exportPanel = '<div class="compare-panel">' +
         '<h2>&#128228; Export article bundle / history</h2>' +
         '<p class="home-subtitle">Export a single article, full version history, all articles, or raw DataItem bytes</p>' +
         '<div class="compare-toolbar">' +
-        '<label>Article <select id="exportKeySelect" onchange="window.setExportKey(this.value)" style="min-width:14rem"><option value="">Select article…</option>' + options + '</select></label>' +
+        '<label>Article <select id="exportKeySelect" onchange="window.setExportKey(this.value)" style="min-width:14rem"><option value="">Select article...</option>' + options + '</select></label>' +
         '<label>Mode <select id="exportModeSelect" onchange="window.setExportMode(this.value)">' +
         '<option value="bundle"' + (exportImportState.exportMode === 'bundle' ? ' selected' : '') + '>Bundle (article + attestations)</option>' +
         '<option value="history"' + (exportImportState.exportMode === 'history' ? ' selected' : '') + '>History (version chain + attestations)</option>' +
@@ -9124,12 +9308,12 @@ function statCard(label, value, cls) {
     if (!baseSel || !headSel) return;
     var source = isLocalServer() ? (localList.articles || []) : articles;
     var options = source.map(function(a) {
-      return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+      return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' - ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
     }).join('');
     var baseCurrent = baseSel.value || compareState.base || '';
     var headCurrent = headSel.value || compareState.head || '';
-    baseSel.innerHTML = '<option value="">Select article…</option>' + options;
-    headSel.innerHTML = '<option value="">Select article…</option>' + options;
+    baseSel.innerHTML = '<option value="">Select article...</option>' + options;
+    headSel.innerHTML = '<option value="">Select article...</option>' + options;
     baseSel.value = source.some(function(a){ return a.key === baseCurrent; }) ? baseCurrent : (compareState.base || '');
     headSel.value = source.some(function(a){ return a.key === headCurrent; }) ? headCurrent : (compareState.head || '');
   }
@@ -9306,10 +9490,10 @@ function statCard(label, value, cls) {
     }
     var source = isLocalListMode() ? (localList.articles || []) : articles;
     var options = source.map(function(a) {
-      return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' — ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
+      return '<option value="' + esc(a.key) + '">' + esc(a.key) + ' - ' + esc(a.title || '(untitled)') + ' v' + (a.version || 1) + '</option>';
     }).join('');
     function buildSelect(id, current, onchange) {
-      var opts = '<option value="">Select article…</option>' + options;
+      var opts = '<option value="">Select article...</option>' + options;
       return '<select id="' + id + '" onchange="' + onchange + '" style="min-width:14rem">' +
         opts.replace(/value="([^"]*)"/g, function(m, key) {
           return 'value="' + esc(key) + '"' + (key === current ? ' selected' : '');
@@ -9493,7 +9677,7 @@ function statCard(label, value, cls) {
   }
 
   function fmtTs(ts) {
-    if (!ts) return '—';
+    if (!ts) return '-';
     try { return new Date(ts).toLocaleString(); } catch { return ts; }
   }
 
@@ -9847,7 +10031,7 @@ function statCard(label, value, cls) {
       return '<div class="article-item' + (modalIndex === idx && modalArticle && modalArticle.key === a.key ? ' selected' : '') + '" data-key="' + esc(a.key) + '" onclick="window.openArticleModal(' + idx + ')" title="Click for details">' +
         '<div class="key">' + esc(a.key) + '</div>' +
         '<div class="title">' + lockIcon + esc(a.title || '(untitled)') + '</div>' +
-        '<div class="meta">' + esc(a.kind || '—') + ' · ' + esc(a.topic || '—') + ' · v' + (a.version || 1) + ' · attests ' + (a.attestationCount || 0) +
+        '<div class="meta">' + esc(a.kind || '-') + ' · ' + esc(a.topic || '-') + ' · v' + (a.version || 1) + ' · attests ' + (a.attestationCount || 0) +
         (score !== null ? ' <span class="consensus ' + scoreClass + '">score ' + score.toFixed(2) + '</span>' : '') +
         '</div>' +
         '</div>';
@@ -9947,14 +10131,14 @@ function statCard(label, value, cls) {
     var versions = (modalHistory && modalHistory.timeline) ? modalHistory.timeline.filter(function(e) { return e.type === 'version'; }) : [];
     var versionHtml = versions.length ? '<h3>Version History</h3><ul class="version-list">' + versions.slice().reverse().map(function(e) {
       var v = e.version || {};
-      return '<li class="version-item"><span class="version-num">v' + (v.version || '—') + '</span> <a class="version-link" href="https://arweave.net/' + (v.id || '') + '" target="_blank">' + (v.id || '').substring(0, 12) + '…</a> <span class="version-date">' + fmtTs(v.updatedAt) + '</span></li>';
+      return '<li class="version-item"><span class="version-num">v' + (v.version || '-') + '</span> <a class="version-link" href="https://arweave.net/' + (v.id || '') + '" target="_blank">' + (v.id || '').substring(0, 12) + '...</a> <span class="version-date">' + fmtTs(v.updatedAt) + '</span></li>';
     }).join('') + '</ul>' : '';
 
     document.getElementById('modalBody').innerHTML =
       '<div class="article-header">' +
         '<div class="badges">' +
-          '<span class="badge badge-kind">' + esc(a.kind || '—') + '</span>' +
-          '<span class="badge badge-topic">' + esc(a.topic || '—') + '</span>' +
+          '<span class="badge badge-kind">' + esc(a.kind || '-') + '</span>' +
+          '<span class="badge badge-topic">' + esc(a.topic || '-') + '</span>' +
           '<span class="badge ' + badgeClass + '">' + badgeLabel + '</span>' +
         '</div>' +
         '<h1>' + esc(a.title || '(untitled)') + '</h1>' +
@@ -10012,10 +10196,10 @@ function statCard(label, value, cls) {
           var v = e.version || {};
           return '<div class="timeline-item version">' +
             '<div class="tl-ts">' + fmtTs(v.updatedAt) + '</div>' +
-            '<div class="tl-title">Version ' + (v.version || '—') + '</div>' +
+            '<div class="tl-title">Version ' + (v.version || '-') + '</div>' +
             '<div class="tl-meta">' +
-            '<a class="version-link" href="https://arweave.net/' + v.id + '" target="_blank">' + (v.id || '').substring(0, 12) + '…</a>' +
-            (v.contentHash ? ' · hash ' + v.contentHash.substring(0, 16) + '…' : '') +
+            '<a class="version-link" href="https://arweave.net/' + v.id + '" target="_blank">' + (v.id || '').substring(0, 12) + '...</a>' +
+            (v.contentHash ? ' · hash ' + v.contentHash.substring(0, 16) + '...' : '') +
             '</div>' +
             '</div>';
         }
@@ -10137,7 +10321,7 @@ function statCard(label, value, cls) {
       '<div class="stat-card"><div class="stat-value">' + (t.agentCount || 0) + '</div><div class="stat-label">Agents</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + (t.topicCount || 0) + '</div><div class="stat-label">Topics</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + (t.kindCount || 0) + '</div><div class="stat-label">Kinds</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (c.averageConsensus != null ? c.averageConsensus.toFixed(3) : '—') + '</div><div class="stat-label">Avg Consensus</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (c.averageConsensus != null ? c.averageConsensus.toFixed(3) : '-') + '</div><div class="stat-label">Avg Consensus</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + (c.attestedArticles || 0) + '</div><div class="stat-label">Attested</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + (act.active7d || 0) + '</div><div class="stat-label">Active 7d</div></div>' +
       '</div>';
@@ -10187,7 +10371,7 @@ function statCard(label, value, cls) {
       '<div class="stat-card"><div class="stat-value">' + (t.attestations || 0) + '</div><div class="stat-label">Attestations</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + (t.agentCount || 0) + '</div><div class="stat-label">Agents</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + (t.topicCount || 0) + '</div><div class="stat-label">Topics</div></div>' +
-      '<div class="stat-card"><div class="stat-value">' + (c.averageConsensus != null ? c.averageConsensus.toFixed(3) : '—') + '</div><div class="stat-label">Avg Consensus</div></div>' +
+      '<div class="stat-card"><div class="stat-value">' + (c.averageConsensus != null ? c.averageConsensus.toFixed(3) : '-') + '</div><div class="stat-label">Avg Consensus</div></div>' +
       '<div class="stat-card"><div class="stat-value">' + (a.active7d || 0) + '</div><div class="stat-label">Active 7d</div></div>' +
       '</div>';
 
@@ -10196,7 +10380,7 @@ function statCard(label, value, cls) {
       articlesHtml = '<div class="dashboard-section"><h2>Local articles (' + d.list.total + ')</h2>' +
         d.list.articles.slice(0, 20).map(function(a) {
           var lock = a.encrypted ? '🔒 ' : '';
-          return '<div class="activity-row"><span class="ts">' + fmtTs(a.updatedAt) + '</span><span><strong>' + lock + esc(a.title || '(untitled)') + '</strong> <code>' + esc(a.key) + '</code> · ' + esc(a.kind || '—') + ' · ' + esc(a.topic || '—') + ' · attests ' + (a.attestationCount || 0) + '</span></div>';
+          return '<div class="activity-row"><span class="ts">' + fmtTs(a.updatedAt) + '</span><span><strong>' + lock + esc(a.title || '(untitled)') + '</strong> <code>' + esc(a.key) + '</code> · ' + esc(a.kind || '-') + ' · ' + esc(a.topic || '-') + ' · attests ' + (a.attestationCount || 0) + '</span></div>';
         }).join('') +
         (d.list.articles.length < d.list.total ? '<p class="dashboard-empty">Showing ' + d.list.articles.length + ' of ' + d.list.total + '</p>' : '') +
         '</div>';
@@ -10211,7 +10395,7 @@ function statCard(label, value, cls) {
           var text = e.kind === 'publish' ? (e.key + ' v' + e.version + ' by ' + e.agentId) :
             e.kind === 'attest' ? (e.targetKey + ': ' + e.opinion + ' by ' + e.agentId) :
             e.kind === 'fork' ? (e.sourceKey + ' → ' + e.key) :
-            e.kind === 'merge' ? (e.sourceKey + ' → ' + e.key) : (e.key || e.targetKey || '—');
+            e.kind === 'merge' ? (e.sourceKey + ' → ' + e.key) : (e.key || e.targetKey || '-');
           return '<div class="activity-row"><span class="ts">' + fmtTs(e.timestamp || e.createdAt) + '</span><span class="badge">' + e.kind + '</span><span>' + esc(text) + '</span></div>';
         }).join('') +
         '</div>';
@@ -10224,7 +10408,7 @@ function statCard(label, value, cls) {
       auditHtml = '<div class="dashboard-section"><h2>Audit log (' + d.log.total + ')</h2>' +
         d.log.entries.slice(0, 20).map(function(e) {
           var icon = e.status === 'ok' ? '✅' : e.status === 'error' ? '❌' : '⏳';
-          return '<div class="audit-row"><span class="ts">' + fmtTs(e.createdAt) + '</span><span>' + icon + ' ' + e.action + (e.key ? ' <code>' + esc(e.key) + '</code>' : '') + (e.message ? ' — ' + esc(e.message) : '') + '</span></div>';
+          return '<div class="audit-row"><span class="ts">' + fmtTs(e.createdAt) + '</span><span>' + icon + ' ' + e.action + (e.key ? ' <code>' + esc(e.key) + '</code>' : '') + (e.message ? ' - ' + esc(e.message) : '') + '</span></div>';
         }).join('') +
         '</div>';
     } else {
