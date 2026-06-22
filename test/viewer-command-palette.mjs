@@ -28,6 +28,7 @@ assert.ok(html.includes('window.hideCommandPalette = function()'), 'viewer shoul
 assert.ok(html.includes('window.filterCommandPalette = function()'), 'viewer should expose filterCommandPalette');
 assert.ok(html.includes('window.onCommandPaletteKey = function('), 'viewer should expose onCommandPaletteKey');
 assert.ok(html.includes('window.runCommandByIndex = function('), 'viewer should expose runCommandByIndex');
+assert.ok(html.includes("id: 'go-grep'"), 'command palette should include Go to Grep command');
 assert.ok(html.includes('var commandPaletteState'), 'viewer should define commandPaletteState');
 assert.ok(html.includes("case 'command-palette':"), 'dispatchView should route command-palette mode');
 assert.ok(html.includes("viewMode === 'command-palette'"), 'command palette guard should exist');
