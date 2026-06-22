@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+      {
+          "name": "Debug with Poetry",
+          "type": "python",
+          "request": "launch",
+          "program": "${workspaceFolder}/src/main.py",
+          "console": "integratedTerminal",
+          "justMyCode": false,
+          "env": {
+              "POETRY": "poetry",
+              "DEPLOYMENT_TARGET": "development"
+          },
+          "args": [],
+          "python":"${command:python.interpreterPath}"
+      }
+  ]
+}
