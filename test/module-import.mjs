@@ -80,6 +80,16 @@ assert.equal(typeof api.attestForAgent, 'function', 'api.attestForAgent is a fun
 assert.equal(typeof api.provisionAgent, 'function', 'api.provisionAgent is a function');
 assert.equal(typeof api.getCircuitBreakerStatus, 'function', 'api.getCircuitBreakerStatus is a function');
 assert.equal(typeof api.getTransportStatus, 'function', 'api.getTransportStatus is a function');
+assert.equal(typeof api.webhooks, 'function', 'api.webhooks is a function');
+assert.equal(typeof api.webhooksRegister, 'function', 'api.webhooksRegister is a function');
+assert.equal(typeof api.webhookById, 'function', 'api.webhookById is a function');
+assert.equal(typeof api.webhooksDelete, 'function', 'api.webhooksDelete is a function');
+assert.equal(typeof api.webhooksToggle, 'function', 'api.webhooksToggle is a function');
+assert.equal(typeof api.webhookHistory, 'function', 'api.webhookHistory is a function');
+assert.equal(typeof api.testWebhook, 'function', 'api.testWebhook is a function');
+assert.equal(typeof api.webhooksDispatch, 'function', 'api.webhooksDispatch is a function');
+assert.equal(typeof api.webhooksToMarkdown, 'function', 'api.webhooksToMarkdown is a function');
+
 console.log('   ✓ All api methods present');
 
 // --- 2. Crypto namespace exports ---
@@ -224,6 +234,22 @@ import { generateCompletion, listSupportedShells } from '../src/index.mjs';
 import { publishDirectory, publishDirectoryToMarkdown, deriveKeyFromPath, findMarkdownFiles } from '../src/index.mjs';
 import { watchFiles, publishFilesOnce, watchFilesToMarkdown } from '../src/index.mjs';
 
+// Webhook exports
+import {
+  registerWebhook,
+  listWebhooks,
+  getWebhook,
+  deleteWebhook,
+  toggleWebhook,
+  webhookHistory,
+  testWebhook,
+  dispatchWebhookEvent,
+  webhooksToMarkdown,
+  signWebhookPayload,
+  verifyWebhookSignature,
+  generateWebhookSecret
+} from '../src/index.mjs';
+
 // Server exports
 import { createServer, startServer, stopServer } from '../src/index.mjs';
 import { createRateLimiter, getClientIdentifier } from '../src/index.mjs';
@@ -240,7 +266,21 @@ assert.equal(typeof findMarkdownFiles, 'function', 'findMarkdownFiles');
 assert.equal(typeof watchFiles, 'function', 'watchFiles');
 assert.equal(typeof publishFilesOnce, 'function', 'publishFilesOnce');
 assert.equal(typeof watchFilesToMarkdown, 'function', 'watchFilesToMarkdown');
-console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client + rate limit + publish-dir + watch-files)');
+
+// Webhook exports
+assert.equal(typeof registerWebhook, 'function', 'registerWebhook');
+assert.equal(typeof listWebhooks, 'function', 'listWebhooks');
+assert.equal(typeof getWebhook, 'function', 'getWebhook');
+assert.equal(typeof deleteWebhook, 'function', 'deleteWebhook');
+assert.equal(typeof toggleWebhook, 'function', 'toggleWebhook');
+assert.equal(typeof webhookHistory, 'function', 'webhookHistory');
+assert.equal(typeof testWebhook, 'function', 'testWebhook');
+assert.equal(typeof dispatchWebhookEvent, 'function', 'dispatchWebhookEvent');
+assert.equal(typeof webhooksToMarkdown, 'function', 'webhooksToMarkdown');
+assert.equal(typeof signWebhookPayload, 'function', 'signWebhookPayload');
+assert.equal(typeof verifyWebhookSignature, 'function', 'verifyWebhookSignature');
+assert.equal(typeof generateWebhookSecret, 'function', 'generateWebhookSecret');
+console.log('   ✓ All lower-level exports present (including dashboard + ZenBin + client + rate limit + publish-dir + watch-files + webhooks)');
 
 // --- 5. package.json exports field ---
 console.log('5. package.json exports field');

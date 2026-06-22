@@ -475,7 +475,25 @@ export function createClient(options = {}) {
      * @param {AbortSignal} [opts.signal]
      * @returns {{[Symbol.asyncIterator]: function, cancel: function}}
      */
-    requestsStream: (opts = {}) => subscribeEventsOverSse({ baseUrl, apiKey: options.apiKey, url: '/api/v1/log/requests/stream', signal: opts.signal })
+    requestsStream: (opts = {}) => subscribeEventsOverSse({ baseUrl, apiKey: options.apiKey, url: '/api/v1/log/requests/stream', signal: opts.signal }),
+
+    /** @returns {Promise<Object>} */
+    webhooks: (opts = {}) => request('GET', `/api/v1/webhooks${toQuery(opts)}`),
+
+    /** @returns {Promise<Object>} */
+    webhooksRegister: (body) => request('POST', '/api/v1/webhooks', body),
+
+    /** @returns {Promise<Object>} */
+    testWebhook: (body) => request('POST', '/api/v1/webhooks/test', body),
+
+    /** @returns {Promise<Object>} */
+    webhookHistory: (opts = {}) => request('GET', `/api/v1/webhooks/history${toQuery(opts)}`),
+
+    /** @returns {Promise<Object>} */
+    toggleWebhook: (body) => request('POST', '/api/v1/webhooks/toggle', body),
+
+    /** @returns {Promise<Object>} */
+    deleteWebhook: (id) => request('DELETE', `/api/v1/webhooks${toQuery({ id })}`)
 
   };
 

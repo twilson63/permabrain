@@ -428,6 +428,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
     <button class="btn-icon" id="peerSyncBtn" onclick="window.showPeerSync()" title="Peer sync">&#128260;</button>
     <button class="btn-icon" id="remotesBtn" onclick="window.showRemotes()" title="Named remotes">&#127758;</button>
+    <button class="btn-icon" id="webhooksBtn" onclick="window.showWebhooks()" title="Outgoing webhooks">&#128225;</button>
     <button class="btn-icon" id="configBtn" onclick="window.showConfig()" title="Node configuration">&#128295;</button>
     <button class="btn-icon" id="goalBtn" onclick="window.showGoal()" title="Goal / PRD planner">&#127919;</button>
     <button class="btn-icon" id="backupBtn" onclick="window.showBackup()" title="Backup / archive">&#128424;</button>
@@ -654,6 +655,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var remotesState = { data: null, loading: false, error: null, message: null, actionLoading: false, showJson: true, apiKey: '', form: { name: '', url: '', transport: 'auto', description: '' } };
   var backupState = { data: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', backupName: '', keep: '10', maxAgeDays: '', showJson: false };
   var archiveState = { archive: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', recipients: '', dryRun: false, importText: '', restorePassphrase: '', restoreOptions: 'dryRun=false' };
+  var webhooksState = { subscriptions: null, deliveries: null, loading: false, error: null, message: null, actionLoading: false, showJson: true, apiKey: '', form: { url: '', events: '*', secret: '', active: true }, test: { url: '', payload: '', secret: '' }, historyLimit: 50, selectedId: '' };
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -1650,6 +1652,12 @@ function statCard(label, value, cls) {
       if (remotesState.apiKey) params.set('remotesApiKey', remotesState.apiKey);
       if (!remotesState.showJson) params.set('remotesShowJson', 'false');
     }
+    if (viewMode === 'webhooks') {
+      if (webhooksState.apiKey) params.set('webhooksApiKey', webhooksState.apiKey);
+      if (!webhooksState.showJson) params.set('webhooksShowJson', 'false');
+      if (webhooksState.historyLimit !== 50) params.set('webhooksHistoryLimit', String(webhooksState.historyLimit));
+      if (webhooksState.selectedId) params.set('webhooksSelectedId', webhooksState.selectedId);
+    }
     if (viewMode === 'backup') {
       if (backupState.showJson) params.set('backupShowJson', 'true');
       if (backupState.passphrase) params.set('backupPassphrase', backupState.passphrase);
@@ -1770,6 +1778,12 @@ function statCard(label, value, cls) {
       releaseNotesVersion: params.get('releaseNotesVersion') || '',
       releaseNotesUnreleased: params.get('releaseNotesUnreleased') || '',
       releaseNotesMarkdown: params.get('releaseNotesMarkdown') || '',
+      remotesApiKey: params.get('remotesApiKey') || '',
+      remotesShowJson: params.get('remotesShowJson') || '',
+      webhooksApiKey: params.get('webhooksApiKey') || '',
+      webhooksShowJson: params.get('webhooksShowJson') || '',
+      webhooksHistoryLimit: params.get('webhooksHistoryLimit') || '',
+      webhooksSelectedId: params.get('webhooksSelectedId') || '',
       searchQ: params.get('searchQ') || '',
       searchKind: params.get('searchKind') || '',
       searchTopic: params.get('searchTopic') || '',
@@ -1833,7 +1847,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','backup','archive'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -1950,6 +1964,12 @@ function statCard(label, value, cls) {
     if (state.view === 'remotes') {
       if (state.remotesApiKey) remotesState.apiKey = state.remotesApiKey;
       if (state.remotesShowJson === 'false') remotesState.showJson = false;
+    }
+    if (state.view === 'webhooks') {
+      if (state.webhooksApiKey) webhooksState.apiKey = state.webhooksApiKey;
+      if (state.webhooksShowJson === 'false') webhooksState.showJson = false;
+      if (state.webhooksHistoryLimit) { var whl = parseInt(state.webhooksHistoryLimit, 10); if (!isNaN(whl) && whl > 0) webhooksState.historyLimit = whl; }
+      if (state.webhooksSelectedId) webhooksState.selectedId = state.webhooksSelectedId;
     }
     if (state.view === 'backup') {
       if (state.backupShowJson === 'true') backupState.showJson = true;
@@ -4195,6 +4215,315 @@ function statCard(label, value, cls) {
   }
 
   window.renderRemotes = renderRemotes;
+
+  // --- Webhooks / Integrations panel ---
+  window.showWebhooks = async function() {
+    viewMode = 'webhooks';
+    selectedKey = null;
+    renderList();
+    stopDashboardRefresh();
+    stopAuditStream();
+    await fetchWebhooks();
+    updateUrlState();
+  };
+
+  window.refreshWebhooks = async function() {
+    await fetchWebhooks();
+    updateUrlState();
+  };
+
+  window.setWebhookForm = function(field, value) {
+    webhooksState.form[field] = value;
+  };
+
+  window.setWebhookTest = function(field, value) {
+    webhooksState.test[field] = value;
+  };
+
+  window.setWebhooksApiKey = function(value) {
+    webhooksState.apiKey = (value || '').trim();
+    updateUrlState();
+  };
+
+  window.setWebhooksShowJson = function(value) {
+    webhooksState.showJson = !!value;
+    updateUrlState();
+  };
+
+  window.setWebhooksHistoryLimit = function(limit) {
+    var n = parseInt(limit, 10);
+    webhooksState.historyLimit = (!isNaN(n) && n > 0) ? n : 50;
+    updateUrlState();
+  };
+
+  window.setWebhooksSelectedId = function(id) {
+    webhooksState.selectedId = (id || '').trim();
+    updateUrlState();
+  };
+
+  function webhooksApiKeyHeader() {
+    return webhooksState.apiKey ? { 'Authorization': 'Bearer ' + webhooksState.apiKey } : {};
+  }
+
+  async function fetchWebhooks() {
+    if (!isLocalServer()) return;
+    webhooksState.loading = true;
+    webhooksState.error = null;
+    if (viewMode === 'webhooks') renderWebhooks();
+    try {
+      var [subsRes, histRes] = await Promise.all([
+        fetch('/api/v1/webhooks', { headers: webhooksApiKeyHeader() }).catch(function() { return { ok: false }; }),
+        fetch('/api/v1/webhooks/history?id=' + encodeURIComponent(webhooksState.selectedId || '') + '&limit=' + encodeURIComponent(String(webhooksState.historyLimit)), { headers: webhooksApiKeyHeader() }).catch(function() { return { ok: false }; })
+      ]);
+      if (subsRes.ok) webhooksState.subscriptions = await subsRes.json();
+      else throw new Error('subscriptions HTTP ' + subsRes.status);
+      if (histRes.ok) webhooksState.deliveries = await histRes.json();
+      else webhooksState.deliveries = null;
+      webhooksState.loading = false;
+    } catch(e) {
+      webhooksState.error = e.message;
+      webhooksState.loading = false;
+    }
+    if (viewMode === 'webhooks') renderWebhooks();
+  }
+
+  window.fetchWebhooks = fetchWebhooks;
+
+  window.addWebhookFromForm = async function() {
+    if (!isLocalServer()) return;
+    var form = webhooksState.form;
+    if (!form.url) {
+      webhooksState.error = 'URL is required';
+      if (viewMode === 'webhooks') renderWebhooks();
+      return;
+    }
+    webhooksState.actionLoading = 'add';
+    webhooksState.error = null;
+    webhooksState.message = null;
+    if (viewMode === 'webhooks') renderWebhooks();
+    try {
+      var events = (form.events || '*').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      var body = { url: form.url, events: events, active: !!form.active };
+      if (form.secret) body.secret = form.secret;
+      var r = await fetch('/api/v1/webhooks', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, webhooksApiKeyHeader()),
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) {
+        var errText = await r.text().catch(function() { return 'HTTP ' + r.status; });
+        throw new Error(errText || 'HTTP ' + r.status);
+      }
+      var result = await r.json();
+      webhooksState.message = 'Webhook ' + (result.created ? 'created' : 'updated');
+      webhooksState.form = { url: '', events: '*', secret: '', active: true };
+      await fetchWebhooks();
+    } catch(e) {
+      webhooksState.error = e.message;
+      webhooksState.actionLoading = false;
+      if (viewMode === 'webhooks') renderWebhooks();
+    }
+  };
+
+  window.toggleWebhookById = async function(id) {
+    if (!isLocalServer() || !id) return;
+    webhooksState.actionLoading = 'toggle-' + id;
+    webhooksState.error = null;
+    webhooksState.message = null;
+    if (viewMode === 'webhooks') renderWebhooks();
+    try {
+      var r = await fetch('/api/v1/webhooks/toggle', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, webhooksApiKeyHeader()),
+        body: JSON.stringify({ id: id })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var result = await r.json();
+      webhooksState.message = 'Webhook ' + (result.active ? 'enabled' : 'disabled');
+      await fetchWebhooks();
+    } catch(e) {
+      webhooksState.error = e.message;
+      webhooksState.actionLoading = false;
+      if (viewMode === 'webhooks') renderWebhooks();
+    }
+  };
+
+  window.deleteWebhookById = async function(id) {
+    if (!isLocalServer() || !id) return;
+    if (!confirm('Delete webhook subscription?')) return;
+    webhooksState.actionLoading = 'delete-' + id;
+    webhooksState.error = null;
+    webhooksState.message = null;
+    if (viewMode === 'webhooks') renderWebhooks();
+    try {
+      var r = await fetch('/api/v1/webhooks?id=' + encodeURIComponent(id), {
+        method: 'DELETE',
+        headers: webhooksApiKeyHeader()
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var result = await r.json();
+      webhooksState.message = result.deleted ? 'Webhook deleted' : 'Webhook not found';
+      if (webhooksState.selectedId === id) webhooksState.selectedId = '';
+      await fetchWebhooks();
+    } catch(e) {
+      webhooksState.error = e.message;
+      webhooksState.actionLoading = false;
+      if (viewMode === 'webhooks') renderWebhooks();
+    }
+  };
+
+  window.runWebhookTest = async function() {
+    if (!isLocalServer()) return;
+    var t = webhooksState.test;
+    if (!t.url) {
+      webhooksState.error = 'Test URL is required';
+      if (viewMode === 'webhooks') renderWebhooks();
+      return;
+    }
+    webhooksState.actionLoading = 'test';
+    webhooksState.error = null;
+    webhooksState.message = null;
+    if (viewMode === 'webhooks') renderWebhooks();
+    try {
+      var body = { url: t.url };
+      if (t.payload) {
+        try { body.payload = JSON.parse(t.payload); } catch(e) { throw new Error('Payload JSON is invalid: ' + e.message); }
+      }
+      if (t.secret) body.secret = t.secret;
+      var r = await fetch('/api/v1/webhooks/test', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, webhooksApiKeyHeader()),
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var result = await r.json();
+      webhooksState.message = 'Test ' + (result.ok ? 'succeeded' : 'failed') + ' (' + (result.status || 'error') + ')';
+      await fetchWebhooks();
+    } catch(e) {
+      webhooksState.error = e.message;
+      webhooksState.actionLoading = false;
+      if (viewMode === 'webhooks') renderWebhooks();
+    }
+  };
+
+  window.copyWebhooksJson = function() {
+    if (!webhooksState.subscriptions) return;
+    window.copyText(JSON.stringify(webhooksState.subscriptions, null, 2));
+  };
+
+  window.downloadWebhooksJson = function() {
+    if (!webhooksState.subscriptions) return;
+    window.downloadText('permabrain-webhooks.json', JSON.stringify(webhooksState.subscriptions, null, 2));
+  };
+
+  function renderWebhooks() {
+    var main = document.getElementById('main');
+    if (!isLocalServer()) {
+      main.innerHTML = '<div class="empty-state"><h2>Webhooks unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to manage outgoing webhooks.</p></div>';
+      return;
+    }
+    if (webhooksState.loading && !webhooksState.subscriptions) {
+      main.innerHTML = '<div class="loading"><div class="spinner"></div> Loading webhooks...</div>';
+      return;
+    }
+    if (webhooksState.error && !webhooksState.subscriptions) {
+      main.innerHTML = '<div class="empty-state"><h2>Webhooks error</h2><p>' + esc(webhooksState.error) + '</p><button class="btn-icon" onclick="window.refreshWebhooks()">&#x21BB; Retry</button></div>';
+      return;
+    }
+
+    var data = webhooksState.subscriptions || { subscriptions: [], count: 0 };
+    var subscriptions = data.subscriptions || [];
+    var deliveries = (webhooksState.deliveries || {}).deliveries || [];
+
+    var toolbar = '<div class="dashboard-toolbar">' +
+      '<button class="btn-icon" onclick="window.refreshWebhooks()">&#x21BB; Refresh</button>' +
+      '<button class="btn-icon" onclick="window.copyWebhooksJson()">Copy JSON</button>' +
+      '<button class="btn-icon" onclick="window.downloadWebhooksJson()">Download JSON</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">API key ' +
+      '<input type="password" id="webhooksApiKeyInput" data-testid="webhooks-api-key" value="' + esc(webhooksState.apiKey || '') + '" onchange="window.setWebhooksApiKey(this.value)" placeholder="Bearer token" style="width:8rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Format ' +
+      '<select onchange="window.setWebhooksShowJson(this.value === \'json\')" style="font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '<option value="json"' + (webhooksState.showJson ? ' selected' : '') + '>JSON</option>' +
+      '<option value="table"' + (!webhooksState.showJson ? ' selected' : '') + '>Table</option>' +
+      '</select></label>' +
+      '</div>';
+
+    var addForm = '<div class="dashboard-section" style="margin-bottom:1rem">' +
+      '<h3 style="font-size:0.95rem;margin-bottom:0.5rem">Add webhook</h3>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">URL<br><input type="text" id="webhookUrlInput" data-testid="webhook-url-input" value="' + esc(webhooksState.form.url || '') + '" oninput="window.setWebhookForm(\'url\', this.value)" placeholder="https://..." style="width:16rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Events<br><input type="text" id="webhookEventsInput" data-testid="webhook-events-input" value="' + esc(webhooksState.form.events || '') + '" oninput="window.setWebhookForm(\'events\', this.value)" placeholder="* or article.published,attest" style="width:12rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Secret<br><input type="password" id="webhookSecretInput" data-testid="webhook-secret-input" value="' + esc(webhooksState.form.secret || '') + '" oninput="window.setWebhookForm(\'secret\', this.value)" placeholder="optional" style="width:12rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Active <input type="checkbox" id="webhookActiveInput" data-testid="webhook-active-input" ' + (webhooksState.form.active ? 'checked' : '') + ' onchange="window.setWebhookForm(\'active\', this.checked)"></label>' +
+      '<button class="btn-icon" data-testid="webhook-add-btn" onclick="window.addWebhookFromForm()">Add</button>' +
+      '</div></div>';
+
+    var testForm = '<div class="dashboard-section" style="margin-bottom:1rem">' +
+      '<h3 style="font-size:0.95rem;margin-bottom:0.5rem">Test outgoing POST</h3>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">URL<br><input type="text" id="webhookTestUrlInput" data-testid="webhook-test-url-input" value="' + esc(webhooksState.test.url || '') + '" oninput="window.setWebhookTest(\'url\', this.value)" placeholder="https://..." style="width:16rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Payload JSON<br><input type="text" id="webhookTestPayloadInput" data-testid="webhook-test-payload-input" value="' + esc(webhooksState.test.payload || '') + '" oninput="window.setWebhookTest(\'payload\', this.value)" placeholder={"type":"test"} style="width:14rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Secret<br><input type="password" id="webhookTestSecretInput" data-testid="webhook-test-secret-input" value="' + esc(webhooksState.test.secret || '') + '" oninput="window.setWebhookTest(\'secret\', this.value)" placeholder="optional" style="width:10rem;font-size:0.8rem;padding:0.25rem 0.4rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '<button class="btn-icon" data-testid="webhook-test-btn" onclick="window.runWebhookTest()">Send test</button>' +
+      '</div></div>';
+
+    var historyFilter = '<div class="dashboard-toolbar" style="margin-bottom:1rem">' +
+      '<label style="font-size:0.75rem;color:var(--muted)">Filter by subscription ID ' +
+      '<input type="text" id="webhooksSelectedIdInput" data-testid="webhooks-selected-id" value="' + esc(webhooksState.selectedId || '') + '" onchange="window.setWebhooksSelectedId(this.value)" placeholder="all" style="width:10rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' +
+      '</label>' +
+      '<button class="btn-icon" onclick="window.setWebhooksSelectedId(document.getElementById(\'webhooksSelectedIdInput\').value)">&#x1F50D; Filter</button>' +
+      '<label style="font-size:0.75rem;color:var(--muted)">History limit ' +
+      '<input type="number" min="1" max="1000" data-testid="webhooks-history-limit" value="' + esc(String(webhooksState.historyLimit)) + '" onchange="window.setWebhooksHistoryLimit(this.value)" style="width:4rem;font-size:0.75rem;padding:0.15rem 0.3rem;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>' +
+      '</div>';
+
+    var msg = '';
+    if (webhooksState.message) msg += '<p style="margin:0.5rem 0;color:var(--green)">' + esc(webhooksState.message) + '</p>';
+    if (webhooksState.error) msg += '<p style="margin:0.5rem 0;color:var(--red)">' + esc(webhooksState.error) + '</p>';
+    if (webhooksState.actionLoading) msg += '<p style="margin:0.5rem 0;color:var(--muted)">Running ' + esc(webhooksState.actionLoading) + '...</p>';
+
+    var body = '';
+    if (!subscriptions.length) {
+      body += '<p class="dashboard-empty">No webhook subscriptions configured.</p>';
+    } else if (webhooksState.showJson) {
+      body += '<pre style="font-size:0.78rem;overflow:auto;background:var(--surface);padding:0.8rem;border-radius:6px;border:1px solid var(--border);max-height:18rem">' + esc(JSON.stringify(data, null, 2)) + '</pre>';
+    } else {
+      var rows = subscriptions.map(function(s) {
+        return '<tr><td class="mono">' + esc(s.id) + '</td>' +
+          '<td class="mono">' + esc(s.url) + '</td>' +
+          '<td>' + esc((s.events || []).join(', ')) + '</td>' +
+          '<td>' + (s.active ? '<span style="color:var(--green)">active</span>' : '<span style="color:var(--red)">inactive</span>') + '</td>' +
+          '<td>' + esc(s.createdAt ? fmtDate(s.createdAt) : '—') + '</td>' +
+          '<td style="white-space:nowrap">' +
+          '<button class="btn-icon" data-testid="webhook-toggle-' + esc(s.id) + '" onclick="window.toggleWebhookById(\'' + esc(s.id) + '\')">Toggle</button>' +
+          '<button class="btn-icon" data-testid="webhook-delete-' + esc(s.id) + '" onclick="window.deleteWebhookById(\'' + esc(s.id) + '\')">Delete</button>' +
+          '</td></tr>';
+      }).join('');
+      body += '<div class="dashboard-section" style="overflow:auto;margin-bottom:1rem"><table class="audit-table"><thead><tr>' +
+        '<th>ID</th><th>URL</th><th>Events</th><th>Active</th><th>Created</th><th>Actions</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+
+    var historyBody = '';
+    if (!deliveries.length) {
+      historyBody += '<p class="dashboard-empty">No delivery history.</p>';
+    } else {
+      var hrows = deliveries.map(function(d) {
+        return '<tr><td class="mono">' + esc(d.id.slice(0, 16)) + '...</td>' +
+          '<td>' + esc(d.createdAt ? fmtDate(d.createdAt) : '—') + '</td>' +
+          '<td>' + esc(d.event) + '</td>' +
+          '<td class="mono">' + esc(d.url) + '</td>' +
+          '<td style="color:' + (d.status === 'ok' ? 'var(--green)' : 'var(--red)') + '">' + esc(d.status) + '</td>' +
+          '<td>' + (d.httpStatus || '—') + '</td></tr>';
+      }).join('');
+      historyBody += '<div class="dashboard-section" style="overflow:auto"><table class="audit-table"><thead><tr>' +
+        '<th>ID</th><th>Time</th><th>Event</th><th>URL</th><th>Status</th><th>HTTP</th>' +
+        '</tr></thead><tbody>' + hrows + '</tbody></table></div>';
+    }
+
+    main.innerHTML = '<div class="home"><h1>&#128225; <span>Webhooks</span></h1><p class="home-subtitle">Manage outgoing webhook subscriptions, test endpoints, and view delivery history</p>' + toolbar + addForm + testForm + msg + body + '<h2>Delivery history</h2>' + historyFilter + historyBody + '</div>';
+  }
+
+  window.renderWebhooks = renderWebhooks;
 
   // --- Forks panel ---
   window.showForks = async function() {
@@ -7940,7 +8269,7 @@ function statCard(label, value, cls) {
   function fmtDate(ts) { return fmtTs(ts); }
 
   function isLocalListMode() {
-    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify' && viewMode !== 'search' && viewMode !== 'backup' && viewMode !== 'archive';
+    return isLocalServer() && viewMode !== 'dashboard' && viewMode !== 'stats' && viewMode !== 'metrics' && viewMode !== 'admin' && viewMode !== 'health' && viewMode !== 'activity' && viewMode !== 'history' && viewMode !== 'attest' && viewMode !== 'agents' && viewMode !== 'verify' && viewMode !== 'search' && viewMode !== 'backup' && viewMode !== 'archive' && viewMode !== 'webhooks';
   }
 
   function readFiltersFromDom() {
@@ -8739,6 +9068,13 @@ function statCard(label, value, cls) {
           if (bootState.remotesShowJson === 'false') remotesState.showJson = false;
           window.showRemotes();
         }
+        else if (bootState.view === 'webhooks') {
+          if (bootState.webhooksApiKey) webhooksState.apiKey = bootState.webhooksApiKey;
+          if (bootState.webhooksShowJson === 'false') webhooksState.showJson = false;
+          if (bootState.webhooksHistoryLimit) { var bwhl = parseInt(bootState.webhooksHistoryLimit, 10); if (!isNaN(bwhl) && bwhl > 0) webhooksState.historyLimit = bwhl; }
+          if (bootState.webhooksSelectedId) webhooksState.selectedId = bootState.webhooksSelectedId;
+          window.showWebhooks();
+        }
         else if (bootState.view === 'backup') window.showBackup();
         else if (bootState.view === 'archive') window.showArchive();
         else if (bootState.key) {
@@ -8779,6 +9115,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'config') window.showConfig();
   else if (viewMode === 'goal') window.showGoal();
   else if (viewMode === 'remotes') window.showRemotes();
+  else if (viewMode === 'webhooks') window.showWebhooks();
   else if (viewMode === 'history') window.showHistory();
   else if (viewMode === 'backup') window.showBackup();
   else if (viewMode === 'archive') window.showArchive();

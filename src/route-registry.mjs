@@ -1009,6 +1009,84 @@ export const ROUTES = [
     response: { forwarded: 'number' }
   },
   {
+    route: '/api/v1/webhooks',
+    method: 'GET',
+    description: 'List local webhook subscriptions.',
+    public: false,
+    params: [
+      { name: 'secrets', in: 'query', type: 'boolean', required: false }
+    ],
+    response: { subscriptions: 'array', count: 'number' }
+  },
+  {
+    route: '/api/v1/webhooks',
+    method: 'POST',
+    description: 'Register a new webhook subscription.',
+    public: false,
+    params: [
+      { name: 'url', in: 'body', type: 'string', required: true },
+      { name: 'events', in: 'body', type: 'array', required: false },
+      { name: 'secret', in: 'body', type: 'string', required: false },
+      { name: 'active', in: 'body', type: 'boolean', required: false }
+    ],
+    response: { created: 'boolean', updated: 'boolean', subscription: 'object' }
+  },
+  {
+    route: '/api/v1/webhooks',
+    method: 'PATCH',
+    description: 'Toggle a webhook subscription active/inactive.',
+    public: false,
+    params: [
+      { name: 'id', in: 'body', type: 'string', required: true },
+      { name: 'active', in: 'body', type: 'boolean', required: false }
+    ],
+    response: { found: 'boolean', toggled: 'boolean', active: 'boolean' }
+  },
+  {
+    route: '/api/v1/webhooks',
+    method: 'DELETE',
+    description: 'Delete a webhook subscription.',
+    public: false,
+    params: [
+      { name: 'id', in: 'query', type: 'string', required: true }
+    ],
+    response: { deleted: 'boolean', found: 'boolean' }
+  },
+  {
+    route: '/api/v1/webhooks/test',
+    method: 'POST',
+    description: 'Send a test webhook POST to a target URL.',
+    public: false,
+    params: [
+      { name: 'url', in: 'body', type: 'string', required: true },
+      { name: 'payload', in: 'body', type: 'object', required: false },
+      { name: 'secret', in: 'body', type: 'string', required: false }
+    ],
+    response: { ok: 'boolean', status: 'number', error: 'string', record: 'object' }
+  },
+  {
+    route: '/api/v1/webhooks/history',
+    method: 'GET',
+    description: 'Return recent webhook delivery attempts.',
+    public: false,
+    params: [
+      { name: 'id', in: 'query', type: 'string', required: false },
+      { name: 'limit', in: 'query', type: 'integer', required: false }
+    ],
+    response: { deliveries: 'array', count: 'number' }
+  },
+  {
+    route: '/api/v1/webhooks/toggle',
+    method: 'POST',
+    description: 'Toggle a webhook subscription active/inactive.',
+    public: false,
+    params: [
+      { name: 'id', in: 'body', type: 'string', required: true },
+      { name: 'active', in: 'body', type: 'boolean', required: false }
+    ],
+    response: { found: 'boolean', toggled: 'boolean', active: 'boolean' }
+  },
+  {
     route: '/api/v1/threshold-attest',
     method: 'POST',
     description: 'Create a threshold attestation envelope.',

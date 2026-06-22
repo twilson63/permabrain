@@ -1236,6 +1236,130 @@ async function handleRequest(req, res, home, options = {}) {
       return res.end(html);
     }
 
+    if (method === 'GET' && route === '/api/v1/webhooks/history') {
+      const opts = {
+        id: url.searchParams.get('id') || undefined,
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined
+      };
+      const accept = req.headers.accept || '';
+      const { api } = await import('./agent-api.mjs');
+      if (accept.includes('text/markdown')) {
+        const markdown = await api.webhooksToMarkdown({ limit: opts.limit || 50 });
+        res.setHeader('content-type', 'text/markdown');
+        return res.end(markdown);
+      }
+      const result = await api.webhookHistory(opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/webhooks/test') {
+      const body = bodyOrRead || await readBody(req);
+      if (!body.url) return sendError(res, 400, 'url is required');
+      const result = await api.testWebhook({ url: body.url, payload: body.payload, secret: body.secret });
+      return sendJson(res, 200, result);
+    }
+
+    if (route === '/api/v1/webhooks') {
+      const { api } = await import('./agent-api.mjs');
+      if (method === 'GET') {
+        const opts = { includeSecrets: url.searchParams.get('secrets') === 'true' };
+        const result = await api.webhooks(opts);
+        return sendJson(res, 200, result);
+      }
+      if (method === 'POST') {
+        const body = bodyOrRead || await readBody(req);
+        if (!body.url) return sendError(res, 400, 'url is required');
+        const result = await api.webhooksRegister({
+          url: body.url,
+          events: body.events,
+          secret: body.secret,
+          active: body.active
+        });
+        return sendJson(res, result.created ? 201 : 200, result);
+      }
+      if (method === 'PATCH') {
+        const body = bodyOrRead || await readBody(req);
+        if (!body.id) return sendError(res, 400, 'id is required');
+        const result = await api.webhooksToggle(body.id, { active: body.active });
+        return sendJson(res, 200, result);
+      }
+      if (method === 'DELETE') {
+        const body = bodyOrRead || await readBody(req);
+        const id = url.searchParams.get('id') || body.id;
+        if (!id) return sendError(res, 400, 'id is required');
+        const result = await api.webhooksDelete(id);
+        return sendJson(res, result.deleted ? 200 : 404, result);
+      }
+    }
+
+    if (method === 'POST' && route === '/api/v1/webhooks/toggle') {
+      const body = bodyOrRead || await readBody(req);
+      if (!body.id) return sendError(res, 400, 'id is required');
+      const result = await api.webhooksToggle(body.id, { active: body.active });
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'GET' && route === '/api/v1/webhooks/history') {
+      const opts = {
+        id: url.searchParams.get('id') || undefined,
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined
+      };
+      const accept = req.headers.accept || '';
+      if (accept.includes('text/markdown')) {
+        const markdown = await api.webhooksToMarkdown({ limit: opts.limit || 50 });
+        res.setHeader('content-type', 'text/markdown');
+        return res.end(markdown);
+      }
+      const result = await api.webhookHistory(opts);
+      return sendJson(res, 200, result);
+    }
+
+    if (method === 'POST' && route === '/api/v1/webhooks/test') {
+      const body = bodyOrRead || await readBody(req);
+      if (!body.url) return sendError(res, 400, 'url is required');
+      const result = await api.testWebhook({ url: body.url, payload: body.payload, secret: body.secret });
+      return sendJson(res, 200, result);
+    }
+
+    if (route === '/api/v1/webhooks') {
+      if (method === 'GET') {
+        const opts = { includeSecrets: url.searchParams.get('secrets') === 'true' };
+        const result = await api.webhooks(opts);
+        return sendJson(res, 200, result);
+      }
+      if (method === 'POST') {
+        const body = bodyOrRead || await readBody(req);
+        if (!body.url) return sendError(res, 400, 'url is required');
+        const result = await api.webhooksRegister({
+          url: body.url,
+          events: body.events,
+          secret: body.secret,
+          active: body.active
+        });
+        return sendJson(res, result.created ? 201 : 200, result);
+      }
+      if (method === 'PATCH') {
+        const body = bodyOrRead || await readBody(req);
+        if (!body.id) return sendError(res, 400, 'id is required');
+        const result = await api.webhooksToggle(body.id, { active: body.active });
+        return sendJson(res, 200, result);
+      }
+      if (method === 'DELETE') {
+        const body = bodyOrRead || await readBody(req);
+        const id = url.searchParams.get('id') || body.id;
+        if (!id) return sendError(res, 400, 'id is required');
+        const result = await api.webhooksDelete(id);
+        return sendJson(res, result.deleted ? 200 : 404, result);
+      }
+    }
+
+    if (method === 'POST' && route === '/api/v1/webhooks/toggle') {
+      const body = bodyOrRead || await readBody(req);
+      if (!body.id) return sendError(res, 400, 'id is required');
+      const result = await api.webhooksToggle(body.id, { active: body.active });
+      return sendJson(res, 200, result);
+    }
+
     if (method === 'GET' && route === '/api/v1/admin') {
       const opts = {
         accessLogLimit: url.searchParams.has('access-log-limit') ? Number(url.searchParams.get('access-log-limit')) : undefined,

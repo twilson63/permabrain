@@ -153,6 +153,22 @@ export { generateCompletion, listSupportedShells } from './completion.mjs';
 // Real-time event bus and subscriptions
 export { getEventBus, emitEvent, subscribeEvents } from './events.mjs';
 
+// Webhook registry
+export {
+  registerWebhook,
+  listWebhooks,
+  getWebhook,
+  deleteWebhook,
+  toggleWebhook,
+  webhookHistory,
+  testWebhook,
+  dispatchWebhookEvent,
+  webhooksToMarkdown,
+  signWebhookPayload,
+  verifyWebhookSignature,
+  generateWebhookSecret
+} from './webhooks.mjs';
+
 // Query stream (live filtered article/attestation subscriptions)
 export { subscribeQuery, matchesQueryStream } from './query-stream.mjs';
 

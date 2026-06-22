@@ -60,6 +60,17 @@ import { buildDashboard, dashboardToHtml, dashboardToMarkdown, writeDashboard, p
 import { buildAdminPanel, adminPanelToHtml, adminPanelToMarkdown } from './admin-panel.mjs';
 import { buildSupportBundle, supportBundleToMarkdown, redactSecrets } from './support-bundle.mjs';
 import { watchFiles, publishFilesOnce, watchFilesToMarkdown } from './watch-files.mjs';
+import {
+  registerWebhook,
+  listWebhooks,
+  getWebhook,
+  deleteWebhook,
+  toggleWebhook,
+  webhookHistory,
+  testWebhook,
+  dispatchWebhookEvent,
+  webhooksToMarkdown
+} from './webhooks.mjs';
 import * as pbcrypto from './crypto.mjs';
 import { slugify } from './tags.mjs';
 import { validateArticleMetadata, validateAttestationMetadata, validateDataItemTags, formatValidationErrors } from './schema.mjs';
@@ -2482,6 +2493,130 @@ const api = {
       report.markdown = lines.join('\n');
     }
     return report;
+  },
+
+  /**
+   * Register or update a local webhook subscription.
+   *
+   * @param {Object} opts
+   * @param {string} opts.url
+   * @param {string[]} [opts.events]
+   * @param {string} [opts.secret]
+   * @param {boolean} [opts.active=true]
+   * @returns {Promise<Object>}
+   */
+  async webhooksRegister(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return registerWebhook({ home: this._home, ...opts });
+  },
+
+  /**
+   * List local webhook subscriptions.
+   *
+   * @param {Object} [opts]
+   * @param {boolean} [opts.includeSecrets=false]
+   * @returns {Promise<Object>}
+   */
+  async webhooks(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return { subscriptions: listWebhooks({ home: this._home, ...opts }), count: listWebhooks({ home: this._home, ...opts }).length };
+  },
+
+  /**
+   * Get a single webhook subscription by id.
+   *
+   * @param {string} id
+   * @param {Object} [opts]
+   * @returns {Promise<Object|null>}
+   */
+  async webhookById(id, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return getWebhook({ home: this._home, id, ...opts });
+  },
+
+  /**
+   * Delete a webhook subscription by id.
+   *
+   * @param {string} id
+   * @returns {Promise<Object>}
+   */
+  async webhooksDelete(id) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return deleteWebhook({ home: this._home, id });
+  },
+
+  /**
+   * Toggle active status of a webhook subscription.
+   *
+   * @param {string} id
+   * @param {Object} [opts]
+   * @param {boolean} [opts.active]
+   * @returns {Promise<Object>}
+   */
+  async webhooksToggle(id, opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return toggleWebhook({ home: this._home, id, ...opts });
+  },
+
+  /**
+   * Return recent webhook delivery history.
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.id]
+   * @param {number} [opts.limit=100]
+   * @returns {Promise<Object>}
+   */
+  async webhookHistory(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return { deliveries: webhookHistory({ home: this._home, ...opts }), count: webhookHistory({ home: this._home, ...opts }).length };
+  },
+
+  /**
+   * Send a test POST payload to a target URL.
+   *
+   * @param {Object} opts
+   * @param {string} opts.url
+   * @param {Object} [opts.payload]
+   * @param {string} [opts.secret]
+   * @returns {Promise<Object>}
+   */
+  async testWebhook(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return testWebhook({ home: this._home, ...opts });
+  },
+
+  /**
+   * Dispatch an event to all matching active webhook subscriptions.
+   *
+   * @param {Object} opts
+   * @param {string} opts.event
+   * @param {Object} [opts.payload]
+   * @returns {Promise<Array>}
+   */
+  async webhooksDispatch(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return dispatchWebhookEvent({ home: this._home, ...opts });
+  },
+
+  /**
+   * Render webhook subscriptions and delivery history as markdown.
+   *
+   * @param {Object} [opts]
+   * @param {number} [opts.limit=50]
+   * @returns {Promise<string>}
+   */
+  async webhooksToMarkdown(opts = {}) {
+    await this.ensureInit();
+    requireInit(this._home);
+    return webhooksToMarkdown({ home: this._home, ...opts });
   },
 
   /**
