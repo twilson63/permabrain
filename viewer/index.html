@@ -384,6 +384,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   .settings-overlay{padding:0.5rem}
 }
 @keyframes pulse{0%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.2)}100%{opacity:1;transform:scale(1)}}
+/* Command palette */
+.command-palette-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:140;align-items:flex-start;justify-content:center;padding-top:12vh}
+.command-palette-overlay.show{display:flex}
+.command-palette{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:520px;max-height:70vh;display:flex;flex-direction:column;box-shadow:var(--shadow);overflow:hidden}
+.command-palette-header{padding:0.75rem 1rem;border-bottom:1px solid var(--border);display:flex;gap:0.5rem;align-items:center}
+.command-palette-header kbd{font-size:0.7rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:0.1rem 0.35rem}
+.command-palette-input{width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;font-size:0.95rem;background:var(--bg);color:var(--text)}
+.command-palette-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(9,105,218,0.2)}
+[data-theme="dark"] .command-palette-input:focus{box-shadow:0 0 0 2px rgba(88,166,255,0.2)}
+.command-palette-list{flex:1;overflow-y:auto;padding:0.25rem}
+.command-palette-item{display:flex;align-items:center;gap:0.75rem;padding:0.55rem 0.75rem;cursor:pointer;border-radius:6px;font-size:0.85rem}
+.command-palette-item:hover,.command-palette-item.selected{background:var(--surface)}
+.command-palette-item .cp-icon{width:1.2rem;text-align:center;color:var(--muted)}
+.command-palette-item .cp-title{flex:1;color:var(--text)}
+.command-palette-item .cp-shortcut{font-size:0.7rem;color:var(--muted);font-family:monospace}
+.command-palette-empty{padding:1rem;text-align:center;color:var(--muted);font-size:0.85rem}
+.command-palette-footer{padding:0.5rem 0.75rem;border-top:1px solid var(--border);font-size:0.72rem;color:var(--muted);display:flex;gap:1rem;justify-content:space-between}
 </style>
 </head>
 <body>
@@ -434,6 +451,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="backupBtn" onclick="window.showBackup()" title="Backup / archive">&#128424;</button>
     <button class="btn-icon" id="archiveBtn" onclick="window.showArchive()" title="Archive / restore">&#128230;</button>
     <button class="btn-icon" id="helpBtn" onclick="window.showHelp()" title="Keyboard shortcuts (?)" style="margin-left:auto">&#10067;</button>
+    <button class="btn-icon" id="commandPaletteBtn" onclick="window.showCommandPalette()" title="Command palette (Ctrl+K / Cmd+K)">&#8984;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -589,7 +607,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help' | 'command-palette'
   var previousViewMode = 'home';
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
@@ -658,6 +676,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var backupState = { data: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', backupName: '', keep: '10', maxAgeDays: '', showJson: false };
   var archiveState = { archive: null, loading: false, error: null, message: null, actionLoading: false, passphrase: '', recipients: '', dryRun: false, importText: '', restorePassphrase: '', restoreOptions: 'dryRun=false' };
   var webhooksState = { subscriptions: null, deliveries: null, loading: false, error: null, message: null, actionLoading: false, showJson: true, apiKey: '', form: { url: '', events: '*', secret: '', active: true }, test: { url: '', payload: '', secret: '' }, historyLimit: 50, selectedId: '' };
+  var commandPaletteState = { open: false, query: '', selectedIndex: 0, commands: [] };
 
   // --- Interactive local list state ---
   var localList = { total: 0, articles: [], filters: {}, sort: 'date', loading: false, error: null };
@@ -771,6 +790,7 @@ function statCard(label, value, cls) {
       case 'archive': window.showArchive(); break;
       case 'admin': window.showAdminPanel(); break;
       case 'help': window.showHelp(); break;
+      case 'command-palette': window.showCommandPalette(); break;
       default: window.showHome();
     }
   }
@@ -781,6 +801,7 @@ function statCard(label, value, cls) {
     { key: '?', action: 'Show / hide this help panel' },
     { key: 'Esc', action: 'Close help panel' },
     { key: '/', action: 'Focus search articles' },
+    { key: 'Ctrl+K / Cmd+K', action: 'Open command palette' },
     { key: 'H', action: 'Go Home' },
     { key: 'S', action: 'Open Search' },
     { key: 'A', action: 'Open Attest panel' },
@@ -838,6 +859,7 @@ function statCard(label, value, cls) {
       ['Release Notes', 'releaseNotesBtn', 'N'],
       ['Identity', 'identityBtn', 'I'],
       ['Settings', 'settingsBtn', ','],
+      ['Command palette', 'commandPaletteBtn', 'Ctrl+K'],
       ['Theme', 'themeToggle', 'T']
     ].map(function(r) {
       var shortcut = r[2] && r[2] !== '—' ? '<kbd>' + esc(r[2]) + '</kbd>' : '—';
@@ -869,6 +891,161 @@ function statCard(label, value, cls) {
   window.focusToolbarButton = function(id) {
     var btn = document.getElementById(id);
     if (btn) { btn.focus(); btn.click(); }
+  };
+
+  // --- Command palette ---
+  function buildCommandPaletteCommands() {
+    var cmds = [
+      { id: 'go-home', icon: '&#127968;', title: 'Go to Home', shortcut: 'H', action: function() { window.showHome(); } },
+      { id: 'go-search', icon: '&#128269;', title: 'Go to Search', shortcut: 'S', action: function() { window.showSearch(); } },
+      { id: 'go-compose', icon: '&#9998;', title: 'Go to Compose article', shortcut: 'C', action: function() { window.showCompose(); } },
+      { id: 'go-publish', icon: '&#128228;&#10133;', title: 'Go to Batch publish', shortcut: 'P', action: function() { window.showPublish(); } },
+      { id: 'go-attest', icon: '&#9997;', title: 'Go to Attest panel', shortcut: 'A', action: function() { window.showAttest(); } },
+      { id: 'go-batch-attest', icon: '&#9997;&#10133;', title: 'Go to Batch attest panel', action: function() { window.showBatchAttest(); } },
+      { id: 'go-threshold-attest', icon: '&#128101;', title: 'Go to Threshold attestation panel', action: function() { window.showThresholdAttest(); } },
+      { id: 'go-verify', icon: '&#9989;', title: 'Go to Verify panel', shortcut: 'V', action: function() { window.showVerify(); } },
+      { id: 'go-dashboard', icon: '&#128202;', title: 'Go to Dashboard', shortcut: 'D', action: function() { window.showDashboard(); } },
+      { id: 'go-stats', icon: '&#128200;', title: 'Go to Stats dashboard', action: function() { window.showStats(); } },
+      { id: 'go-metrics', icon: '&#128240;', title: 'Go to Runtime metrics', shortcut: 'M', action: function() { window.showMetrics(); } },
+      { id: 'go-history', icon: '&#9200;', title: 'Go to History panel', action: function() { window.showHistory(); } },
+      { id: 'go-forks', icon: '&#127807;', title: 'Go to Forks panel', action: function() { window.showForks(); } },
+      { id: 'go-compare', icon: '&#128260;', title: 'Go to Compare panel', action: function() { window.showCompare(); } },
+      { id: 'go-bookmarks', icon: '&#128214;', title: 'Go to Bookmarks', shortcut: 'B', action: function() { window.showBookmarks(); } },
+      { id: 'go-import-export', icon: '&#128260;', title: 'Go to Import / Export', action: function() { window.showImportExport(); } },
+      { id: 'go-topics', icon: '&#128218;', title: 'Go to Topics catalog', action: function() { window.showTopics(); } },
+      { id: 'go-tags', icon: '&#127991;', title: 'Go to Tags catalog', action: function() { window.showTags(); } },
+      { id: 'go-agents', icon: '&#128100;', title: 'Go to Agents catalog', action: function() { window.showAgents(); } },
+      { id: 'go-sources', icon: '&#128279;', title: 'Go to Sources catalog', action: function() { window.showSources(); } },
+      { id: 'go-kinds', icon: '&#128230;', title: 'Go to Kinds catalog', action: function() { window.showKinds(); } },
+      { id: 'go-languages', icon: '&#127760;', title: 'Go to Languages catalog', action: function() { window.showLanguages(); } },
+      { id: 'go-peer-sync', icon: '&#128260;', title: 'Go to Peer sync', action: function() { window.showPeerSync(); } },
+      { id: 'go-remotes', icon: '&#127758;', title: 'Go to Named remotes', action: function() { window.showRemotes(); } },
+      { id: 'go-webhooks', icon: '&#128225;', title: 'Go to Webhooks / Integrations', action: function() { window.showWebhooks(); } },
+      { id: 'go-config', icon: '&#128295;', title: 'Go to Node configuration', action: function() { window.showConfig(); } },
+      { id: 'go-goal', icon: '&#127919;', title: 'Go to Goal / PRD planner', action: function() { window.showGoal(); } },
+      { id: 'go-backup', icon: '&#128424;', title: 'Go to Backup panel', action: function() { window.showBackup(); } },
+      { id: 'go-archive', icon: '&#128230;', title: 'Go to Archive / Restore', action: function() { window.showArchive(); } },
+      { id: 'go-health', icon: '&#10003;', title: 'Go to Health / diagnostics', action: function() { window.showHealth(); } },
+      { id: 'go-admin', icon: '&#128737;', title: 'Go to Admin / monitoring', action: function() { window.showAdminPanel(); } },
+      { id: 'go-support', icon: '&#129520;', title: 'Go to Support bundle', action: function() { window.showSupportBundle(); } },
+      { id: 'go-activity', icon: '&#128276;', title: 'Go to Notifications / Activity', action: function() { window.showActivity(); } },
+      { id: 'go-audit', icon: '&#128065;', title: 'Go to Request audit log', action: function() { window.showAudit(); } },
+      { id: 'go-release-notes', icon: '&#128196;', title: 'Go to Release notes', shortcut: 'N', action: function() { window.showReleaseNotes(); } },
+      { id: 'go-identity', icon: '&#127380;', title: 'Go to Identity panel', shortcut: 'I', action: function() { window.showIdentity(); } },
+      { id: 'go-settings', icon: '&#9881;', title: 'Open Settings', shortcut: ',', action: function() { window.showSettings(); } },
+      { id: 'go-help', icon: '&#10067;', title: 'Open Keyboard shortcuts', shortcut: '?', action: function() { window.showHelp(); } },
+      { id: 'action-refresh', icon: '&#x21BB;', title: 'Refresh current view', shortcut: 'R', action: function() { window.refresh(); } },
+      { id: 'action-theme', icon: '&#9790;', title: 'Toggle theme', shortcut: 'T', action: function() { window.toggleTheme(); } },
+      { id: 'action-transport', icon: '&#128225;', title: 'Toggle live transport (SSE / WebSocket)', action: function() { window.cycleLiveTransport(); } },
+      { id: 'action-search-focus', icon: '&#128269;', title: 'Focus article search', shortcut: '/', action: function() { var s = document.getElementById('search'); if (s) s.focus(); } },
+      { id: 'action-copy-link', icon: '&#128279;', title: 'Copy permalink to current view', action: function() { window.copyPermalink(); } }
+    ];
+    return cmds;
+  }
+
+  function renderCommandPaletteList() {
+    var list = document.getElementById('commandPaletteList');
+    var count = document.getElementById('commandPaletteCount');
+    var q = (commandPaletteState.query || '').toLowerCase().trim();
+    var all = buildCommandPaletteCommands();
+    var filtered = q ? all.filter(function(c) {
+      return (c.title || '').toLowerCase().indexOf(q) !== -1 || (c.id || '').toLowerCase().indexOf(q.replace(/\s+/g, '-')) !== -1;
+    }) : all;
+    commandPaletteState.commands = filtered;
+    if (commandPaletteState.selectedIndex >= filtered.length) commandPaletteState.selectedIndex = 0;
+    if (filtered.length === 0) {
+      list.innerHTML = '<div class="command-palette-empty">No commands match "' + esc(q) + '"</div>';
+      if (count) count.textContent = '0 / ' + all.length;
+      return;
+    }
+    list.innerHTML = filtered.map(function(c, idx) {
+      var selected = idx === commandPaletteState.selectedIndex ? ' selected' : '';
+      var shortcut = c.shortcut ? '<span class="cp-shortcut">' + esc(c.shortcut) + '</span>' : '';
+      return '<div class="command-palette-item' + selected + '" data-index="' + idx + '" onclick="window.runCommandByIndex(' + idx + ')" onmouseenter="window.setCommandPaletteIndex(' + idx + ')" title="' + esc(c.title) + '">' +
+        '<span class="cp-icon">' + c.icon + '</span>' +
+        '<span class="cp-title">' + esc(c.title) + '</span>' +
+        shortcut +
+        '</div>';
+    }).join('');
+    if (count) count.textContent = filtered.length + ' / ' + all.length;
+  }
+
+  window.showCommandPalette = function() {
+    commandPaletteState.open = true;
+    commandPaletteState.query = '';
+    commandPaletteState.selectedIndex = 0;
+    setViewMode('command-palette');
+    var overlay = document.getElementById('commandPaletteOverlay');
+    if (overlay) overlay.classList.add('show');
+    renderCommandPaletteList();
+    updateUrlState();
+    markActiveToolbarButton('commandPaletteBtn');
+    setTimeout(function() {
+      var input = document.getElementById('commandPaletteInput');
+      if (input) { input.value = ''; input.focus(); }
+    }, 0);
+  };
+
+  window.hideCommandPalette = function() {
+    var overlay = document.getElementById('commandPaletteOverlay');
+    if (overlay) overlay.classList.remove('show');
+    commandPaletteState.open = false;
+    if (viewMode === 'command-palette') {
+      var target = previousViewMode || 'home';
+      viewMode = target;
+      if (target === 'home') window.showHome(); else window.dispatchView(target);
+    }
+  };
+
+  window.filterCommandPalette = function() {
+    var input = document.getElementById('commandPaletteInput');
+    commandPaletteState.query = input ? input.value : '';
+    commandPaletteState.selectedIndex = 0;
+    renderCommandPaletteList();
+  };
+
+  window.setCommandPaletteIndex = function(idx) {
+    commandPaletteState.selectedIndex = idx;
+    renderCommandPaletteList();
+  };
+
+  function runCommandPaletteCommand(cmd) {
+    if (!cmd) return;
+    window.hideCommandPalette();
+    try { cmd.action(); } catch(e) {}
+  }
+
+  window.runCommandByIndex = function(idx) {
+    var cmd = commandPaletteState.commands[idx];
+    runCommandPaletteCommand(cmd);
+  };
+
+  window.onCommandPaletteKey = function(e) {
+    if (e.defaultPrevented) return;
+    var len = commandPaletteState.commands.length;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      commandPaletteState.selectedIndex = (commandPaletteState.selectedIndex + 1) % (len || 1);
+      renderCommandPaletteList();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      commandPaletteState.selectedIndex = (commandPaletteState.selectedIndex - 1 + (len || 1)) % (len || 1);
+      renderCommandPaletteList();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      var cmd = commandPaletteState.commands[commandPaletteState.selectedIndex];
+      runCommandPaletteCommand(cmd);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      window.hideCommandPalette();
+      return;
+    }
   };
 
   window.showSettings = function() {
@@ -984,9 +1161,16 @@ function statCard(label, value, cls) {
     }
     if (key === 'Escape') {
       if (viewMode === 'help') { e.preventDefault(); window.hideHelp(); }
+      if (commandPaletteState.open) { e.preventDefault(); window.hideCommandPalette(); }
       return;
     }
     if (isTyping) return;
+    // Command palette: Ctrl+K / Cmd+K
+    if ((e.ctrlKey || e.metaKey) && (key === 'k' || key === 'K')) {
+      e.preventDefault();
+      window.showCommandPalette();
+      return;
+    }
     if (key === '/' ) { e.preventDefault(); var s = document.getElementById('search'); if (s) s.focus(); return; }
     if (key === 'h' || key === 'H') { e.preventDefault(); window.showHome(); return; }
     if (key === 's' || key === 'S') { e.preventDefault(); window.showSearch(); return; }
@@ -1355,7 +1539,7 @@ function statCard(label, value, cls) {
   }
 
   function setViewMode(mode) {
-    if (viewMode !== 'help' && viewMode !== mode) previousViewMode = viewMode;
+    if (viewMode !== 'help' && viewMode !== 'command-palette' && viewMode !== mode) previousViewMode = viewMode;
     viewMode = mode;
   }
 
@@ -2025,7 +2209,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help','command-palette'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -9312,6 +9496,8 @@ function statCard(label, value, cls) {
         }
         else if (bootState.view === 'backup') window.showBackup();
         else if (bootState.view === 'archive') window.showArchive();
+        else if (bootState.view === 'help') window.showHelp();
+        else if (bootState.view === 'command-palette') window.showCommandPalette();
         else if (bootState.key) {
           var idx = localList.articles.findIndex(function(a) { return a.key === bootState.key; });
           if (idx >= 0) window.openArticleModal(idx);
@@ -9354,6 +9540,8 @@ function statCard(label, value, cls) {
   else if (viewMode === 'history') window.showHistory();
   else if (viewMode === 'backup') window.showBackup();
   else if (viewMode === 'archive') window.showArchive();
+  else if (viewMode === 'help') window.showHelp();
+  else if (viewMode === 'command-palette') window.showCommandPalette();
   openDB().then(function() {
     if (!isLocalServer()) syncAll();
   }).catch(function(err) {
@@ -9371,5 +9559,20 @@ function statCard(label, value, cls) {
   }
 })();
 </script>
+<!-- Command palette overlay -->
+<div class="command-palette-overlay" id="commandPaletteOverlay" onclick="window.hideCommandPalette()">
+  <div class="command-palette" onclick="event.stopPropagation()">
+    <div class="command-palette-header">
+      <input type="text" class="command-palette-input" id="commandPaletteInput" placeholder="Type a command or panel name..." autocomplete="off" oninput="window.filterCommandPalette()" onkeydown="window.onCommandPaletteKey(event)">
+      <kbd>Esc</kbd>
+    </div>
+    <div class="command-palette-list" id="commandPaletteList"></div>
+    <div class="command-palette-footer">
+      <span><kbd>↑</kbd> <kbd>↓</kbd> navigate &middot; <kbd>Enter</kbd> run &middot; <kbd>Esc</kbd> close</span>
+      <span id="commandPaletteCount"></span>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
