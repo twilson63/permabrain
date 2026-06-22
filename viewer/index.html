@@ -433,6 +433,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="goalBtn" onclick="window.showGoal()" title="Goal / PRD planner">&#127919;</button>
     <button class="btn-icon" id="backupBtn" onclick="window.showBackup()" title="Backup / archive">&#128424;</button>
     <button class="btn-icon" id="archiveBtn" onclick="window.showArchive()" title="Archive / restore">&#128230;</button>
+    <button class="btn-icon" id="helpBtn" onclick="window.showHelp()" title="Keyboard shortcuts (?)" style="margin-left:auto">&#10067;</button>
     <button class="btn-icon" id="themeToggle" onclick="window.toggleTheme()" title="Toggle dark mode">&#9790;</button>
     <button class="btn-icon" id="settingsBtn" onclick="window.showSettings()" title="Settings">&#9881;</button>
   </div>
@@ -588,7 +589,8 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
   var theme = localStorage.getItem('permabrain-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   var encryptedSeeds = {};    // key -> remembered seed (base64url string) for this session
   var decryptedContent = {};  // key -> cached decrypted plaintext
-  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes'
+  var viewMode = 'home';      // 'home' | 'article' | 'dashboard' | 'audit' | 'compare' | 'forks' | 'stats' | 'admin' | 'import-export' | 'publish' | 'compose' | 'support' | 'health' | 'identity' | 'config' | 'goal' | 'activity' | 'history' | 'topics' | 'tags' | 'agents' | 'sources' | 'kinds' | 'languages' | 'attest' | 'batch-attest' | 'threshold-attest' | 'peer-sync' | 'verify' | 'bookmarks' | 'search' | 'release-notes' | 'remotes' | 'webhooks' | 'backup' | 'archive' | 'help'
+  var previousViewMode = 'home';
   var activityState = { data: null, loading: false, error: null, filters: { eventKind: '', topic: '', key: '', agent: '', after: '', before: '' }, limit: 50, toasts: [] };
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
@@ -733,6 +735,142 @@ function statCard(label, value, cls) {
   }
   ensureSettingsDefaults();
 
+  function dispatchView(mode) {
+    switch (mode) {
+      case 'dashboard': window.showDashboard(); break;
+      case 'stats': window.showStats(); break;
+      case 'metrics': window.showMetrics(); break;
+      case 'audit': window.showAudit(); break;
+      case 'import-export': window.showImportExport(); break;
+      case 'publish': window.showPublish(); break;
+      case 'compose': window.showCompose(); break;
+      case 'support': window.showSupportBundle(); break;
+      case 'health': window.showHealth(); break;
+      case 'topics': window.showTopics(); break;
+      case 'tags': window.showTags(); break;
+      case 'agents': window.showAgents(); break;
+      case 'sources': window.showSources(); break;
+      case 'forks': window.showForks(); break;
+      case 'kinds': window.showKinds(); break;
+      case 'languages': window.showLanguages(); break;
+      case 'activity': window.showActivity(); break;
+      case 'attest': window.showAttest(); break;
+      case 'batch-attest': window.showBatchAttest(); break;
+      case 'threshold-attest': window.showThresholdAttest(); break;
+      case 'verify': window.showVerify(); break;
+      case 'bookmarks': window.showBookmarks(); break;
+      case 'search': window.showSearch(); break;
+      case 'release-notes': window.showReleaseNotes(); break;
+      case 'identity': window.showIdentity(); break;
+      case 'config': window.showConfig(); break;
+      case 'goal': window.showGoal(); break;
+      case 'remotes': window.showRemotes(); break;
+      case 'webhooks': window.showWebhooks(); break;
+      case 'history': window.showHistory(); break;
+      case 'backup': window.showBackup(); break;
+      case 'archive': window.showArchive(); break;
+      case 'admin': window.showAdminPanel(); break;
+      case 'help': window.showHelp(); break;
+      default: window.showHome();
+    }
+  }
+  window.dispatchView = dispatchView;
+
+  // --- Keyboard shortcuts help ---
+  var helpShortcuts = [
+    { key: '?', action: 'Show / hide this help panel' },
+    { key: 'Esc', action: 'Close help panel' },
+    { key: '/', action: 'Focus search articles' },
+    { key: 'H', action: 'Go Home' },
+    { key: 'S', action: 'Open Search' },
+    { key: 'A', action: 'Open Attest panel' },
+    { key: 'B', action: 'Open Bookmarks' },
+    { key: 'C', action: 'Open Compose article' },
+    { key: 'D', action: 'Open Dashboard' },
+    { key: 'I', action: 'Open Identity panel' },
+    { key: 'M', action: 'Open Metrics panel' },
+    { key: 'N', action: 'Open Release Notes' },
+    { key: 'P', action: 'Open Publish (batch)' },
+    { key: 'R', action: 'Refresh current view' },
+    { key: 'T', action: 'Toggle theme' },
+    { key: 'V', action: 'Open Verify panel' }
+  ];
+  function buildHelpPanelHtml() {
+    var rows = helpShortcuts.map(function(s) {
+      return '<tr><td><kbd>' + esc(s.key) + '</kbd></td><td>' + esc(s.action) + '</td></tr>';
+    }).join('');
+    var navRows = [
+      ['Home', 'homeBtn', 'H'],
+      ['Search', 'searchBtn', 'S'],
+      ['Compose', 'composeBtn', 'C'],
+      ['Publish', 'publishBtn', 'P'],
+      ['Attest', 'attestBtn', 'A'],
+      ['Batch Attest', 'batchAttestBtn', '—'],
+      ['Threshold Attest', 'thresholdAttestBtn', '—'],
+      ['Verify', 'verifyBtn', 'V'],
+      ['Batch verify', '—', '—'],
+      ['Dashboard', 'dashboardBtn', 'D'],
+      ['Stats', 'statsBtn', '—'],
+      ['Metrics', 'metricsBtn', 'M'],
+      ['History', 'historyBtn', '—'],
+      ['Forks', 'forksBtn', '—'],
+      ['Compare', 'compareBtn', '—'],
+      ['Bookmarks', 'bookmarksBtn', 'B'],
+      ['Import / Export', 'importExportBtn', '—'],
+      ['Topics', 'topicsBtn', '—'],
+      ['Tags', 'tagsBtn', '—'],
+      ['Agents', 'agentsBtn', '—'],
+      ['Sources', 'sourcesBtn', '—'],
+      ['Kinds', 'kindsBtn', '—'],
+      ['Languages', 'languagesBtn', '—'],
+      ['Peer sync', 'peerSyncBtn', '—'],
+      ['Remotes', 'remotesBtn', '—'],
+      ['Webhooks', 'webhooksBtn', '—'],
+      ['Config', 'configBtn', '—'],
+      ['Goal / PRD', 'goalBtn', '—'],
+      ['Backup', 'backupBtn', '—'],
+      ['Archive', 'archiveBtn', '—'],
+      ['Health', 'healthBtn', '—'],
+      ['Admin', 'adminBtn', '—'],
+      ['Support bundle', 'supportBundleBtn', '—'],
+      ['Activity', 'activityBtn', '—'],
+      ['Audit', 'auditBtn', '—'],
+      ['Release Notes', 'releaseNotesBtn', 'N'],
+      ['Identity', 'identityBtn', 'I'],
+      ['Settings', 'settingsBtn', ','],
+      ['Theme', 'themeToggle', 'T']
+    ].map(function(r) {
+      var shortcut = r[2] && r[2] !== '—' ? '<kbd>' + esc(r[2]) + '</kbd>' : '—';
+      var target = r[1] && r[1] !== '—' ? ' <button class="btn-icon" onclick="window.focusToolbarButton(\'' + esc(r[1]) + '\')">Show</button>' : '';
+      return '<tr><td>' + esc(r[0]) + '</td><td>' + shortcut + '</td><td>' + target + '</td></tr>';
+    }).join('');
+    return '<div class="home">' +
+      '<h1>&#10067; <span>Keyboard shortcuts</span></h1>' +
+      '<p class="home-subtitle">Press <kbd>?</kbd> to open, <kbd>Esc</kbd> to close.</p>' +
+      '<table><thead><tr><th>Shortcut</th><th>Action</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<h2 style="margin-top:1.5rem">Toolbar map</h2>' +
+      '<table><thead><tr><th>Panel</th><th>Key</th><th>Jump</th></tr></thead><tbody>' + navRows + '</tbody></table>' +
+      '</div>';
+  }
+  window.showHelp = function() {
+    setViewMode('help');
+    var main = document.getElementById('main');
+    main.innerHTML = buildHelpPanelHtml();
+    updateUrlState();
+    markActiveToolbarButton('helpBtn');
+  };
+  window.hideHelp = function() {
+    if (viewMode === 'help') {
+      var target = previousViewMode || 'home';
+      viewMode = target;
+      if (target === 'home') window.showHome(); else window.dispatchView(target);
+    }
+  };
+  window.focusToolbarButton = function(id) {
+    var btn = document.getElementById(id);
+    if (btn) { btn.focus(); btn.click(); }
+  };
+
   window.showSettings = function() {
     populateSettingsPanel();
     document.getElementById('settingsOverlay').classList.add('show');
@@ -834,6 +972,36 @@ function statCard(label, value, cls) {
   applyTheme(theme);
   window.toggleTheme = function() { applyTheme(theme === 'dark' ? 'light' : 'dark'); };
 
+  document.addEventListener('keydown', function(e) {
+    if (e.defaultPrevented) return;
+    var target = e.target;
+    var tag = target && target.tagName ? target.tagName.toLowerCase() : '';
+    var isTyping = tag === 'input' || tag === 'textarea' || tag === 'select' || (target && target.isContentEditable);
+    var key = e.key;
+    if (key === '?') {
+      if (!isTyping) { e.preventDefault(); window.showHelp(); }
+      return;
+    }
+    if (key === 'Escape') {
+      if (viewMode === 'help') { e.preventDefault(); window.hideHelp(); }
+      return;
+    }
+    if (isTyping) return;
+    if (key === '/' ) { e.preventDefault(); var s = document.getElementById('search'); if (s) s.focus(); return; }
+    if (key === 'h' || key === 'H') { e.preventDefault(); window.showHome(); return; }
+    if (key === 's' || key === 'S') { e.preventDefault(); window.showSearch(); return; }
+    if (key === 'a' || key === 'A') { e.preventDefault(); window.showAttest(); return; }
+    if (key === 'b' || key === 'B') { e.preventDefault(); window.showBookmarks(); return; }
+    if (key === 'c' || key === 'C') { e.preventDefault(); window.showCompose(); return; }
+    if (key === 'd' || key === 'D') { e.preventDefault(); window.showDashboard(); return; }
+    if (key === 'i' || key === 'I') { e.preventDefault(); window.showIdentity(); return; }
+    if (key === 'm' || key === 'M') { e.preventDefault(); window.showMetrics(); return; }
+    if (key === 'n' || key === 'N') { e.preventDefault(); window.showReleaseNotes(); return; }
+    if (key === 'p' || key === 'P') { e.preventDefault(); window.showPublish(); return; }
+    if (key === 'r' || key === 'R') { e.preventDefault(); window.refresh(); return; }
+    if (key === 't' || key === 'T') { e.preventDefault(); window.toggleTheme(); return; }
+    if (key === 'v' || key === 'V') { e.preventDefault(); window.showVerify(); return; }
+  });
   // --- IndexedDB cache ---
   var DB_NAME = 'permabrain-viewer';
   var DB_VERSION = 2;
@@ -1050,7 +1218,7 @@ function statCard(label, value, cls) {
     renderFilters();
     renderList();
     renderStatus();
-    if (selectedKey) { viewMode = 'article'; renderArticle(selectedKey); }
+    if (selectedKey) { setViewMode('article'); renderArticle(selectedKey); }
     else if (viewMode === 'dashboard') { renderDashboard(); }
     else if (viewMode === 'compare') { renderCompare(); }
     else { renderHome(); }
@@ -1180,6 +1348,16 @@ function statCard(label, value, cls) {
   }
 
   function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+  function markActiveToolbarButton(id) {
+    document.querySelectorAll('.header-actions .btn-icon').forEach(function(b) { b.classList.remove('active'); });
+    if (id) { var btn = document.getElementById(id); if (btn) btn.classList.add('active'); }
+  }
+
+  function setViewMode(mode) {
+    if (viewMode !== 'help' && viewMode !== mode) previousViewMode = viewMode;
+    viewMode = mode;
+  }
 
   // --- Render helpers ---
   function getTopics() {
@@ -1847,7 +2025,7 @@ function statCard(label, value, cls) {
       settings.liveTail = state.liveTail;
       localStorage.setItem('permabrain-live-tail', state.liveTail ? 'true' : 'false');
     }
-    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive'].includes(state.view)) {
+    if (state.view && ['home','article','dashboard','stats','metrics','audit','compare','forks','import-export','admin','publish','compose','support','health','identity','config','goal','activity','history','topics','tags','agents','sources','kinds','languages','attest','batch-attest','threshold-attest','peer-sync','verify','bookmarks','search','release-notes','remotes','webhooks','backup','archive','help'].includes(state.view)) {
       viewMode = state.view;
     }
     if (state.view === 'compose') {
@@ -2071,20 +2249,22 @@ function statCard(label, value, cls) {
       return;
     }
     activeTab = 'content';
-    viewMode = 'article';
+    setViewMode('article');
     stopDashboardRefresh();
     renderArticle(key);
     updateUrlState();
   };
 
   window.showAdminPanel = async function() {
-    viewMode = 'admin';
+    setViewMode('admin');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchAdminPanel();
     updateUrlState();
+  
+    markActiveToolbarButton('adminBtn');
   };
 
   async function fetchAdminPanel() {
@@ -2181,23 +2361,27 @@ function statCard(label, value, cls) {
 
   // --- Support bundle panel ---
   window.showSupportBundle = async function() {
-    viewMode = 'support';
+    setViewMode('support');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchSupportBundle();
     updateUrlState();
+  
+    markActiveToolbarButton('supportBundleBtn');
   };
 
   window.showHealth = async function() {
-    viewMode = 'health';
+    setViewMode('health');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchHealth();
     updateUrlState();
+  
+    markActiveToolbarButton('healthBtn');
   };
 
   window.refreshHealth = async function() {
@@ -2305,13 +2489,15 @@ function statCard(label, value, cls) {
 
   // --- Identity panel ---
   window.showIdentity = async function() {
-    viewMode = 'identity';
+    setViewMode('identity');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchIdentity();
     updateUrlState();
+  
+    markActiveToolbarButton('identityBtn');
   };
 
   window.refreshIdentity = async function() {
@@ -2419,13 +2605,15 @@ function statCard(label, value, cls) {
 
   // --- Backup panel ---
   window.showBackup = async function() {
-    viewMode = 'backup';
+    setViewMode('backup');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchBackups();
     updateUrlState();
+  
+    markActiveToolbarButton('backupBtn');
   };
 
   window.refreshBackup = async function() {
@@ -2708,13 +2896,15 @@ function statCard(label, value, cls) {
 
   // --- Archive panel ---
   window.showArchive = async function() {
-    viewMode = 'archive';
+    setViewMode('archive');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await renderArchive();
     updateUrlState();
+  
+    markActiveToolbarButton('archiveBtn');
   };
 
   window.refreshArchive = async function() {
@@ -2893,13 +3083,15 @@ function statCard(label, value, cls) {
 
   // --- Config panel ---
   window.showConfig = async function() {
-    viewMode = 'config';
+    setViewMode('config');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchConfig();
     updateUrlState();
+  
+    markActiveToolbarButton('configBtn');
   };
 
   window.refreshConfig = async function() {
@@ -3109,7 +3301,7 @@ function statCard(label, value, cls) {
   }
 
   window.showGoal = async function() {
-    viewMode = 'goal';
+    setViewMode('goal');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
@@ -3117,6 +3309,8 @@ function statCard(label, value, cls) {
     loadGoalDraft();
     await renderGoal();
     updateUrlState();
+  
+    markActiveToolbarButton('goalBtn');
   };
 
   window.refreshGoal = async function() {
@@ -3260,13 +3454,15 @@ function statCard(label, value, cls) {
 
   // --- Topics catalog panel ---
   window.showTopics = async function() {
-    viewMode = 'topics';
+    setViewMode('topics');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchTopics();
     updateUrlState();
+  
+    markActiveToolbarButton('topicsBtn');
   };
 
   window.refreshTopics = async function() {
@@ -3373,13 +3569,15 @@ function statCard(label, value, cls) {
 
   // --- Kinds catalog panel ---
   window.showKinds = async function() {
-    viewMode = 'kinds';
+    setViewMode('kinds');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchKinds();
     updateUrlState();
+  
+    markActiveToolbarButton('kindsBtn');
   };
 
   window.refreshKinds = async function() {
@@ -3491,13 +3689,15 @@ function statCard(label, value, cls) {
 
   // --- Languages catalog panel ---
   window.showLanguages = async function() {
-    viewMode = 'languages';
+    setViewMode('languages');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchLanguages();
     updateUrlState();
+  
+    markActiveToolbarButton('languagesBtn');
   };
 
   window.refreshLanguages = async function() {
@@ -3645,13 +3845,15 @@ function statCard(label, value, cls) {
 
   // --- Tags catalog panel ---
   window.showTags = async function() {
-    viewMode = 'tags';
+    setViewMode('tags');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchTags();
     updateUrlState();
+  
+    markActiveToolbarButton('tagsBtn');
   };
 
   window.refreshTags = async function() {
@@ -3760,13 +3962,15 @@ function statCard(label, value, cls) {
 
   // --- Agents catalog panel ---
   window.showAgents = async function() {
-    viewMode = 'agents';
+    setViewMode('agents');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchAgents();
     updateUrlState();
+  
+    markActiveToolbarButton('agentsBtn');
   };
 
   window.refreshAgents = async function() {
@@ -3883,13 +4087,15 @@ function statCard(label, value, cls) {
 
   // --- Sources catalog panel ---
   window.showSources = async function() {
-    viewMode = 'sources';
+    setViewMode('sources');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchSources();
     updateUrlState();
+  
+    markActiveToolbarButton('sourcesBtn');
   };
 
   window.refreshSources = async function() {
@@ -4002,13 +4208,15 @@ function statCard(label, value, cls) {
 
   // --- Remotes panel ---
   window.showRemotes = async function() {
-    viewMode = 'remotes';
+    setViewMode('remotes');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchRemotes();
     updateUrlState();
+  
+    markActiveToolbarButton('remotesBtn');
   };
 
   window.refreshRemotes = async function() {
@@ -4218,13 +4426,15 @@ function statCard(label, value, cls) {
 
   // --- Webhooks / Integrations panel ---
   window.showWebhooks = async function() {
-    viewMode = 'webhooks';
+    setViewMode('webhooks');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchWebhooks();
     updateUrlState();
+  
+    markActiveToolbarButton('webhooksBtn');
   };
 
   window.refreshWebhooks = async function() {
@@ -4527,13 +4737,15 @@ function statCard(label, value, cls) {
 
   // --- Forks panel ---
   window.showForks = async function() {
-    viewMode = 'forks';
+    setViewMode('forks');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchForks();
     updateUrlState();
+  
+    markActiveToolbarButton('forksBtn');
   };
 
   window.refreshForks = async function() {
@@ -4571,7 +4783,7 @@ function statCard(label, value, cls) {
     if (!key) return;
     selectedKey = key;
     activeTab = 'content';
-    viewMode = 'article';
+    setViewMode('article');
     openArticle(key);
   };
 
@@ -4684,13 +4896,15 @@ function statCard(label, value, cls) {
 
   // --- Search panel ---
   window.showSearch = async function() {
-    viewMode = 'search';
+    setViewMode('search');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await runSearch();
     updateUrlState();
+  
+    markActiveToolbarButton('searchBtn');
   };
 
   window.refreshSearch = async function() {
@@ -4944,13 +5158,15 @@ function statCard(label, value, cls) {
   };
 
   window.showBookmarks = function() {
-    viewMode = 'bookmarks';
+    setViewMode('bookmarks');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     renderBookmarks();
     updateUrlState();
+  
+    markActiveToolbarButton('bookmarksBtn');
   };
 
   function renderBookmarks() {
@@ -5013,7 +5229,7 @@ function statCard(label, value, cls) {
 
   // --- Attest panel ---
   window.showAttest = async function() {
-    viewMode = 'attest';
+    setViewMode('attest');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
@@ -5022,6 +5238,8 @@ function statCard(label, value, cls) {
     if (attestState.selectedKey) await fetchConsensus();
     renderAttest();
     updateUrlState();
+  
+    markActiveToolbarButton('attestBtn');
   };
 
   window.refreshAttest = async function() {
@@ -5205,7 +5423,7 @@ function statCard(label, value, cls) {
 
   // --- Batch attest panel ---
   window.showBatchAttest = async function() {
-    viewMode = 'batch-attest';
+    setViewMode('batch-attest');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
@@ -5213,6 +5431,8 @@ function statCard(label, value, cls) {
     if (!batchAttestState.rows.length) window.addBatchAttestRow();
     renderBatchAttest();
     updateUrlState();
+  
+    markActiveToolbarButton('batchAttestBtn');
   };
 
   window.refreshBatchAttest = async function() {
@@ -5408,7 +5628,7 @@ function statCard(label, value, cls) {
 
   // --- Threshold / multi-sig attestation panel ---
   window.showThresholdAttest = async function() {
-    viewMode = 'threshold-attest';
+    setViewMode('threshold-attest');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
@@ -5416,6 +5636,8 @@ function statCard(label, value, cls) {
     await fetchThresholdArticles();
     renderThresholdAttest();
     updateUrlState();
+  
+    markActiveToolbarButton('thresholdAttestBtn');
   };
 
   window.refreshThresholdAttest = async function() {
@@ -5806,13 +6028,15 @@ function statCard(label, value, cls) {
 
   // --- Peer Sync panel ---
   window.showPeerSync = async function() {
-    viewMode = 'peer-sync';
+    setViewMode('peer-sync');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     renderPeerSync();
     updateUrlState();
+  
+    markActiveToolbarButton('peerSyncBtn');
   };
 
   window.refreshPeerSync = function() {
@@ -6133,7 +6357,7 @@ function statCard(label, value, cls) {
 
   // --- Verify panel ---
   window.showVerify = async function() {
-    viewMode = 'verify';
+    setViewMode('verify');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
@@ -6141,6 +6365,8 @@ function statCard(label, value, cls) {
     await fetchVerifyArticles();
     renderVerify();
     updateUrlState();
+  
+    markActiveToolbarButton('verifyBtn');
   };
 
   window.refreshVerify = async function() {
@@ -6284,23 +6510,27 @@ function statCard(label, value, cls) {
 
   // --- Activity / notifications panel ---
   window.showActivity = async function() {
-    viewMode = 'activity';
+    setViewMode('activity');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchActivity();
     updateUrlState();
+  
+    markActiveToolbarButton('activityBtn');
   };
 
   window.showHistory = async function() {
-    viewMode = 'history';
+    setViewMode('history');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchHistory();
     updateUrlState();
+  
+    markActiveToolbarButton('historyBtn');
   };
 
   window.refreshHistory = async function() {
@@ -6730,18 +6960,19 @@ function statCard(label, value, cls) {
   };
 
   window.showHome = function() {
-    viewMode = 'home';
+    setViewMode('home');
     stopDashboardRefresh();
     stopAuditStream();
     selectedKey = null;
     renderList();
     renderHome();
     updateUrlState();
+    markActiveToolbarButton('homeBtn');
     if (isLocalListMode()) fetchLocalList();
   };
 
   window.showDashboard = async function() {
-    viewMode = 'dashboard';
+    setViewMode('dashboard');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
@@ -6749,10 +6980,11 @@ function statCard(label, value, cls) {
     await fetchDashboard();
     startDashboardRefresh();
     updateUrlState();
+    markActiveToolbarButton('dashboardBtn');
   };
 
   window.showStats = async function() {
-    viewMode = 'stats';
+    setViewMode('stats');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
@@ -6760,6 +6992,7 @@ function statCard(label, value, cls) {
     await fetchStats();
     renderStats();
     updateUrlState();
+    markActiveToolbarButton('statsBtn');
   };
 
   window.refreshStats = async function() {
@@ -6784,15 +7017,16 @@ function statCard(label, value, cls) {
   };
 
   window.showMetrics = async function() {
-    viewMode = 'metrics';
+    setViewMode('metrics');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchMetrics();
+    renderMetrics();
     updateUrlState();
+    markActiveToolbarButton('metricsBtn');
   };
-
   window.refreshMetrics = async function() {
     await fetchMetrics();
     updateUrlState();
@@ -6894,15 +7128,16 @@ function statCard(label, value, cls) {
   window.renderMetrics = renderMetrics;
 
   window.showReleaseNotes = async function() {
-    viewMode = 'release-notes';
+    setViewMode('release-notes');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     stopAuditStream();
     await fetchReleaseNotes();
+    renderReleaseNotes();
     updateUrlState();
+    markActiveToolbarButton('releaseNotesBtn');
   };
-
   window.refreshReleaseNotes = async function() {
     await fetchReleaseNotes();
     updateUrlState();
@@ -6998,56 +7233,56 @@ function statCard(label, value, cls) {
   window.renderReleaseNotes = renderReleaseNotes;
 
   window.showAudit = async function() {
-    viewMode = 'audit';
+    setViewMode('audit');
     selectedKey = null;
     renderList();
     stopDashboardRefresh();
     await fetchAudit();
     if (shouldStartAuditStream()) startAuditStream();
     updateUrlState();
+    markActiveToolbarButton('auditBtn');
   };
-
   window.showCompare = async function() {
-    viewMode = 'compare';
+    setViewMode('compare');
     selectedKey = null;
+    renderList();
     stopDashboardRefresh();
     stopAuditStream();
-    renderList();
     renderCompare();
     updateUrlState();
+    markActiveToolbarButton('compareBtn');
   };
-
   window.showImportExport = async function() {
-    viewMode = 'import-export';
+    setViewMode('import-export');
     selectedKey = null;
+    renderList();
     stopDashboardRefresh();
     stopAuditStream();
-    renderList();
     renderImportExport();
     updateUrlState();
+    markActiveToolbarButton('importExportBtn');
   };
-
   window.showPublish = async function() {
-    viewMode = 'publish';
+    setViewMode('publish');
     selectedKey = null;
+    renderList();
     stopDashboardRefresh();
     stopAuditStream();
-    renderList();
     renderPublish();
     updateUrlState();
+    markActiveToolbarButton('publishBtn');
   };
-
   window.showCompose = async function() {
-    viewMode = 'compose';
+    setViewMode('compose');
     selectedKey = null;
+    renderList();
     stopDashboardRefresh();
     stopAuditStream();
     loadComposeDraft();
-    renderList();
     renderCompose();
     updateUrlState();
+    markActiveToolbarButton('composeBtn');
   };
-
   function loadComposeDraft() {
     try {
       var saved = localStorage.getItem('permabrain-compose-draft');
