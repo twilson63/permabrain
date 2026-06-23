@@ -4,6 +4,7 @@
 - [ ] **Step 6b: Run Docker image build + push** — Actual Docker image build/push for `ghcr.io/twilson63/hyperbeam-dev` remains blocked in this sandbox because Docker and Erlang/OTP are not installed. Execute `./hb-forge/scripts/build-dev-image.sh --multiarch` or trigger `.github/workflows/build-dev-image.yml` on a host with Docker buildx and GHCR push permissions.
   - **2026-06-23 06:07 UTC:** Reconfirmed blocked. Workspace clean, no uncommitted changes. Structural validation for `hb-forge/Dockerfile`, `scripts/build-dev-image.sh`, and `.github/workflows/build-dev-image.yml` already completed in prior commits.
   - **2026-06-23 07:37 UTC:** Build loop checked in. `npm test` passes (exit 0). No uncommitted changes. Still cannot build/push Docker image or run `rebar3 device local` because Docker and Erlang/OTP are unavailable, and GHCR write credentials are not present. Step 7 also remains blocked until Step 6b completes on a capable runner.
+  - **2026-06-23 09:07 UTC:** Build loop checked in. `npm test` passes (exit 0). No uncommitted changes. Docker (`docker --version`) and Erlang/OTP (`rebar3 --version`) are still unavailable in this sandbox. GHCR push credentials also not present. Step 6b remains blocked; Step 7 remains blocked pending Step 6b.
 
 ## Next
 - [ ] **Step 7: Deploy to sandbox with devices loaded** — Once `ghcr.io/twilson63/hyperbeam-dev:latest` is pushed, run the dev container with `rebar3 device local` on port `8734` and verify `~meta@1.0/info` lists `permabrain-consensus` and `permabrain-query`.
