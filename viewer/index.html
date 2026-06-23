@@ -477,6 +477,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
     <button class="btn-icon" id="sourcesBtn" onclick="window.showSources()" title="Sources catalog">&#128279;</button>
     <button class="btn-icon" id="kindsBtn" onclick="window.showKinds()" title="Kinds catalog">&#128230;</button>
     <button class="btn-icon" id="languagesBtn" onclick="window.showLanguages()" title="Languages catalog">&#127760;</button>
+    <button class="btn-icon" id="consensusBtn" onclick="window.showConsensus()" title="Consensus panel">&#127919;</button>
     <button class="btn-icon" id="attestBtn" onclick="window.showAttest()" title="Attest article">&#9997;</button>
     <button class="btn-icon" id="batchAttestBtn" onclick="window.showBatchAttest()" title="Batch attest">&#9997;&#10133;</button>
     <button class="btn-icon" id="thresholdAttestBtn" onclick="window.showThresholdAttest()" title="Threshold / multi-sig attestation">&#128101;</button>
@@ -685,6 +686,7 @@ window.isEncryptedEnvelope = isEncryptedEnvelope;
     }
   }
   var attestState = { articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', apiKey: '', consensus: null, loading: false, error: null, success: null };
+  var consensusState = { key: '', useHyperbeam: false, data: null, loading: false, error: null };
   var batchAttestState = { rows: [], apiKey: '', loading: false, error: null, result: null, jsonText: '', successCount: 0, failedCount: 0 };
   var thresholdAttestState = {
     articles: [], selectedKey: '', opinion: 'valid', confidence: 0.9, reason: '', sourceUrl: '',
@@ -862,6 +864,7 @@ function statCard(label, value, cls) {
       case 'languages': window.showLanguages(); break;
       case 'activity': window.showActivity(); break;
       case 'notifications': window.showNotifications(); break;
+      case 'consensus': window.showConsensus(); break;
       case 'attest': window.showAttest(); break;
       case 'batch-attest': window.showBatchAttest(); break;
       case 'threshold-attest': window.showThresholdAttest(); break;
@@ -896,6 +899,7 @@ function statCard(label, value, cls) {
     { key: 'H', action: 'Go Home' },
     { key: 'S', action: 'Open Search' },
     { key: 'G', action: 'Open Grep' },
+    { key: 'O', action: 'Open Consensus panel' },
     { key: 'A', action: 'Open Attest panel' },
     { key: 'B', action: 'Open Bookmarks' },
     { key: 'C', action: 'Open Compose article' },
@@ -920,6 +924,7 @@ function statCard(label, value, cls) {
       ['Grep', 'grepBtn', 'G'],
       ['Compose', 'composeBtn', 'C'],
       ['Publish', 'publishBtn', 'P'],
+      ['Consensus', 'consensusBtn', 'O'],
       ['Attest', 'attestBtn', 'A'],
       ['Batch Attest', 'batchAttestBtn', '-'],
       ['Threshold Attest', 'thresholdAttestBtn', '-'],
@@ -999,6 +1004,7 @@ function statCard(label, value, cls) {
       { id: 'go-compose', icon: '&#9998;', title: 'Go to Compose article', shortcut: 'C', action: function() { window.showCompose(); } },
       { id: 'go-encrypted', icon: '&#128274;', title: 'Go to Encrypted publish panel', shortcut: 'E', action: function() { window.showEncrypted(); } },
       { id: 'go-publish', icon: '&#128228;&#10133;', title: 'Go to Batch publish', shortcut: 'P', action: function() { window.showPublish(); } },
+      { id: 'go-consensus', icon: '&#127919;', title: 'Go to Consensus panel', shortcut: 'O', action: function() { window.showConsensus(); } },
       { id: 'go-attest', icon: '&#9997;', title: 'Go to Attest panel', shortcut: 'A', action: function() { window.showAttest(); } },
       { id: 'go-batch-attest', icon: '&#9997;&#10133;', title: 'Go to Batch attest panel', action: function() { window.showBatchAttest(); } },
       { id: 'go-threshold-attest', icon: '&#128101;', title: 'Go to Threshold attestation panel', action: function() { window.showThresholdAttest(); } },
@@ -1276,6 +1282,7 @@ function statCard(label, value, cls) {
     if (key === 'h' || key === 'H') { e.preventDefault(); window.showHome(); return; }
     if (key === 's' || key === 'S') { e.preventDefault(); window.showSearch(); return; }
     if (key === 'g' || key === 'G') { e.preventDefault(); window.showGrep(); return; }
+    if (key === 'o' || key === 'O') { e.preventDefault(); window.showConsensus(); return; }
     if (key === 'a' || key === 'A') { e.preventDefault(); window.showAttest(); return; }
     if (key === 'b' || key === 'B') { e.preventDefault(); window.showBookmarks(); return; }
     if (key === 'c' || key === 'C') { e.preventDefault(); window.showCompose(); return; }
@@ -2060,6 +2067,10 @@ function statCard(label, value, cls) {
       if (attestState.confidence !== undefined && attestState.confidence !== 0.9) params.set('attestConfidence', String(attestState.confidence));
       if (attestState.reason) params.set('attestReason', attestState.reason);
     }
+    if (viewMode === 'consensus') {
+      if (consensusState.key) params.set('consensusKey', consensusState.key);
+      if (consensusState.useHyperbeam) params.set('consensusUseHyperbeam', 'true');
+    }
     if (viewMode === 'batch-attest') {
       if (batchAttestState.jsonText) params.set('batchJson', batchAttestState.jsonText);
     }
@@ -2585,6 +2596,11 @@ function statCard(label, value, cls) {
     if (state.tab) activeTab = state.tab;
     return state;
   }
+
+    if (state.view === 'consensus') {
+      if (state.consensusKey) consensusState.key = state.consensusKey;
+      if (state.consensusUseHyperbeam) consensusState.useHyperbeam = true;
+    }
 
   function updateUrlState() {
     if (!window.history.replaceState) return;
@@ -6173,7 +6189,135 @@ function statCard(label, value, cls) {
 
   window.renderBookmarks = renderBookmarks;
 
-  // --- Attest panel ---
+  
+// --- Consensus panel ---
+window.showConsensus = async function() {
+  setViewMode('consensus');
+  selectedKey = null;
+  renderList();
+  stopDashboardRefresh();
+  stopAuditStream();
+  await fetchConsensusPanel();
+  renderConsensus();
+  updateUrlState();
+  markActiveToolbarButton('consensusBtn');
+};
+
+window.refreshConsensus = async function() {
+  await fetchConsensusPanel();
+  renderConsensus();
+  updateUrlState();
+};
+
+async function fetchConsensusPanel() {
+  if (!isLocalServer()) return;
+  if (!consensusState.key) return;
+  consensusState.loading = true;
+  consensusState.error = null;
+  if (viewMode === 'consensus') renderConsensus();
+  try {
+    var params = new URLSearchParams();
+    params.set('use-hyperbeam', String(consensusState.useHyperbeam));
+    var r = await fetch('/api/v1/articles/' + encodeURIComponent(consensusState.key) + '/consensus?' + params.toString());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    consensusState.data = await r.json();
+  } catch(e) {
+    consensusState.error = e.message;
+  } finally {
+    consensusState.loading = false;
+  }
+  if (viewMode === 'consensus') renderConsensus();
+}
+window.fetchConsensusPanel = fetchConsensusPanel;
+
+window.setConsensusKey = async function(key) {
+  consensusState.key = key || '';
+  if (consensusState.key) await fetchConsensusPanel();
+  renderConsensus();
+  updateUrlState();
+};
+
+window.setConsensusUseHyperbeam = function(value) {
+  consensusState.useHyperbeam = !!value;
+  updateUrlState();
+};
+
+function renderConsensus() {
+  var main = document.getElementById('main');
+  if (!isLocalServer()) {
+    main.innerHTML = '<div class="empty-state"><h2>Consensus panel unavailable</h2><p>Open this viewer through <code>permabrain serve</code> to compute consensus.</p></div>';
+    return;
+  }
+
+  var options = '<option value="">- Select an article -</option>' +
+    articles.map(function(a) {
+      return '<option value="' + esc(a.key) + '"' + (a.key === consensusState.key ? ' selected' : '') + '>' + esc(a.key) + (a.title ? ' · ' + esc(a.title) : '') + '</option>';
+    }).join('');
+
+  var hyperbeamChecked = consensusState.useHyperbeam ? ' checked' : '';
+  var toolbar = '<div class="dashboard-toolbar">' +
+    '<button class="btn-icon" onclick="window.refreshConsensus()">&#x21BB; Refresh</button>' +
+    '<label style="font-size:0.75rem;color:var(--muted);display:flex;align-items:center;gap:0.35rem"><input type="checkbox" id="consensusUseHyperbeam" onchange="window.setConsensusUseHyperbeam(this.checked)"' + hyperbeamChecked + '> Use Hyperbeam</label>' +
+    '</div>';
+
+  var body = '';
+  if (consensusState.loading && !consensusState.data) {
+    body = '<div class="loading"><div class="spinner"></div> Computing consensus...</div>';
+  } else if (consensusState.error && !consensusState.data) {
+    body = '<div class="empty-state"><h2>Consensus error</h2><p>' + esc(consensusState.error) + '</p><button class="btn-icon" onclick="window.refreshConsensus()">&#x21BB; Retry</button></div>';
+  } else if (consensusState.key && consensusState.data && !consensusState.data.error) {
+    var c = consensusState.data;
+    var score = typeof c.score === 'number' ? c.score.toFixed(6) : '-';
+    var scoreClass = typeof c.score === 'number' ? (c.score >= 0.8 ? 'good' : (c.score >= 0.5 ? 'moderate' : 'low')) : '';
+    var atts = c.attestations || [];
+    var attCount = c.totalAttestations != null ? c.totalAttestations : atts.length;
+    var attCards = atts.map(function(att) {
+      var opClass = 'opinion-' + att.opinion.replace(' ', '-');
+      var shortAgent = att.agentId.length > 30 ? att.agentId.substring(0, 30) + '...' : att.agentId;
+      return '<div class="attestation-card">' +
+        '<span class="opinion ' + opClass + '">' + esc(att.opinion.toUpperCase()) + '</span>' +
+        '<span class="confidence">confidence: ' + att.confidence + '</span>' +
+        (att.createdAt ? '<span class="date">' + new Date(att.createdAt).toLocaleDateString() + '</span>' : '') +
+        '<div class="reason">' + esc(att.reason || '') + '</div>' +
+        '<div class="agent">by ' + esc(shortAgent) + '</div>' +
+        '</div>';
+    }).join('');
+
+    var breakdown = '';
+    if (c.opinionCounts && Object.keys(c.opinionCounts).length) {
+      breakdown = '<div class="breakdown" style="margin-top:0.75rem">' +
+        Object.keys(c.opinionCounts).map(function(op) {
+          return '<div class="breakdown-item"><div class="count">' + c.opinionCounts[op] + '</div><div class="name">' + esc(op) + '</div></div>';
+        }).join('') +
+        '</div>';
+    }
+
+    body = '<div class="dashboard-section">' +
+      '<div class="stats-grid">' +
+      statCard('Score', score, scoreClass) +
+      statCard('Status', esc(c.status || 'unknown'), 'accent') +
+      statCard('Attestations', String(attCount), 'attestations') +
+      statCard('Latest version', c.latestVersion != null ? 'v' + c.latestVersion : '-', 'transport') +
+      '</div>' +
+      breakdown +
+      '</div>' +
+      '<div class="dashboard-section" style="margin-top:1rem"><h3>Attestations considered</h3>' + (attCards || '<p style="color:var(--muted)">No attestations.</p>') + '</div>';
+  } else if (consensusState.key && !consensusState.data && !consensusState.loading) {
+    body = '<p style="color:var(--muted)">Select an article and click Refresh to compute consensus.</p>';
+  } else {
+    body = '<p style="color:var(--muted)">Select an article to compute consensus.</p>';
+  }
+
+  main.innerHTML = '<div class="home"><h1>&#127919; <span>Consensus</span></h1><p class="home-subtitle">Compute article consensus with optional HyperBEAM scoring</p>' +
+    '<div class="dashboard-section"><div class="form-row"><label for="consensusKeySelect">Article</label><select id="consensusKeySelect" onchange="window.setConsensusKey(this.value)">' + options + '</select></div></div>' +
+    toolbar +
+    body +
+    '</div>';
+}
+window.renderConsensus = renderConsensus;
+
+
+// --- Attest panel ---
   window.showAttest = async function() {
     setViewMode('attest');
     selectedKey = null;
@@ -10770,6 +10914,11 @@ function statCard(label, value, cls) {
         else if (bootState.view === 'sources') window.showSources();
         else if (bootState.view === 'kinds') window.showKinds();
         else if (bootState.view === 'languages') window.showLanguages();
+        else if (bootState.view === 'consensus') {
+          if (bootState.consensusKey) consensusState.key = bootState.consensusKey;
+          if (bootState.consensusUseHyperbeam === 'true') consensusState.useHyperbeam = true;
+          window.showConsensus();
+        }
         else if (bootState.view === 'attest') window.showAttest();
         else if (bootState.view === 'batch-attest') window.showBatchAttest();
         else if (bootState.view === 'threshold-attest') window.showThresholdAttest();
@@ -10827,6 +10976,7 @@ function statCard(label, value, cls) {
   else if (viewMode === 'kinds') window.showKinds();
   else if (viewMode === 'languages') window.showLanguages();
   else if (viewMode === 'activity') window.showActivity();
+  else if (viewMode === 'consensus') window.showConsensus();
   else if (viewMode === 'attest') window.showAttest();
   else if (viewMode === 'batch-attest') window.showBatchAttest();
   else if (viewMode === 'threshold-attest') window.showThresholdAttest();

@@ -76,8 +76,24 @@ export function consensusScore(attestations, { latestArticleId = null, now = new
 }
 
 export async function consensusForArticle(key, opts = {}) {
-  const latestArticle = (await resolveLatestArticle(key, { useHyperbeam: opts.useHyperbeam })).summary;
-  const items = await queryAttestationsForKey(key, { useHyperbeam: opts.useHyperbeam });
+  let latestArticle;
+  try {
+    latestArticle = (await resolveLatestArticle(key, { useHyperbeam: opts.useHyperbeam })).summary;
+  } catch (err) {
+    if (opts.useHyperbeam) {
+      // Fall back to local index/cache when HyperBEAM resolution fails
+      latestArticle = loadIndex(getHome()).articles?.[key] || null;
+    } else {
+      throw err;
+    }
+  }
+  let items;
+  try {
+    items = await queryAttestationsForKey(key, { useHyperbeam: opts.useHyperbeam });
+  } catch (err) {
+    if (!opts.useHyperbeam) throw err;
+    items = [];
+  }
   const rawAttestations = items.length ? items.map(summarizeAttestationItem) : (loadIndex(getHome()).attestations?.[key] || []);
   // For proxy attestations, the effective agent is the requester, not the proxy signer
   const attestations = rawAttestations.map((a) => {
