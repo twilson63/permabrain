@@ -100,7 +100,6 @@ info(_Msg) ->
     }.
 
 %% Internal: Build ~query@1.0 URL with PermaBrain filters
--export([build_query_path/3]).
 build_query_path(ArticleKey, Kind, Topic) ->
     Base = <<"~query@1.0?App-Name=PermaBrain">>,
     WithKey = case ArticleKey of

@@ -8,6 +8,7 @@
  * - The consensus device uses _Opts or #{} consistently (no unbound variables)
  * - The query device exposes build_query_path/3 for EUnit tests
  * - Device metadata functions are present
+ * - Build script and GitHub Actions workflow are structurally sound
  *
  * When a full Erlang toolchain is available (Docker dev image or CI), run:
  *   rebar3 device test
@@ -98,5 +99,29 @@ assert.ok(dockerfile.includes('/work'), 'Dockerfile should set /work as working 
 
 const buildScript = read('scripts/build-dev-image.sh');
 assert.ok(buildScript.includes('hb-forge/Dockerfile'), 'build script should reference hb-forge/Dockerfile');
+assert.ok(buildScript.includes('--platform linux/amd64'), 'build script should include amd64 platform');
+assert.ok(buildScript.includes('--platform linux/amd64,linux/arm64'), 'build script should include multi-arch platform');
+assert.ok(buildScript.includes('--push'), 'build script should support --push flag');
+assert.ok(buildScript.includes('--load'), 'build script should use --load for local build');
+assert.ok(buildScript.includes('docker buildx'), 'build script should use docker buildx');
+
+// GitHub Actions workflow validates the Docker build orchestration without a daemon.
+const workflowPath = path.resolve(__dirname, '..', '.github', 'workflows', 'build-dev-image.yml');
+assert.ok(fs.existsSync(workflowPath), '.github/workflows/build-dev-image.yml should exist');
+const workflow = fs.readFileSync(workflowPath, 'utf8');
+assert.ok(workflow.includes('docker/setup-buildx-action@v3'), 'workflow should set up Docker Buildx');
+assert.ok(workflow.includes('docker/login-action@v3'), 'workflow should log in to GHCR');
+assert.ok(workflow.includes('docker/build-push-action@v5'), 'workflow should build and push image');
+assert.ok(workflow.includes('linux/amd64,linux/arm64'), 'workflow should build multi-arch images');
+assert.ok(workflow.includes("file: ./hb-forge/Dockerfile"), 'workflow should reference hb-forge/Dockerfile');
+assert.ok(workflow.includes("type=raw,value=latest"), 'workflow should tag image as latest');
+assert.ok(workflow.includes("type=sha"), 'workflow should tag image with git sha');
+assert.ok(workflow.includes('packages: write'), 'workflow should have packages:write permission');
+assert.ok(workflow.includes("paths:\n      - 'hb-forge/Dockerfile'"), 'workflow should trigger on Dockerfile changes');
+
+// The project name is consistent across files.
+const rebar = read('rebar.config');
+assert.ok(readme.includes('hyperbeam-permabrain'), 'README should reference hyperbeam-permabrain project');
+assert.ok(rebar.includes('hyperbeam_permabrain'), 'rebar.config should reference hyperbeam_permabrain release');
 
 console.log('hb-forge structural smoke tests passed');
