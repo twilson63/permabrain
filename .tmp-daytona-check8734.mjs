@@ -1,6 +1,0 @@
-import { Daytona } from '@daytona/sdk';
-const daytona = new Daytona();
-const sb = await daytona.get('b8625c83-5123-4265-93e6-b80894973f20');
-try { await sb.start(); } catch(e) {}
-const r = await sb.process.executeCommand('ps aux | grep -E "hb|beam" | grep -v grep || true; echo ---; curl -s -i -H "Accept: application/json" http://localhost:8734/~meta@1.0/info 2\u003e\u00261 | head -40; echo ---LOG---; cat /tmp/HyperBEAM/_build/default/rel/hb/log/erlang.log.1 | tail -40', undefined, undefined, 30);
-console.log(r.result);

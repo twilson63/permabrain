@@ -9,3 +9,30 @@ coverage/
 .understand-anything/
 context.md
 articles/
+
+# Scratch / temp scripts
+.tmp-*
+EOF
+
+# Ephemeral runtime state
+.hb-edge-url
+.openclaw/
+
+# Build artifacts
+permabrain-view/build/
+hb-forge/_build/
+hb-forge/cache-mainnet/
+*.crashdump
+
+# Secrets — never commit
+hb-forge/hyperbeam-key.json
+*key.json
+
+# Accidentally-nested repos
+.deps/
+HyperBEAM/
+agent-cookbook-pr-worktree/
+permabrain/
+permabrain-project/
+projects/
+repos/
