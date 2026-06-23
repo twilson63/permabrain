@@ -5,15 +5,15 @@
 #   docker push ghcr.io/twilson63/hyperbeam-dev:latest
 #
 #   # Build a device package:
-#   docker run --rm -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev:latest \
+#   docker run --rm -v $(pwd)/hb-forge:/work ghcr.io/twilson63/hyperbeam-dev:latest \
 #     sh -c "cd /work && rebar3 device package"
 #
 #   # Run device tests:
-#   docker run --rm -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev:latest \
+#   docker run --rm -v $(pwd)/hb-forge:/work ghcr.io/twilson63/hyperbeam-dev:latest \
 #     sh -c "cd /work && rebar3 device test"
 #
 #   # Start a local node with devices loaded:
-#   docker run --rm -it -p 8734:8734 -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev:latest \
+#   docker run --rm -it -p 8734:8734 -v $(pwd)/hb-forge:/work ghcr.io/twilson63/hyperbeam-dev:latest \
 #     sh -c "cd /work && rebar3 device local"
 
 FROM debian:trixie-slim

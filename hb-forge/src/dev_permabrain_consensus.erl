@@ -32,7 +32,7 @@ consensus(Base, _Opts) ->
             hb_message:set(#{status => error, body => <<"Missing Attestation-Target">>}, Base);
         _ ->
             MatchPath = <<"~match@1.0/Attestation-Target=", Target/binary>>,
-            case hb_cache:get(MatchPath, Base, Opts) of
+            case hb_cache:get(MatchPath, Base, #{}) of
                 {error, _} ->
                     hb_message:set(#{status => ok, 
                                      <<"Consensus-Score">> => <<"0">>,

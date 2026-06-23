@@ -1,0 +1,15 @@
+{application, permabrain,
+ [
+  {description, "PermaBrain consensus and query devices for HyperBEAM"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications,
+   [kernel,
+    stdlib,
+    hb
+   ]},
+  {env,[]},
+  {modules, [dev_permabrain_consensus, dev_permabrain_query]},
+  {licenses, ["MIT"]},
+  {links, [{"GitHub", "https://github.com/twilson63/permabrain"}]}
+ ]}.

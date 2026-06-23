@@ -7,24 +7,23 @@ PermaBrain consensus and query devices as a HyperBEAM Forge package.
 ### Build with Docker (recommended)
 
 ```bash
-# Build the dev image
-cd permabrain/hb-forge
-docker build -t ghcr.io/twilson63/hyperbeam-dev:latest .
+# Build the dev image from the repo root
+docker build -t ghcr.io/twilson63/hyperbeam-dev:latest -f hb-forge/Dockerfile .
 
 # Package devices
-docker run --rm -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev:latest \
+docker run --rm -v $(pwd)/hb-forge:/work ghcr.io/twilson63/hyperbeam-dev:latest \
   sh -c "cd /work && rebar3 device package"
 
 # Verify packages
-docker run --rm -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev:latest \
+docker run --rm -v $(pwd)/hb-forge:/work ghcr.io/twilson63/hyperbeam-dev:latest \
   sh -c "cd /work && rebar3 device verify"
 
 # Run tests
-docker run --rm -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev:latest \
+docker run --rm -v $(pwd)/hb-forge:/work ghcr.io/twilson63/hyperbeam-dev:latest \
   sh -c "cd /work && rebar3 device test"
 
 # Start local node with devices loaded
-docker run --rm -it -p 8734:8734 -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev:latest \
+docker run --rm -it -p 8734:8734 -v $(pwd)/hb-forge:/work ghcr.io/twilson63/hyperbeam-dev:latest \
   sh -c "cd /work && rebar3 device local"
 ```
 
@@ -35,25 +34,18 @@ docker run --rm -it -p 8734:8734 -v $(pwd):/work ghcr.io/twilson63/hyperbeam-dev
 git clone --depth 1 --branch edge https://github.com/permaweb/HyperBEAM.git
 cd HyperBEAM && ./install-template --branch edge && cd ..
 
-# Create project (if starting fresh)
-rebar3 new device name=permabrain_consensus
-
-# Package
+# Package the hb-forge project
+cd hb-forge
 rebar3 device package
-
-# Verify
 rebar3 device verify
-
-# Test
 rebar3 device test
-
-# Local node
 rebar3 device local
 ```
 
 ### Publish to Arweave
 
 ```bash
+cd hb-forge
 rebar3 device publish --key wallet.json
 ```
 
@@ -78,10 +70,10 @@ Header: Attestation-Target: {articleId}
 Structured PermaBrain queries with `~reference@1.0` resolution support.
 
 **Functions:**
-- `query/3` — Search articles by key, kind, or topic
-- `attestations/3` — Find attestations for a target article
-- `resolve/3` — Resolve a PermaBrain reference to its current value
-- `info/0` — Return device metadata
+- `query/2` — Search articles by key, kind, or topic
+- `attestations/2` — Find attestations for a target article
+- `resolve/2` — Resolve a PermaBrain reference to its current value
+- `info/1` — Return device metadata
 
 **Usage:**
 ```

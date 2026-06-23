@@ -172,7 +172,9 @@
     "test:webhooks": "node test/webhooks.mjs",
     "test:viewer-backup": "node test/viewer-backup.mjs",
     "test:viewer-archive": "node test/viewer-archive.mjs",
-    "test:viewer-stats": "node test/viewer-stats.mjs"
+    "test:viewer-stats": "node test/viewer-stats.mjs",
+    "test:hb-forge": "node test/hb-forge.mjs",
+    "test:hb-forge-smoke": "node test/hb-forge.mjs"
   },
   "dependencies": {
     "@noble/ed25519": "^3.1.0",

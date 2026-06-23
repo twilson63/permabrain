@@ -14,7 +14,7 @@
 
 -module(dev_permabrain_query).
 
--export([query/2, attestations/2, resolve/2, info/1]).
+-export([query/2, attestations/2, resolve/2, info/1, build_query_path/3]).
 
 %% @doc Search PermaBrain articles by key, kind, or topic.
 %% Uses the ~query@1.0 device with PermaBrain-specific tag filters.
@@ -100,6 +100,7 @@ info(_Msg) ->
     }.
 
 %% Internal: Build ~query@1.0 URL with PermaBrain filters
+-export([build_query_path/3]).
 build_query_path(ArticleKey, Kind, Topic) ->
     Base = <<"~query@1.0?App-Name=PermaBrain">>,
     WithKey = case ArticleKey of
