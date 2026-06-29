@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PermaBrain README Review — Progress</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1a1a2e; line-height: 1.6; }
+  h1 { border-bottom: 2px solid #4a90d9; padding-bottom: 0.5rem; }
+  h2 { color: #2c3e50; margin-top: 2rem; }
+  .status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600; }
+  .status-planned { background: #e8f4fd; color: #2980b9; }
+  .status-complete { background: #e8f8f0; color: #27ae60; }
+  .pass { color: #27ae60; font-weight: 600; }
+  .step { background: #f8f9fa; border-left: 4px solid #4a90d9; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+</style>
+</head>
+<body>
+
+<h1>PermaBrain README Review — Progress Log</h1>
+
+<h2>Current Status</h2>
+<p><span class="status status-complete">complete</span></p>
+
+<h2>Step Checklist</h2>
+<table>
+  <tr><th>Step</th><th>Description</th><th>Status</th></tr>
+  <tr><td>1</td><td>Audit: identify all gaps</td><td><span class="pass">pass</span></td></tr>
+  <tr><td>2</td><td>Create LICENSE (MIT)</td><td><span class="pass">pass</span></td></tr>
+  <tr><td>3</td><td>Create CONTRIBUTING.md</td><td><span class="pass">pass</span></td></tr>
+  <tr><td>4</td><td>Create CODE_OF_CONDUCT.md (Contributor Covenant 2.1)</td><td><span class="pass">pass</span></td></tr>
+  <tr><td>5</td><td>Create SECURITY.md</td><td><span class="pass">pass</span></td></tr>
+  <tr><td>6</td><td>Restructure README (TOC, flow, badges, references)</td><td><span class="pass">pass</span></td></tr>
+  <tr><td>7</td><td>Fix CHANGELOG duplicate headers</td><td><span class="pass">pass</span></td></tr>
+  <tr><td>8</td><td>Update package.json metadata</td><td><span class="pass">pass</span></td></tr>
+  <tr><td>9</td><td>Final validation</td><td><span class="pass">pass</span></td></tr>
+</table>
+
+<h2>Validation Evidence</h2>
+<ul>
+  <li><code>ls LICENSE CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md README.md</code> — all present</li>
+  <li><code>npm run publish:dry-run</code> — exit 0, 118 files, 435.6 kB tarball</li>
+  <li>37/37 TOC anchors resolve to actual headings</li>
+  <li>0 duplicate heading slugs</li>
+  <li>CHANGELOG [Unreleased] has exactly 1 "### Added" section</li>
+  <li>package.json has license, repository, bugs, homepage, engines fields</li>
+  <li>No secrets, keys, or private data in any new artifact</li>
+</ul>
+
+<h2>Taste Score: 4/5</h2>
+<p>README preserves all original content, adds useful structure (TOC, badges, quick-start elevation), and references new artifacts naturally. No marketing fluff added — matches existing tone.</p>
+
+<h2>Originality Score: 4/5</h2>
+<p>CONTRIBUTING.md is specific to this project (mentions permabrain commands, PERMABRAIN_HOME, test scripts). SECURITY.md references actual project surfaces (Arweave publishing, X25519, serve flags). Not generic templates.</p>
+
+<h2>Residual Risks</h2>
+<ul>
+  <li><code>context.md</code> is still outdated (says no implementation files exist; project has 82 modules). Not in scope of this task.</li>
+  <li>No badges for npm downloads or coverage — would need npm/public stats APIs to populate.</li>
+  <li>CI badge points to release.yml which only runs on tags, not on every PR. Consider adding a PR test workflow.</li>
+</ul>
+
+</body>
+</html>

@@ -1,6 +1,77 @@
 # PermaBrain
 
-PermaBrain is a public knowledge graph for people and agents.
+A public signed knowledge graph for people, organizations, and subjects — built on Arweave and HyperBEAM. Publish articles, gather public attestations, and track consensus over time. No quiet overwrites. No single source of truth. Just permanent versions with receipts.
+
+[![npm version](https://img.shields.io/npm/v/permabrain.svg)](https://www.npmjs.com/package/permabrain)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node.js >= 20](https://img.shields.io/badge/node-%3E%3D20-green.svg)](https://nodejs.org)
+
+[![Tests](https://github.com/twilson63/permabrain/actions/workflows/release.yml/badge.svg)](https://github.com/twilson63/permabrain/actions)
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [What It Tracks](#what-it-tracks)
+- [Installation](#installation)
+- [Encrypted Articles](#encrypted-articles)
+- [CLI Command Catalog](#cli-command-catalog)
+  - [Identity and Local State](#identity-and-local-state)
+  - [Publishing and Reading](#publishing-and-reading)
+  - [Discovery and Feeds](#discovery-and-feeds)
+  - [Attestation and Consensus](#attestation-and-consensus)
+  - [Version Control: Forks, Merges, and Diffs](#version-control-forks-merges-and-diffs)
+  - [Transport and Remotes](#transport-and-remotes)
+  - [HyperBEAM Device Commands](#hyperbeam-device-commands)
+  - [Bundles, Export, and Import](#bundles-export-and-import)
+  - [Snapshots, Backups, and Archives](#snapshots-backups-and-archives)
+  - [Audit and Dashboard](#audit-and-dashboard)
+  - [HTTP Client SDK](#http-client-sdk)
+  - [Shell Completion](#shell-completion)
+  - [Interactive Shell](#interactive-shell)
+- [Local HTTP API](#local-http-api)
+  - [API-key Authentication](#api-key-authentication)
+  - [CORS](#cors)
+  - [Rate Limiting](#rate-limiting)
+  - [Request Logging / Access Logs](#request-logging-access-logs)
+  - [Metrics and Monitoring](#metrics-and-monitoring)
+  - [Route Discovery and OpenAPI](#route-discovery-and-openapi)
+- [Web Viewer](#web-viewer)
+- [Multi-Agent Workflow Helpers](#multi-agent-workflow-helpers)
+- [Common Workflows](#common-workflows)
+- [Canonical Keys](#canonical-keys)
+- [Local State](#local-state)
+- [ANS-104 Uploads](#ans-104-uploads)
+- [Safety](#safety)
+- [HyperBEAM Quickstart](#hyperbeam-quickstart)
+- [Watching for Updates](#watching-for-updates)
+- [Tests](#tests)
+- [Agent API](#agent-api)
+- [Publishing the Package](#publishing-the-package)
+
+## Quick Start
+
+```sh
+npm install -g permabrain
+permabrain init
+permabrain import-wikipedia "Ada Lovelace" --kind person --topic computing
+permabrain get person/ada-lovelace
+permabrain attest person/ada-lovelace --valid --confidence 0.95 --reason "Source-backed Wikipedia import"
+permabrain consensus person/ada-lovelace
+```
+
+## What It Tracks
+
+PermaBrain does not try to crown one final truth. It keeps the evidence trail:
+
+- who published an article
+- what they published
+- which sources they cited
+- when each version appeared
+- who attested to it later
+- whether those attestations call it valid, outdated, disputed, or wrong
+- a simple consensus score over the attestations
+
+That is the point: fewer vibes, more receipts.
 
 ## Installation
 
@@ -31,43 +102,9 @@ By default state lives in `./.permabrain/`. Override with `PERMABRAIN_HOME`:
 PERMABRAIN_HOME=/path/to/home permabrain init
 ```
 
-You publish articles. Other people or agents publish signed attestations saying whether those articles are valid, stale, disputed, or wrong. Nothing gets quietly overwritten. Every version keeps its author, source metadata, timestamp, and signature.
-
-Think Wikipedia-style pages, but with permanent versions and public receipts.
-
 Phase 1 is a local-first CLI and pi skill. It can talk to HyperBEAM at `http://localhost:10000` when you have it running, or use Arweave for public permanent storage.
 
 Public uploads use real serialized ANS-104 DataItems. The JSON wrapper exists only for local tests and cache files.
-
-## What it tracks
-
-PermaBrain does not try to crown one final truth. It keeps the evidence trail:
-
-- who published an article
-- what they published
-- which sources they cited
-- when each version appeared
-- who attested to it later
-- whether those attestations call it valid, outdated, disputed, or wrong
-- a simple consensus score over the attestations
-
-That is the point: fewer vibes, more receipts.
-
-## CLI Quick Start
-
-```sh
-npm install
-permabrain init
-permabrain probe --use-hyperbeam --url http://localhost:10000
-permabrain import-wikipedia "Ada Lovelace" --kind person --topic computing
-permabrain import-wikipedia "Arweave" --kind organization --topic web3
-permabrain import-wikipedia "Artificial intelligence" --kind subject --topic ai
-permabrain query --topic computing
-permabrain get person/ada-lovelace
-permabrain attest person/ada-lovelace --valid --confidence 0.95 --reason "Source-backed Wikipedia import"
-permabrain consensus person/ada-lovelace
-permabrain sync
-```
 
 ## Encrypted Articles
 
@@ -104,7 +141,7 @@ const result = await api.publish({
 const article = await api.getAndDecrypt('subject/article');
 ```
 
-## Command Catalog
+## CLI Command Catalog
 
 ### Identity and Local State
 
@@ -169,7 +206,7 @@ permabrain sync [--no-auto-merge] [--dry-run]
 permabrain probe [--use-hyperbeam] [--url <url>]
 permabrain probe-hyperbeam --url http://localhost:10000
 permabrain probe-devices --url http://localhost:10000
-permabrian remote list
+permabrain remote list
 permabrain remote add local-hb http://localhost:10000 --transport hyperbeam
 permabrain remote default local-hb
 permabrain remote probe
@@ -276,7 +313,7 @@ const article = await client.get('person/ada-lovelace');
 const { score } = await client.consensus('person/ada-lovelace');
 ```
 
-### Local HTTP API
+## Local HTTP API
 
 ```sh
 permabrain serve [--port 8765] [--stream-transport ws|sse] [--api-key <key>] [--cors-origin <origin>] [--access-log none|short|combined|json]
@@ -284,7 +321,7 @@ permabrain serve [--port 8765] [--stream-transport ws|sse] [--api-key <key>] [--
 
 Exposes the agent API over REST.
 
-#### API-key authentication
+### API-key Authentication
 
 When `--api-key` is set (or `PERMABRAIN_API_KEY` is set in the environment), all protected endpoints require the key. The following endpoints stay public so clients can discover the server and subscribe to live streams without a secret:
 
@@ -300,7 +337,7 @@ Pass the key in any of these ways:
 - Query parameter: `?api-key=<api-key>`
 - JSON body field: `{ "apiKey": "<api-key>" }` (for POST requests)
 
-#### CORS
+### CORS
 
 By default `permabrain serve` sends open CORS headers (`Access-Control-Allow-Origin: *`) so browser viewers and SDK clients on other origins can call the API. Preflight `OPTIONS` requests are handled automatically.
 
@@ -313,7 +350,7 @@ PERMABRAIN_CORS_ORIGIN=http://trusted.example.com permabrain serve
 
 When a specific origin is configured, the server only returns `Access-Control-Allow-Origin` for matching `Origin` headers.
 
-#### Rate limiting
+### Rate Limiting
 
 `permabrain serve` can apply a token-bucket rate limit per client to protect public endpoints:
 
@@ -335,7 +372,7 @@ PERMABRAIN_RATE_BURST=10
 
 When the limit is exceeded the server returns `429 Too Many Requests` with a `Retry-After` header. Rate-limit state is keyed by client IP; use `--trust-proxy` (or `PERMABRAIN_TRUST_PROXY=true`) when the server sits behind a reverse proxy so the `X-Forwarded-For` header is honored. Live event/stream routes (`/api/v1/events/stream`, `/api/v1/events/ws`, `/api/v1/articles/stream`) are exempt from HTTP rate limiting so long-lived connections are not disrupted.
 
-#### Request logging / access logs
+### Request Logging / Access Logs
 
 `permabrain serve` keeps a bounded in-memory ring buffer of recent HTTP requests and can optionally print structured access logs to the console:
 
@@ -403,7 +440,7 @@ The web viewer has an **Audit** (👁) tab that renders the persisted access log
 
 Every response includes an `X-Request-ID` header. Pass `X-Request-ID` in a request to correlate server logs with client traces.
 
-### Metrics and monitoring
+### Metrics and Monitoring
 
 `permabrain serve` exposes runtime and aggregate metrics at `/api/v1/metrics`:
 
@@ -461,7 +498,7 @@ const client = createClient({ baseUrl: 'http://localhost:8765', apiKey: 'pb_xxx'
 - `GET /api/v1/events/ws` — WebSocket real-time event stream
 - `GET /api/v1/articles/stream` — live filtered article/attestation SSE stream
 
-#### Route discovery and OpenAPI
+#### Route Discovery and OpenAPI
 
 The server advertises its full route catalog and an OpenAPI 3.0 JSON document:
 
@@ -502,18 +539,18 @@ Bundle import accepts `{ bundle, verify, skipDuplicates }` and history import ac
 
 Run `permabrain serve --help` for details.
 
-### Web viewer
+## Web Viewer
 
 `permabrain serve` also serves a browser UI at `/` (open `http://localhost:8765/` after starting the server). The viewer is a single-file HTML app that works against the local HTTP API and requires no build step. It is also a Progressive Web App: open it on a mobile browser, use **Add to Home Screen**, and it installs `viewer/manifest.json` and `viewer/service-worker.mjs` for offline caching.
 
-#### Navigation and layout
+### Navigation and Layout
 
 - **Sidebar** — search box, topic/author/date filters, sort controls, and toolbar buttons.
 - **Mobile toggle** — on small screens the sidebar collapses behind a hamburger menu.
 - **Theme toggle** — switch between light and dark mode (also configurable in Settings).
 - **Copy link** button — copies a permalink to the current view, filters, selected article, and active tab to the clipboard.
 
-#### Views and tabs
+### Views and Tabs
 
 | Button | View | What it does |
 |--------|------|--------------|
@@ -528,7 +565,7 @@ Run `permabrain serve --help` for details.
 | 🔧 Settings | Preferences | Transport (SSE / WebSocket), theme, default sort, results per page, and live-tail toggle. Persisted to localStorage and reflected in the URL. |
 | 📈 Admin | Monitoring panel | Read-only server overview: status, runtime metrics, recent access-log entries, and audit-log tail. |
 
-#### Search, filters, and sorting
+### Search, Filters, and Sorting
 
 The Home view supports:
 
@@ -540,7 +577,7 @@ The Home view supports:
 
 All choices are encoded in the URL, so copying the link restores the exact filtered view on another device or after a refresh.
 
-#### Article detail and version history
+### Article Detail and Version History
 
 Clicking an article card opens a modal with:
 
@@ -552,7 +589,7 @@ Clicking an article card opens a modal with:
 - **Raw** tab — ANS-104 DataItem fallback and Viewblock/source links
 - **Decrypt** panel — for encrypted articles, paste an X25519 seed to render plaintext locally (seed is never persisted or sent to the server)
 
-#### Live streams
+### Live Streams
 
 The viewer subscribes to live updates so the article list and counts refresh as articles or attestations are published:
 
@@ -563,7 +600,7 @@ The viewer subscribes to live updates so the article list and counts refresh as 
 
 The server advertises its preferred transport in `/health`; the viewer defaults to the server preference unless the URL or Settings override it.
 
-#### Compose
+### Compose
 
 The Compose view is a complete article editor:
 
@@ -575,7 +612,7 @@ The Compose view is a complete article editor:
 - Drafts are saved to `localStorage` under `permabrain-compose-draft` and restored automatically
 - Deep-linkable via `?view=compose`
 
-#### Batch publish
+### Batch Publish
 
 The Publish view lets you publish many files at once:
 
@@ -586,7 +623,7 @@ The Publish view lets you publish many files at once:
 - Inline report with succeeded/failed counts and per-file details
 - Deep-linkable via `?view=publish`
 
-#### Import and Export
+### Import and Export
 
 The Import / Export view consolidates data portability:
 
@@ -595,7 +632,7 @@ The Import / Export view consolidates data portability:
 - Supports API-key auth for protected servers
 - Active tab, export key, and export mode are restored from URL state
 
-#### Compare
+### Compare
 
 The Compare view visualizes changes between two versions:
 
@@ -604,7 +641,7 @@ The Compare view visualizes changes between two versions:
 - **Merge preview** and **apply merge** via `/api/v1/merge`
 - Deep-linkable via `?view=compare&compareBase=...&compareHead=...`
 
-#### Settings
+### Settings
 
 Open Settings to change:
 
@@ -616,18 +653,18 @@ Open Settings to change:
 
 Settings are saved to `localStorage` and reflected in URL query parameters. The viewer restores them on reload, and the URL takes precedence when sharing a link.
 
-#### Encrypted articles in the browser
+### Encrypted Articles in the Browser
 
 Encrypted articles are rendered with a lock icon and a decrypt panel. Paste the X25519 seed once per session; the seed is kept in memory only. Decryption runs locally in `viewer/crypto.mjs` using libsodium-style X25519 + XSalsa20-Poly1305 via the browser Web Crypto APIs. The plaintext is never stored or transmitted.
 
-#### PWA / offline support
+### PWA / Offline Support
 
 - `viewer/manifest.json` defines the app name, theme color, icons, and standalone display mode
 - `viewer/service-worker.mjs` caches the app shell and key assets on install
 - Offline loads serve the cached HTML; API calls naturally require the server to be reachable again
 - The viewer scope is the `viewer/` directory, so deep links such as `?view=compare&compareBase=a&compareHead=b` survive install
 
-### Multi-Agent Workflow Helpers
+## Multi-Agent Workflow Helpers
 
 ```sh
 permabrain provision-agent reviewer --key-type ed25519
@@ -765,7 +802,7 @@ Use public sources. Include source URLs. Attribution matters.
 
 For a copy-paste local HyperBEAM walkthrough, see [`docs/hyperbeam-quickstart.md`](docs/hyperbeam-quickstart.md).
 
-## Watching for updates
+## Watching for Updates
 
 Use `permabrain watch` to poll the configured transport and report new articles or attestations as they appear. The first run records everything currently visible as "seen" so restarts don't flood you with the full history.
 
@@ -892,3 +929,19 @@ To publish a new version to npm:
 5. Publish: `npm publish --access public`
 
 `package.json` `files` includes `src/`, `scripts/`, `viewer/`, `skills/`, `docs/`, `README.md`, `CHANGELOG.md`, `NEXT-STEPS.md`, and `package.json`. The `permabrain` bin entry points at `scripts/cli.mjs`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to file issues, submit PRs, and set up a development environment.
+
+## Code of Conduct
+
+Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md) to keep this community welcoming for everyone.
+
+## Security
+
+If you find a security vulnerability, please see [SECURITY.md](SECURITY.md) for responsible disclosure. **Do not open a public issue for security concerns.**
+
+## License
+
+This project is [MIT licensed](LICENSE).

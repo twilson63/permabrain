@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PermaBrain README Review — PRD</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1a1a2e; line-height: 1.6; }
+  h1 { border-bottom: 2px solid #4a90d9; padding-bottom: 0.5rem; }
+  h2 { color: #2c3e50; margin-top: 2rem; }
+  h3 { color: #34495e; }
+  .status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600; }
+  .status-planned { background: #e8f4fd; color: #2980b9; }
+  .status-in-progress { background: #fef9e7; color: #d4a017; }
+  .status-complete { background: #e8f8f0; color: #27ae60; }
+  .status-fail { background: #fdedec; color: #c0392b; }
+  .step { background: #f8f9fa; border-left: 4px solid #4a90d9; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+  .criteria { margin: 0.5rem 0 0 1.5rem; }
+  .criteria li { margin: 0.3rem 0; }
+  .rubric { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  .rubric th, .rubric td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+  .rubric th { background: #f0f4f8; }
+  .gap { background: #fdedec; border-left: 4px solid #c0392b; padding: 0.75rem; margin: 0.5rem 0; }
+  .risk { background: #fef9e7; border-left: 4px solid #f39c12; padding: 0.75rem; margin: 0.5rem 0; }
+  code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f8f9fa; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  .non-goal { background: #f0f4f8; border-left: 4px solid #7f8c8d; padding: 0.75rem; margin: 0.5rem 0; }
+</style>
+</head>
+<body>
+
+<h1>PermaBrain README Review — Product Requirements Document</h1>
+
+<h2>Task Summary</h2>
+<p>Conduct a full open-source readiness review of the PermaBrain project (v0.2.0) and bring the README (and missing open-source artifacts) up to modern open-source standards. The project is a local-first CLI + HTTP API + web viewer for a public signed knowledge graph on Arweave/HyperBEAM, with 82 source modules, 157 tests, Pi skills, and a PWA viewer.</p>
+
+<h2>Definition</h2>
+<p><strong>"Open-source readme standards"</strong> in this project means: a README that enables any developer to understand what the project is, install it, use it, contribute to it, and trust its safety — without needing prior knowledge. The README should be paired with standard open-source artifacts (LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md) that are referenced from the README itself.</p>
+<p><strong>What it does NOT mean:</strong> rewriting source code, changing the CLI API, adding features, or altering the viewer. This is documentation + artifact generation only.</p>
+
+<h2>Goals</h2>
+<ol>
+  <li>Identify all gaps between the current README and modern open-source standards</li>
+  <li>Create missing open-source artifacts (LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md)</li>
+  <li>Restructure and improve the README for clarity, completeness, and discoverability</li>
+  <li>Ensure the README references all new artifacts</li>
+  <li>Fix any inconsistencies between the README, CHANGELOG, and actual project state</li>
+</ol>
+
+<h2>Non-Goals</h2>
+<div class="non-goal">
+  <ul>
+    <li>Do not modify any source code in <code>src/</code>, <code>scripts/</code>, or <code>viewer/</code></li>
+    <li>Do not change the CLI surface or package.json structure</li>
+    <li>Do not add new features or change the architecture</li>
+    <li>Do not rewrite the entire README — improve incrementally with clear acceptance criteria per step</li>
+    <li>Do not remove existing content unless it is actively wrong or misleading</li>
+  </ul>
+</div>
+
+<h2>Constraints</h2>
+<ul>
+  <li>All new artifacts must be created in the project root (matching convention)</li>
+  <li>LICENSE must be compatible with npm packaging (currently missing)</li>
+  <li>README must remain a single file; do not fragment it across sub-pages</li>
+  <li>All references to features must match actual implementation (verify against <code>src/</code> files)</li>
+  <li>No secrets, private keys, or credentials in any artifact</li>
+  <li>Keep the existing tone: direct, practical, no marketing fluff</li>
+</ul>
+
+<h2>Risks</h2>
+<div class="risk">
+  <strong>Context.md is outdated.</strong> The <code>context.md</code> file says "no implementation files exist" — the project has 82 source modules. This file should be noted as stale but not part of this task's scope.
+</div>
+<div class="risk">
+  <strong>CHANGELOG has duplicate section headers.</strong> Two "### Added" sections under [Unreleased].
+</div>
+<div class="risk">
+  <strong>No LICENSE exists.</strong> Without one, the project is not actually open source. Must pick an appropriate license.
+</div>
+
+<h2>Steps</h2>
+
+<div class="step">
+  <h3>Step 1: Audit — identify all gaps</h3>
+  <p>Compare the current README and project state against open-source standards checklists.</p>
+  <ul class="criteria">
+    <li>Checklist item: Missing LICENSE file → gap identified</li>
+    <li>Checklist item: Missing CONTRIBUTING.md → gap identified</li>
+    <li>Checklist item: Missing CODE_OF_CONDUCT.md → gap identified</li>
+    <li>Checklist item: Missing SECURITY.md → gap identified</li>
+    <li>Checklist item: No table of contents in README → gap identified</li>
+    <li>Checklist item: No feature summary / what's new at top → gap identified</li>
+    <li>Checklist item: No badges (build, version, license) → gap identified</li>
+    <li>Checklist item: No "How to Contribute" section in README → gap identified</li>
+    <li>Checklist item: No "Community / Getting Help" section → gap identified</li>
+    <li>Checklist item: CHANGELOG duplicate "### Added" headers → gap identified</li>
+    <li>Checklist item: README does not reference new artifacts → gap identified</li>
+    <li>Checklist item: package.json missing <code>license</code>, <code>repository</code>, <code>bugs</code>, <code>homepage</code> fields → gap identified</li>
+    <li>Evidence: visual inspection of project files and README</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<div class="step">
+  <h3>Step 2: Choose and create LICENSE</h3>
+  <p>Create a LICENSE file appropriate for an npm package that is a CLI tool and library. MIT is the standard for npm open-source projects.</p>
+  <ul class="criteria">
+    <li>LICENSE file exists in project root</li>
+    <li>License is permissive and npm-compatible (MIT recommended)</li>
+    <li>Year and copyright holder are correct</li>
+    <li><code>package.json</code> <code>"license"</code> field is added</li>
+    <li>Evidence: file exists, <code>npm run publish:dry-run</code> succeeds</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<div class="step">
+  <h3>Step 3: Create CONTRIBUTING.md</h3>
+  <p>Create a contribution guide covering: how to file issues, how to submit PRs, development setup, testing, coding standards, and the code of conduct reference.</p>
+  <ul class="criteria">
+    <li>CONTRIBUTING.md exists in project root</li>
+    <li>Covers issue reporting, PR process, dev setup</li>
+    <li>References CODE_OF_CONDUCT.md</li>
+    <li>Mentions test commands (<code>npm test</code>)</li>
+    <li>Evidence: file exists, readable, references correct commands</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<div class="step">
+  <h3>Step 4: Create CODE_OF_CONDUCT.md</h3>
+  <p>Create a Code of Conduct. Contributor Covenant 2.1 is the npm ecosystem standard.</p>
+  <ul class="criteria">
+    <li>CODE_OF_CONDUCT.md exists in project root</li>
+    <li>Uses Contributor Covenant 2.1 or equivalent</li>
+    <li>Evidence: file exists</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<div class="step">
+  <h3>Step 5: Create SECURITY.md</h3>
+  <p>Create a security policy covering: how to report vulnerabilities, expected response time, and what not to do (no public disclosure before fix).</p>
+  <ul class="criteria">
+    <li>SECURITY.md exists in project root</li>
+    <li>Covers responsible disclosure process</li>
+    <li>Evidence: file exists</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<div class="step">
+  <h3>Step 6: Restructure README with table of contents and improved flow</h3>
+  <p>Restructure the README for better discoverability: add a table of contents, move key information higher, add feature summary, badges, and reference to new artifacts.</p>
+  <ul class="criteria">
+    <li>Table of contents added (anchors to all major sections)</li>
+    <li>Feature summary or "What is PermaBrain" blurb near top</li>
+    <li>Badges section (build, version, license, npm downloads if available)</li>
+    <li>"Getting Started" or "Quick Start" section elevated</li>
+    <li>Links to CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE</li>
+    <li>Existing content preserved (not removed)</li>
+    <li>Evidence: rendered HTML readable, all anchors resolve, no broken references</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<div class="step">
+  <h3>Step 7: Fix CHANGELOG inconsistencies</h3>
+  <p>Fix the duplicate "### Added" headers under [Unreleased] in CHANGELOG.md.</p>
+  <ul class="criteria">
+    <li>Only one "### Added" section under [Unreleased] (merge the two)</li>
+    <li>All changelog entries follow Keep a Changelog format</li>
+    <li>Evidence: CHANGELOG.md parses correctly, no duplicate headers</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<div class="step">
+  <h3>Step 8: Update package.json metadata</h3>
+  <p>Add <code>license</code>, <code>repository</code>, <code>bugs</code>, <code>homepage</code>, and <code>engines</code> fields to package.json.</p>
+  <ul class="criteria">
+    <li><code>"license"</code> field matches chosen LICENSE</li>
+    <li><code>"repository"</code> points to GitHub repo</li>
+    <li><code>"bugs"</code> points to GitHub issues URL</li>
+    <li><code>"homepage"</code> set to repo URL</li>
+    <li><code>"engines"</code> specifies Node.js version (20+ based on CI)</li>
+    <li><code>npm run publish:dry-run</code> succeeds</li>
+    <li>Evidence: <code>npm run publish:dry-run</code> exit 0</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<div class="step">
+  <h3>Step 9: Final validation</h3>
+  <p>Run full validation: npm packaging check, README render check, all artifact existence checks.</p>
+  <ul class="criteria">
+    <li>All required files exist: LICENSE, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, README.md</li>
+    <li><code>npm run publish:dry-run</code> exits 0</li>
+    <li>README renders without broken internal anchors</li>
+    <li>No secrets or private data in any new artifact</li>
+    <li>CHANGELOG format is valid</li>
+    <li>Evidence: command output, file listing, rendered HTML inspection</li>
+  </ul>
+  <p><strong>Status:</strong> <span class="status status-planned">planned</span></p>
+</div>
+
+<h2>Validation Commands</h2>
+<pre><code>ls LICENSE CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md
+node --check README.md 2>/dev/null || echo "markdown-only, skip node check"
+npm run publish:dry-run
+cat CHANGELOG.md | grep -c "^### Added"  # should be 1 under [Unreleased]</code></pre>
+
+<h2>LLM-as-Judge Rubric</h2>
+<table class="rubric">
+  <tr><th>Area</th><th>What to check</th></tr>
+  <tr><td>Correctness</td><td>Do all artifacts exist? Do they reference the right project name, repo URL, and commands?</td></tr>
+  <tr><td>Acceptance coverage</td><td>Does every step have evidence? Are all criteria verifiable?</td></tr>
+  <tr><td>Security/privacy</td><td>No secrets, keys, or private data in any new file?</td></tr>
+  <tr><td>Simplicity</td><td>Artifacts are concise and don't over-explain</td></tr>
+  <tr><td>Taste</td><td>README flows well, TOC is useful, tone is consistent with existing style</td></tr>
+  <tr><td>Originality</td><td>README additions feel native to the project, not copy-pasted generic templates</td></tr>
+  <tr><td>Maintainability</td><td>Future contributors can find what they need quickly</td></tr>
+  <tr><td>Validation</td><td><code>npm run publish:dry-run</code> passes, all files exist</td></tr>
+</table>
+
+<h2>Final Acceptance Criteria</h2>
+<ol>
+  <li>README has a table of contents with working anchors to every major section</li>
+  <li>README has a brief feature summary near the top</li>
+  <li>README links to CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE</li>
+  <li>LICENSE file exists and matches <code>package.json</code> license field</li>
+  <li>CONTRIBUTING.md exists with issue/PR/dev setup guidance</li>
+  <li>CODE_OF_CONDUCT.md exists (Contributor Covenant or equivalent)</li>
+  <li>SECURITY.md exists with responsible disclosure guidance</li>
+  <li>CHANGELOG duplicate headers are fixed</li>
+  <li><code>package.json</code> has <code>license</code>, <code>repository</code>, <code>bugs</code>, <code>homepage</code>, <code>engines</code></li>
+  <li><code>npm run publish:dry-run</code> exits 0</li>
+  <li>No secrets, keys, or private data in any new file</li>
+  <li>Taste score ≥ 4, Originality score ≥ 4</li>
+</ol>
+
+</body>
+</html>
