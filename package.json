@@ -183,5 +183,17 @@
   },
   "devDependencies": {
     "@daytona/sdk": "^0.189.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/twilson63/permabrain.git"
+  },
+  "bugs": {
+    "url": "https://github.com/twilson63/permabrain/issues"
+  },
+  "homepage": "https://github.com/twilson63/permabrain#readme",
+  "engines": {
+    "node": ">=20"
   }
 }
