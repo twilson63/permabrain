@@ -16,6 +16,7 @@ const DEFAULT_IMAGE = 'ghcr.io/twilson63/hyperbeam-dev:latest';
 const DEFAULT_PORT = 8734;
 const DEFAULT_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 1_000;
+const DEFAULT_LOG_LINES = 50;
 
 async function resolveProjectDir(input) {
   if (input) {
@@ -129,6 +130,15 @@ export async function pullImage(image, deps = {}) {
   return true;
 }
 
+export async function containerLogs(name, { spawnFn = spawn, lines = DEFAULT_LOG_LINES } = {}) {
+  const { stdout, stderr } = await runProcess(
+    'docker',
+    ['logs', '--tail', String(lines), name],
+    { spawnFn, timeoutMs: 30_000 }
+  );
+  return { logs: stdout, stderr: stderr || '' };
+}
+
 export async function runContainer({ image, port, projectDir, containerName }, deps = {}) {
   const { spawnFn = spawn } = deps;
   const name = containerName || `permabrain-dev-${port}`;
@@ -223,6 +233,8 @@ export async function deployDev(args = {}, deps = {}) {
   const dryRun = args['dry-run'] || args.dryRun || false;
   const forcePull = args.pull || false;
   const json = args.json || false;
+  const enableLogs = args.logs || false;
+  const logLines = Number(args['log-lines'] || args.logLines || DEFAULT_LOG_LINES);
 
   if (dryRun) {
     const plan = {
@@ -233,6 +245,8 @@ export async function deployDev(args = {}, deps = {}) {
       command: 'docker run -d --rm -p PORT:8734 -v PROJECT:/work IMAGE sh -c "cd /work && rebar3 device local"',
       verifyUrl: `http://localhost:${port}/~meta@1.0/info`,
       requiredDevices: ['permabrain-consensus', 'permabrain-query'],
+      logs: enableLogs,
+      logLines,
     };
     if (json) {
       log.log(JSON.stringify(plan, null, 2));
@@ -259,6 +273,7 @@ export async function deployDev(args = {}, deps = {}) {
   const verifyUrl = `http://localhost:${port}/~meta@1.0/info`;
   const requiredDevices = ['permabrain-consensus', 'permabrain-query'];
   let verifyResult;
+  let capturedLogs = null;
   try {
     verifyResult = await waitForDevices(verifyUrl, requiredDevices, {
       fetchFn,
@@ -268,7 +283,20 @@ export async function deployDev(args = {}, deps = {}) {
   } catch (err) {
     log.error(`Deployment failed: ${err.message}`);
     log.error(`Container ${containerId} (${name}) may still be running for inspection.`);
-    throw err;
+    if (enableLogs) {
+      try {
+        capturedLogs = await containerLogs(name, { spawnFn, lines: logLines });
+        if (capturedLogs.logs) log.error('Recent container logs:\n' + capturedLogs.logs);
+      } catch (logErr) {
+        log.error(`Could not fetch container logs: ${logErr.message}`);
+      }
+    }
+    const enriched = new Error(err.message);
+    enriched.containerId = containerId;
+    enriched.containerName = name;
+    enriched.verifyUrl = verifyUrl;
+    enriched.logs = capturedLogs?.logs || null;
+    throw enriched;
   }
 
   const result = {
@@ -292,6 +320,14 @@ export async function deployDev(args = {}, deps = {}) {
     log.log(`  Port:         ${port}`);
     log.log(`  Verify URL:   ${verifyUrl}`);
     log.log(`  Devices:      ${requiredDevices.join(', ')}`);
+    if (enableLogs) {
+      try {
+        const { logs: tail } = await containerLogs(name, { spawnFn, lines: logLines });
+        result.logs = tail;
+      } catch (logErr) {
+        log.error(`Could not fetch container logs: ${logErr.message}`);
+      }
+    }
   }
 
   return result;

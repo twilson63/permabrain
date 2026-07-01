@@ -14,6 +14,7 @@ import {
   imageExists,
   runContainer,
   waitForDevices,
+  containerLogs,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -299,5 +300,79 @@ console.log('11. CLI deploy-dev --help works');
   assert.match(help, /--pull/);
 }
 console.log('   ✓ CLI help works');
+
+console.log('12. deployDev --logs includes log capture plan in dry-run');
+{
+  const log = fakeLog();
+  const result = await deployDev({ 'dry-run': true, logs: true, 'log-lines': '25' }, { log });
+  assert.equal(result.logs, true);
+  assert.equal(result.logLines, 25);
+}
+console.log('   ✓ dry-run logs options included');
+
+console.log('13. deployDev --logs captures container logs on timeout');
+{
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key.startsWith('docker images')) {
+      out = { code: 0, stdout: `${image}\n` };
+    } else if (key.startsWith('docker run')) {
+      out = { code: 0, stdout: 'c1\n' };
+    } else if (key.startsWith('docker logs')) {
+      out = { code: 0, stdout: 'rebar3 crash: no devices loaded\n' };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const fetchFn = fakeFetch([
+    { ok: true, body: JSON.stringify({ devices: ['other-device'] }) },
+  ]);
+  const log = fakeLog();
+  let err;
+  try {
+    await deployDev({ timeout: 50, logs: true }, { spawnFn, fetchFn, log });
+    assert.fail('expected deployDev to throw');
+  } catch (e) {
+    err = e;
+  }
+  assert.match(err.message, /Timed out waiting/);
+  assert.equal(err.logs, 'rebar3 crash: no devices loaded');
+  assert.ok(logs.some((k) => k.startsWith('docker logs')), 'fetched container logs');
+  assert.ok(log.output.some((line) => line.includes('Recent container logs')));
+  assert.ok(log.output.some((line) => line.includes('rebar3 crash')));
+}
+console.log('   ✓ logs captured on timeout');
+
+console.log('14. containerLogs fetches last N lines');
+{
+  const spawnFn = (cmd, args) => {
+    assert.equal(cmd, 'docker');
+    assert.deepEqual(args.slice(0, 3), ['logs', '--tail', '10']);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('line1\nline2\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const result = await containerLogs('permabrain-dev-8734', { spawnFn, lines: 10 });
+  assert.equal(result.logs, 'line1\nline2');
+}
+console.log('   ✓ containerLogs works');
 
 console.log('✅ All deploy-dev tests passed');

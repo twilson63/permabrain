@@ -119,7 +119,7 @@ export const COMMAND_OPTIONS = {
   plan: ['--topic', '--kind', '--json'],
   match: ['--key', '--value', '--url'],
   'deploy-consensus': ['--url'],
-  'deploy-dev': ['--image', '--port', '--project-dir', '--pull', '--timeout', '--dry-run'],
+  'deploy-dev': ['--image', '--port', '--project-dir', '--pull', '--timeout', '--dry-run', '--logs', '--log-lines', '--json'],
   'meta-info': ['--url'],
   whois: ['--url'],
   reference: [],
