@@ -173,6 +173,7 @@
     "test:viewer-archive": "node test/viewer-archive.mjs",
     "test:viewer-stats": "node test/viewer-stats.mjs",
     "test:deploy-dev": "node test/deploy-dev.mjs",
+    "test:stop-dev": "node test/deploy-dev.mjs",
     "test:hb-forge": "node test/hb-forge.mjs",
     "test:hb-forge-smoke": "node test/hb-forge.mjs"
   },

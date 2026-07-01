@@ -15,6 +15,8 @@ import {
   runContainer,
   waitForDevices,
   containerLogs,
+  stopDev,
+  listPermabrainDevContainers,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -374,5 +376,127 @@ console.log('14. containerLogs fetches last N lines');
   assert.equal(result.logs, 'line1\nline2');
 }
 console.log('   ✓ containerLogs works');
+
+console.log('15. stopDev stops and removes default container by port');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  };
+  const log = fakeLog();
+  const result = await stopDev({}, { spawnFn, log });
+  assert.deepEqual(result.stopped, ['permabrain-dev-8734']);
+  assert.ok(logs.includes('docker stop permabrain-dev-8734'));
+  assert.ok(logs.includes('docker rm permabrain-dev-8734'));
+  assert.ok(log.output.some((line) => line.includes('Stopped and removed permabrain-dev-8734')));
+}
+console.log('   ✓ stopDev default port');
+
+console.log('16. stopDev --all discovers and stops all dev containers');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps')) {
+      setImmediate(() => child.stdout.emit('data', Buffer.from('permabrain-dev-8734\npermabrain-dev-9000\n')));
+    }
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  };
+  const result = await stopDev({ all: true }, { spawnFn, log: fakeLog() });
+  assert.deepEqual(result.stopped, ['permabrain-dev-8734', 'permabrain-dev-9000']);
+  assert.ok(logs.includes('docker stop permabrain-dev-8734'));
+  assert.ok(logs.includes('docker stop permabrain-dev-9000'));
+}
+console.log('   ✓ stopDev --all');
+
+console.log('17. stopDev reports no containers when none exist');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  };
+  const log = fakeLog();
+  const result = await stopDev({ all: true }, { spawnFn, log });
+  assert.deepEqual(result.stopped, []);
+  assert.ok(log.output.some((line) => line.includes('No permabrain-dev-* containers found')));
+}
+console.log('   ✓ stopDev empty list');
+
+console.log('18. stopDev --json outputs JSON');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  };
+  const log = fakeLog();
+  const result = await stopDev({ port: '9000', json: true }, { spawnFn, log });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.stopped, ['permabrain-dev-9000']);
+  assert.ok(log.output.some((line) => line.includes('"stopped"')));
+}
+console.log('   ✓ stopDev --json');
+
+console.log('19. stopDev --container-name targets a specific container');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    logs.push([cmd, ...args].join(' '));
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  };
+  const result = await stopDev({ 'container-name': 'custom-dev' }, { spawnFn, log: fakeLog() });
+  assert.deepEqual(result.stopped, ['custom-dev']);
+  assert.ok(logs.includes('docker stop custom-dev'));
+}
+console.log('   ✓ stopDev custom container name');
+
+console.log('20. listPermabrainDevContainers filters dev containers');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('permabrain-dev-8734\nother-thing\npermabrain-dev-9000\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const names = await listPermabrainDevContainers(spawnFn);
+  assert.deepEqual(names, ['permabrain-dev-8734', 'permabrain-dev-9000']);
+}
+console.log('   ✓ listPermabrainDevContainers filters');
+
+console.log('21. CLI stop-dev --help works');
+{
+  const help = execSync(`node ${join(process.cwd(), 'scripts/cli.mjs')} stop-dev --help`, {
+    encoding: 'utf8',
+  });
+  assert.match(help, /stop-dev/);
+  assert.match(help, /--port/);
+  assert.match(help, /--all/);
+  assert.match(help, /--container-name/);
+}
+console.log('   ✓ stop-dev CLI help works');
 
 console.log('✅ All deploy-dev tests passed');

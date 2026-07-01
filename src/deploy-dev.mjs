@@ -139,6 +139,99 @@ export async function containerLogs(name, { spawnFn = spawn, lines = DEFAULT_LOG
   return { logs: stdout, stderr: stderr || '' };
 }
 
+function defaultContainerName(port) {
+  return `permabrain-dev-${port}`;
+}
+
+export async function listPermabrainDevContainers(spawnFn = spawn) {
+  const { stdout } = await runProcess(
+    'docker',
+    ['ps', '-a', '--format', '{{.Names}}', '--filter', 'name=permabrain-dev-'],
+    { spawnFn, timeoutMs: 30_000 }
+  );
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((name) => name && name.startsWith('permabrain-dev-'));
+}
+
+export async function stopDev(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    log = console,
+    processEnv = process.env,
+  } = deps;
+
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+  const nameArg = args['container-name'] || args.containerName;
+  const all = args.all || false;
+  const json = args.json || false;
+
+  let names;
+  if (all) {
+    names = await listPermabrainDevContainers(spawnFn);
+    if (names.length === 0) {
+      const msg = 'No permabrain-dev-* containers found.';
+      if (json) {
+        log.log(JSON.stringify({ ok: true, stopped: [], message: msg }));
+      } else {
+        log.log(msg);
+      }
+      return { ok: true, stopped: [], message: msg };
+    }
+  } else {
+    names = [nameArg || defaultContainerName(port)];
+  }
+
+  const stopped = [];
+  const errors = [];
+  for (const name of names) {
+    try {
+      await runProcess('docker', ['stop', name], { spawnFn, timeoutMs: 30_000 });
+      stopped.push(name);
+    } catch (err) {
+      if (/No such container/.test(err.message)) {
+        // Already gone; not an error.
+      } else {
+        errors.push({ name, error: err.message });
+      }
+    }
+  }
+
+  const removed = [];
+  for (const name of stopped) {
+    try {
+      await runProcess('docker', ['rm', name], { spawnFn, timeoutMs: 30_000 });
+      removed.push(name);
+    } catch (err) {
+      if (!/No such container|is not running/.test(err.message)) {
+        errors.push({ name, error: err.message });
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    const summary = errors.map((e) => `${e.name}: ${e.error}`).join('; ');
+    throw new Error(`Failed to stop dev container(s): ${summary}`);
+  }
+
+  const result = {
+    ok: true,
+    stopped: removed,
+    message: removed.length
+      ? `Stopped and removed ${removed.join(', ')}`
+      : `No running permabrain-dev container found for port ${port}.`,
+  };
+
+  if (json) {
+    log.log(JSON.stringify(result, null, 2));
+  } else {
+    log.log(result.message);
+  }
+
+  return result;
+}
+
 export async function runContainer({ image, port, projectDir, containerName }, deps = {}) {
   const { spawnFn = spawn } = deps;
   const name = containerName || `permabrain-dev-${port}`;
