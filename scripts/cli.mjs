@@ -44,6 +44,7 @@ const COMMANDS = [
   'deploy-consensus',
   'deploy-dev',
   'stop-dev',
+  'status-dev',
   'meta-info',
   'whois',
   'reference',
@@ -147,6 +148,7 @@ Commands:
   deploy-consensus             Deploy PermaBrain consensus Lua modules to HyperBEAM
   deploy-dev                   Deploy local HyperBEAM dev container with PermaBrain devices
   stop-dev                     Stop a running local HyperBEAM dev container
+  status-dev                   Show status of a running local HyperBEAM dev container
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
@@ -389,6 +391,21 @@ Examples:
   permabrain stop-dev --port 8734
   permabrain stop-dev --all
   permabrain stop-dev --json`,
+    'status-dev': `Usage: permabrain status-dev [--port N] [--container-name <name>] [--all] [--json]
+
+Show the status of a HyperBEAM Forge dev container started by deploy-dev.
+
+Options:
+  --port N                  Status for the container on this port (default 8734)
+  --container-name <name>   Inspect a specific container by name
+  --all                     Show status for all permabrain-dev-* containers
+  --json                    Output structured JSON
+
+Examples:
+  permabrain status-dev
+  permabrain status-dev --port 8734
+  permabrain status-dev --all
+  permabrain status-dev --json`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,
