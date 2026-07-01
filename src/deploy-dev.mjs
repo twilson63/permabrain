@@ -232,6 +232,126 @@ export async function stopDev(args = {}, deps = {}) {
   return result;
 }
 
+export async function getDevContainerStatus(args = {}, deps = {}) {
+  const { spawnFn = spawn, fetchFn = fetch, timeoutMs = 5_000 } = deps;
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+  const nameArg = args['container-name'] || args.containerName;
+  const name = nameArg || defaultContainerName(port);
+
+  let container = null;
+  try {
+    const { stdout } = await runProcess(
+      'docker',
+      ['ps', '--format', '{{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.ID}}', '--filter', `name=${name}`],
+      { spawnFn, timeoutMs }
+    );
+    const lines = stdout.split(/\r?\n/).filter(Boolean);
+    if (lines.length > 0) {
+      const parts = lines[0].split('\t');
+      container = {
+        name: parts[0] || name,
+        ports: parts[1] || '',
+        status: parts[2] || '',
+        id: parts[3] || '',
+        port,
+      };
+    }
+  } catch (err) {
+    if (/Docker is not installed/.test(err.message)) throw err;
+    // container stays null
+  }
+
+  let healthy = null;
+  let info = null;
+  if (container) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2_000);
+      const res = await fetchFn(`http://localhost:${port}/~meta@1.0/info`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const text = await res.text();
+        info = text;
+        healthy = ['permabrain-consensus', 'permabrain-query'].every((device) =>
+          text.includes(device)
+        );
+      } else {
+        healthy = false;
+      }
+    } catch {
+      healthy = false;
+    }
+  }
+
+  return {
+    ok: true,
+    running: !!container,
+    container,
+    verifyUrl: `http://localhost:${port}/~meta@1.0/info`,
+    healthy,
+    info,
+  };
+}
+
+export async function statusDev(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    fetchFn = fetch,
+    log = console,
+  } = deps;
+
+  const all = args.all || false;
+  const json = args.json || false;
+
+  if (all) {
+    const names = await listPermabrainDevContainers(spawnFn);
+    const statuses = [];
+    for (const name of names) {
+      const s = await getDevContainerStatus({ 'container-name': name }, { spawnFn, fetchFn });
+      statuses.push(s);
+    }
+
+    const result = {
+      ok: true,
+      running: statuses.length,
+      total: statuses.length,
+      containers: statuses,
+    };
+
+    if (json) {
+      log.log(JSON.stringify(result, null, 2));
+    } else if (statuses.length === 0) {
+      log.log('No permabrain-dev-* containers are running.');
+    } else {
+      log.log(`${statuses.length} permabrain-dev container(s) running:`);
+      for (const s of statuses) {
+        const health = s.healthy === true ? 'healthy' : s.healthy === false ? 'unhealthy' : 'unknown';
+        log.log(`  ${s.container.name} (port ${s.container.port}) — ${s.container.status} — ${health}`);
+      }
+    }
+    return result;
+  }
+
+  const result = await getDevContainerStatus(args, { spawnFn, fetchFn });
+
+  if (json) {
+    log.log(JSON.stringify(result, null, 2));
+  } else if (!result.running) {
+    const port = Number(args.port || args.p || DEFAULT_PORT);
+    log.log(`No permabrain-dev container is running for port ${port}.`);
+  } else {
+    const health = result.healthy === true ? 'healthy' : result.healthy === false ? 'unhealthy' : 'unknown';
+    log.log(`HyperBEAM dev container ${result.container.name} is ${result.container.status}.`);
+    log.log(`  Port:        ${result.container.port}`);
+    log.log(`  Verify URL:  ${result.verifyUrl}`);
+    log.log(`  Health:      ${health}`);
+  }
+
+  return result;
+}
+
 export async function runContainer({ image, port, projectDir, containerName }, deps = {}) {
   const { spawnFn = spawn } = deps;
   const name = containerName || `permabrain-dev-${port}`;

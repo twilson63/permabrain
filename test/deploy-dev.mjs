@@ -17,6 +17,8 @@ import {
   containerLogs,
   stopDev,
   listPermabrainDevContainers,
+  getDevContainerStatus,
+  statusDev,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -498,5 +500,146 @@ console.log('21. CLI stop-dev --help works');
   assert.match(help, /--container-name/);
 }
 console.log('   ✓ stop-dev CLI help works');
+
+console.log('22. getDevContainerStatus reports running and healthy container');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    logs.push([cmd, ...args].join(' '));
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp 2 minutes\tabc123\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' });
+  const result = await getDevContainerStatus({}, { spawnFn, fetchFn });
+  assert.equal(result.ok, true);
+  assert.equal(result.running, true);
+  assert.equal(result.healthy, true);
+  assert.equal(result.container.port, 8734);
+  assert.equal(result.container.name, 'permabrain-dev-8734');
+}
+console.log('   ✓ getDevContainerStatus running + healthy');
+
+console.log('23. getDevContainerStatus reports not running');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  };
+  const result = await getDevContainerStatus({}, { spawnFn });
+  assert.equal(result.running, false);
+  assert.equal(result.container, null);
+  assert.equal(result.healthy, null);
+}
+console.log('   ✓ getDevContainerStatus not running');
+
+console.log('24. getDevContainerStatus marks unhealthy when devices are missing');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp 1 minute\tabc123\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"other-device": true}' });
+  const result = await getDevContainerStatus({}, { spawnFn, fetchFn });
+  assert.equal(result.running, true);
+  assert.equal(result.healthy, false);
+}
+console.log('   ✓ getDevContainerStatus missing devices');
+
+console.log('25. statusDev --all reports multiple containers');
+{
+  const fetchFn = (() => {
+    let i = 0;
+    const responses = [
+      { ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' },
+      { ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' },
+    ];
+    return async () => responses[i++];
+  })();
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps -a')) {
+      setImmediate(() => child.stdout.emit('data', Buffer.from('permabrain-dev-8734\npermabrain-dev-9000\n')));
+    } else if (key.startsWith('docker ps --format')) {
+      const name = args[args.indexOf('--filter') + 1].split('=')[1];
+      const port = name.split('-').pop();
+      setImmediate(() => child.stdout.emit('data', Buffer.from(`${name}\t0.0.0.0:${port}->8734/tcp\tUp\tid-${port}\n`)));
+    }
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  };
+  const log = fakeLog();
+  const result = await statusDev({ all: true }, { spawnFn, fetchFn, log });
+  assert.equal(result.total, 2);
+  assert.equal(result.containers[0].healthy, true);
+  assert.ok(result.containers[1].container.ports.includes('9000'), 'second container exposes port 9000');
+}
+console.log('   ✓ statusDev --all');
+
+console.log('26. statusDev prints not-running message');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('close', 0));
+    return child;
+  };
+  const log = fakeLog();
+  const result = await statusDev({}, { spawnFn, log });
+  assert.equal(result.running, false);
+  assert.ok(log.output.some((line) => line.includes('No permabrain-dev container is running')));
+}
+console.log('   ✓ statusDev not running message');
+
+console.log('27. statusDev --json outputs structured status');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('permabrain-dev-9999\t0.0.0.0:9999->8734/tcp\tUp\tdef789\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' });
+  const log = fakeLog();
+  const result = await statusDev({ port: '9999', json: true }, { spawnFn, fetchFn, log });
+  assert.equal(result.running, true);
+  assert.equal(result.healthy, true);
+  assert.ok(log.output.some((line) => line.includes('"running"')));
+}
+console.log('   ✓ statusDev --json');
+
+console.log('28. CLI status-dev --help works');
+{
+  const help = execSync(`node ${join(process.cwd(), 'scripts/cli.mjs')} status-dev --help`, {
+    encoding: 'utf8',
+  });
+  assert.match(help, /status-dev/);
+  assert.match(help, /--port/);
+  assert.match(help, /--all/);
+  assert.match(help, /--container-name/);
+}
+console.log('   ✓ status-dev CLI help works');
 
 console.log('✅ All deploy-dev tests passed');
