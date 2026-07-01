@@ -76,6 +76,7 @@ import {
 
 import { importBundleAutoDetect, importReportToMarkdown, BUNDLE_TYPES, detectBundleType } from './import-unified.mjs';
 import { publishDirectory, publishDirectoryToMarkdown } from './publish-dir.mjs';
+import { deployDev } from './deploy-dev.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -103,6 +104,7 @@ export async function runCommand(command, args) {
   if (command === 'probe-devices') return probeDevicesCommand(args);
   if (command === 'match') return matchCommand(args);
   if (command === 'deploy-consensus') return deployConsensusCommand(args);
+  if (command === 'deploy-dev') return deployDevCommand(args);
   if (command === 'meta-info') return metaInfoCommand(args);
   if (command === 'whois') return whoisCommand(args);
   if (command === 'reference') return referenceCommand(args);
@@ -708,6 +710,10 @@ async function deployConsensusCommand(args) {
     console.log(`  Query module: ${result.queryModuleId}`);
   }
   return result;
+}
+
+async function deployDevCommand(args) {
+  return deployDev(args, { log: console });
 }
 
 async function metaInfoCommand(args) {

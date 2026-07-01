@@ -42,6 +42,7 @@ const COMMANDS = [
   'plan',
   'match',
   'deploy-consensus',
+  'deploy-dev',
   'meta-info',
   'whois',
   'reference',
@@ -143,6 +144,7 @@ Commands:
   plan <file>                  Generate a PermaBrain plan JSON from a PRD/goal file
   match                        Query the HyperBEAM match device by tag key/value
   deploy-consensus             Deploy PermaBrain consensus Lua modules to HyperBEAM
+  deploy-dev                   Deploy local HyperBEAM dev container with PermaBrain devices
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
@@ -344,6 +346,29 @@ a specific tag key-value pair. Returns matching message IDs.`,
 
 Deploys the PermaBrain consensus and query Lua modules to a
 HyperBEAM node via the bundler device. Returns module IDs.`,
+    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--timeout <ms>] [--dry-run] [--json]
+
+Deploy the HyperBEAM Forge dev container locally and verify that the
+PermaBrain devices are loaded.
+
+This command pulls the dev image if it is missing (or always with --pull),
+starts a detached Docker container on the requested port, and polls
+http://localhost:PORT/~meta@1.0/info until both permabrain-consensus and
+permabrain-query are reported.
+
+Options:
+  --image <image>      Dev image to use (default ghcr.io/twilson63/hyperbeam-dev:latest)
+  --port N             Host port to bind (default 8734)
+  --project-dir <path> Path to the HyperBEAM Forge project (default <repo-root>/hb-forge)
+  --pull               Force docker pull even if the image exists locally
+  --timeout <ms>       Max time to wait for the node, in milliseconds (default 120000)
+  --dry-run            Print the deployment plan without running Docker
+  --json               Output structured JSON
+
+Examples:
+  permabrain deploy-dev
+  permabrain deploy-dev --port 8734 --pull
+  permabrain deploy-dev --dry-run --json`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,
