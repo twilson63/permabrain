@@ -579,6 +579,116 @@ export async function restartDev(args = {}, deps = {}) {
   };
 }
 
+export async function logsDev(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    log = console,
+  } = deps;
+
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+  const containerName = args['container-name'] || args.containerName || defaultContainerName(port);
+  const lines = Number(args['log-lines'] || args.logLines || DEFAULT_LOG_LINES);
+  const follow = args.follow || args.f || false;
+  const since = args.since || null;
+  const timestamps = args.timestamps || args.t || false;
+  const json = args.json || false;
+
+  if (json) {
+    // JSON output cannot stream follow mode; force non-follow.
+    if (follow) {
+      log.error('Warning: --follow is not compatible with --json; fetching logs only.');
+    }
+  }
+
+  if (follow && !json) {
+    return streamLogs(containerName, { spawnFn, log, since, timestamps });
+  }
+
+  const dockerArgs = ['logs', '--tail', String(lines)];
+  if (timestamps) dockerArgs.push('--timestamps');
+  if (since) dockerArgs.push('--since', String(since));
+  dockerArgs.push(containerName);
+
+  let result;
+  try {
+    const { stdout, stderr } = await runProcess('docker', dockerArgs, {
+      spawnFn,
+      timeoutMs: 30_000,
+    });
+    result = { ok: true, name: containerName, logs: stdout, stderr: stderr || '' };
+  } catch (err) {
+    if (/No such container/.test(err.message)) {
+      throw new Error(`No dev container found: ${containerName}`);
+    }
+    throw err;
+  }
+
+  if (json) {
+    log.log(JSON.stringify(result, null, 2));
+  } else {
+    if (result.logs) log.log(result.logs);
+    if (result.stderr) log.error(result.stderr);
+  }
+
+  return result;
+}
+
+export function streamLogs(name, { spawnFn = spawn, log = console, since = null, timestamps = false } = {}) {
+  const args = ['logs', '-f'];
+  if (timestamps) args.push('--timestamps');
+  if (since) args.push('--since', String(since));
+  args.push(name);
+
+  const child = spawnFn('docker', args, { stdio: ['ignore', 'inherit', 'inherit'] });
+  let running = true;
+  let settled = null;
+  const waiters = [];
+
+  const settle = (value) => {
+    if (settled) return;
+    settled = value;
+    running = false;
+    while (waiters.length) {
+      const { resolve, reject } = waiters.shift();
+      if (value instanceof Error) reject(value);
+      else resolve(value);
+    }
+  };
+
+  child.on('error', (err) => settle(err));
+  child.on('close', (code, signal) => {
+    running = false;
+    if (signal) {
+      settle({ ok: true, name, cancelled: true, signal });
+    } else if (code === 0 || code === null) {
+      settle({ ok: true, name, cancelled: false, code });
+    } else {
+      settle(new Error(`docker logs -f exited with code ${code}`));
+    }
+  });
+
+  const controller = {
+    name,
+    cancel: () => {
+      if (running) {
+        running = false;
+        child.kill('SIGTERM');
+      }
+    },
+    wait: () => {
+      if (settled) {
+        return settled instanceof Error
+          ? Promise.reject(settled)
+          : Promise.resolve(settled);
+      }
+      return new Promise((resolve, reject) => waiters.push({ resolve, reject }));
+    },
+  };
+
+  log.log(`Following logs for ${name} (Ctrl+C to stop)...`);
+  return controller;
+}
+
 export async function deployDev(args = {}, deps = {}) {
   const {
     spawnFn = spawn,

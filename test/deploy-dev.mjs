@@ -21,6 +21,8 @@ import {
   statusDev,
   buildDevImage,
   restartDev,
+  logsDev,
+  streamLogs,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -883,3 +885,169 @@ console.log('40. CLI restart-dev --help works');
 console.log('   ✓ restart-dev CLI help works');
 
 console.log('✅ All restart-dev tests passed');
+
+console.log('1. logsDev fetches tail logs by default');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    assert.equal(cmd, 'docker');
+    assert.deepEqual(args.slice(0, 3), ['logs', '--tail', '50']);
+    assert.equal(args.at(-1), 'permabrain-dev-8734');
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('line1\nline2'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await logsDev({}, { spawnFn, log });
+  assert.equal(result.ok, true);
+  assert.equal(result.name, 'permabrain-dev-8734');
+  assert.equal(result.logs, 'line1\nline2');
+  assert.ok(log.output.some((line) => line.includes('line1')));
+}
+console.log('   ✓ logsDev fetches tail logs');
+
+console.log('2. logsDev --json outputs structured JSON');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('json-log'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await logsDev({ port: '7777', json: true }, { spawnFn, log });
+  assert.equal(result.name, 'permabrain-dev-7777');
+  assert.equal(result.logs, 'json-log');
+  assert.ok(log.output.some((line) => line.includes('"ok"')));
+  assert.ok(log.output.some((line) => line.includes('json-log')));
+}
+console.log('   ✓ logsDev --json');
+
+console.log('3. logsDev passes --timestamps and --since');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    logs.push(args);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from(''));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  await logsDev({ 'container-name': 'custom', timestamps: true, since: '5m' }, { spawnFn, log: fakeLog() });
+  const expected = ['logs', '--tail', '50', '--timestamps', '--since', '5m', 'custom'];
+  assert.deepEqual(logs[0], expected);
+}
+console.log('   ✓ logsDev timestamps + since');
+
+console.log('4. logsDev reports clear error when container is missing');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      const err = new Error('spawn docker ENOENT');
+      err.code = 'ENOENT';
+      child.emit('error', err);
+    });
+    return child;
+  };
+  await assert.rejects(logsDev({}, { spawnFn, log: fakeLog() }), /Docker is not installed/);
+}
+console.log('   ✓ logsDev docker missing error');
+
+console.log('5. logsDev reports clear error for missing container by name');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stderr.emit('data', Buffer.from('Error: No such container: gone'));
+      child.emit('close', 1, null);
+    });
+    return child;
+  };
+  await assert.rejects(
+    logsDev({ 'container-name': 'gone' }, { spawnFn, log: fakeLog() }),
+    /No dev container found: gone/
+  );
+}
+console.log('   ✓ logsDev missing container');
+
+console.log('6. streamLogs follow mode returns cancellable controller');
+{
+  let closed = false;
+  const spawnFn = (cmd, args) => {
+    assert.equal(cmd, 'docker');
+    assert.deepEqual(args.slice(0, 2), ['logs', '-f']);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = (signal) => {
+      child.emit('close', null, signal);
+    };
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('followed\n'));
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const controller = streamLogs('permabrain-dev-8734', { spawnFn, log });
+  assert.equal(controller.name, 'permabrain-dev-8734');
+  assert.equal(typeof controller.cancel, 'function');
+  controller.cancel();
+  const result = await controller.wait();
+  assert.equal(result.ok, true);
+  assert.equal(result.cancelled, true);
+  assert.equal(result.signal, 'SIGTERM');
+}
+console.log('   ✓ streamLogs controller');
+
+console.log('7. logsDev --follow returns stream controller');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = (signal) => child.emit('close', null, signal);
+    return child;
+  };
+  const log = fakeLog();
+  const controller = await logsDev({ follow: true, 'container-name': 'c1' }, { spawnFn, log });
+  assert.equal(controller.name, 'c1');
+  controller.cancel();
+  const result = await controller.wait();
+  assert.equal(result.cancelled, true);
+}
+console.log('   ✓ logsDev follow mode');
+
+console.log('8. CLI logs-dev --help works');
+{
+  const help = execSync(`node ${join(process.cwd(), 'scripts/cli.mjs')} logs-dev --help`, {
+    encoding: 'utf8',
+  });
+  assert.match(help, /logs-dev/);
+  assert.match(help, /--follow/);
+  assert.match(help, /--timestamps/);
+  assert.match(help, /--log-lines/);
+}
+console.log('   ✓ logs-dev CLI help works');
+
+console.log('✅ All logs-dev tests passed');
+

@@ -129,6 +129,7 @@ export const COMMAND_OPTIONS = {
   'stop-dev': ['--port', '--container-name', '--all', '--json'],
   'status-dev': ['--port', '--container-name', '--all', '--json'],
   'restart-dev': ['--image', '--port', '--project-dir', '--container-name', '--pull', '--no-pull', '--build-image', '--timeout', '--logs', '--log-lines', '--dry-run', '--json'],
+  'logs-dev': ['--port', '--container-name', '--log-lines', '--follow', '--timestamps', '--since', '--json'],
   'meta-info': ['--url'],
   whois: ['--url'],
   reference: [],

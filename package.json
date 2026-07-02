@@ -177,6 +177,7 @@
     "test:status-dev": "node test/deploy-dev.mjs",
     "test:restart-dev": "node test/deploy-dev.mjs",
     "test:build-dev-image": "node test/deploy-dev.mjs",
+    "test:logs-dev": "node test/deploy-dev.mjs",
     "test:hb-forge": "node test/hb-forge.mjs",
     "test:hb-forge-smoke": "node test/hb-forge.mjs"
   },

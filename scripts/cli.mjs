@@ -47,6 +47,7 @@ const COMMANDS = [
   'stop-dev',
   'status-dev',
   'restart-dev',
+  'logs-dev',
   'meta-info',
   'whois',
   'reference',
@@ -151,6 +152,8 @@ Commands:
   deploy-dev                   Deploy local HyperBEAM dev container with PermaBrain devices
   stop-dev                     Stop a running local HyperBEAM dev container
   status-dev                   Show status of a running local HyperBEAM dev container
+  restart-dev                  Restart a running local HyperBEAM dev container
+  logs-dev                     Show or follow logs from a HyperBEAM dev container
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
@@ -453,6 +456,24 @@ Examples:
   permabrain restart-dev --port 8734 --no-pull
   permabrain restart-dev --build-image --logs
   permabrain restart-dev --dry-run --json`,
+    'logs-dev': `Usage: permabrain logs-dev [--port N] [--container-name <name>] [--log-lines N] [--follow] [--timestamps] [--since <duration>] [--json]
+
+Show or follow logs from a HyperBEAM Forge dev container started by deploy-dev.
+
+Options:
+  --port N              Container mapped port (default: 8734)
+  --container-name      Container name override (default: permabrain-dev-<port>)
+  --log-lines N         Number of trailing log lines to fetch (default: 50)
+  --follow, -f          Stream logs continuously (not compatible with --json)
+  --timestamps, -t      Prefix each line with its timestamp
+  --since <duration>    Show logs newer than a relative duration (e.g. 5m, 1h)
+  --json                Output logs as JSON (fetch mode only)
+
+Examples:
+  permabrain logs-dev
+  permabrain logs-dev --port 8734 --follow
+  permabrain logs-dev --log-lines 100 --timestamps
+  permabrain logs-dev --since 10m --json`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,
