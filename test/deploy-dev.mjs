@@ -751,4 +751,19 @@ console.log('34. deploy-dev dry-run --build-image reports build plan');
 }
 console.log('   ✓ deploy-dev dry-run --build-image');
 
+console.log('35. deployDev dry-run returns resolved command with actual values');
+{
+  const log = fakeLog();
+  const result = await deployDev(
+    { 'dry-run': true, image: 'my-image:tag', port: '9000', 'project-dir': 'hb-forge' },
+    { log }
+  );
+  assert.equal(result.command, 'docker run -d --rm --name permabrain-dev-9000 -p 9000:8734 -v ' + result.projectDir + ':/work my-image:tag sh -c "cd /work && rebar3 device local"');
+  assert.ok(result.command.includes('my-image:tag'), 'command includes image');
+  assert.ok(result.command.includes('9000:8734'), 'command includes port mapping');
+  assert.ok(result.command.includes(result.projectDir), 'command includes project dir');
+  assert.ok(result.command.includes('permabrain-dev-9000'), 'command includes container name');
+}
+console.log('   ✓ dry-run resolved command');
+
 console.log('✅ All deploy-dev tests passed');
