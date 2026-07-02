@@ -494,6 +494,91 @@ export async function buildDevImage(args = {}, deps = {}) {
   return result;
 }
 
+export async function restartDev(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    fetchFn = fetch,
+    log = console,
+    processEnv = process.env,
+  } = deps;
+
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+  const containerName = args['container-name'] || args.containerName || defaultContainerName(port);
+  const dryRun = args['dry-run'] || args.dryRun || false;
+  const json = args.json || false;
+
+  // Forward deploy options. restart-dev accepts the union of deploy-dev and
+  // stop-dev options, plus --no-pull to opt out of the default pull behavior.
+  const deployArgs = {
+    image: args.image,
+    port: args.port || args.p,
+    'project-dir': args['project-dir'] || args.projectDir,
+    'container-name': args['container-name'] || args.containerName,
+    timeout: args.timeout,
+    'dry-run': dryRun,
+    pull: args.pull || false,
+    'no-pull': args['no-pull'] || args.noPull || false,
+    'build-image': args['build-image'] || args.buildImage || false,
+    logs: args.logs || false,
+    'log-lines': args['log-lines'] || args.logLines,
+    json,
+  };
+
+  // --no-pull means skip both forced and conditional pulls (useful when the
+  // image is already known to exist and you want a fast restart).
+  if (deployArgs['no-pull']) {
+    deployArgs.pull = false;
+  }
+
+  if (dryRun) {
+    const plan = {
+      action: 'restart-dev',
+      stopped: [containerName],
+      deploy: await deployDev(deployArgs, {
+        spawnFn,
+        fetchFn,
+        log: { log: () => {}, error: log.error || (() => {}) },
+        processEnv,
+      }),
+    };
+    if (json) {
+      log.log(JSON.stringify(plan, null, 2));
+    } else {
+      log.log('Dry-run restart plan:');
+      log.log(`  Would stop:   ${containerName}`);
+      log.log(`  Would deploy: ${plan.deploy.command || plan.deploy.image}`);
+    }
+    return plan;
+  }
+
+  // Stop first, tolerating the case where Docker is not installed or nothing is
+  // running. In either situation the deployment step is the one that matters.
+  let stopped = [];
+  try {
+    const stopResult = await stopDev(args, {
+      spawnFn,
+      log: { log: () => {}, error: log.error || (() => {}) },
+      processEnv,
+    });
+    stopped = stopResult.stopped || [];
+  } catch (err) {
+    if (!/Docker is not installed|not on PATH/.test(err.message)) {
+      throw err;
+    }
+  }
+
+  if (!deployArgs['no-pull'] && !deployArgs['build-image']) {
+    deployArgs.pull = deployArgs.pull || false;
+  }
+
+  const result = await deployDev(deployArgs, { spawnFn, fetchFn, log, processEnv });
+  return {
+    ...result,
+    restarted: true,
+    stopped,
+  };
+}
+
 export async function deployDev(args = {}, deps = {}) {
   const {
     spawnFn = spawn,
@@ -517,6 +602,7 @@ export async function deployDev(args = {}, deps = {}) {
   const enableLogs = args.logs || false;
   const logLines = Number(args['log-lines'] || args.logLines || DEFAULT_LOG_LINES);
   const containerName = args['container-name'] || args.containerName || `permabrain-dev-${port}`;
+  const noPull = args['no-pull'] || args.noPull || false;
 
   if (dryRun) {
     const resolvedCommand = [
@@ -550,6 +636,8 @@ export async function deployDev(args = {}, deps = {}) {
       log.log(`  Command:      ${plan.command}`);
       if (buildImage) {
         log.log('  Build image:  yes (local build via build-dev-image)');
+      } else if (noPull) {
+        log.log('  Pull image:   no (using existing local image)');
       } else if (forcePull) {
         log.log('  Pull image:   yes');
       } else {
@@ -561,7 +649,7 @@ export async function deployDev(args = {}, deps = {}) {
 
   if (buildImage) {
     await buildDevImage({ 'project-dir': projectDir, json }, { spawnFn, log });
-  } else if (forcePull || !(await imageExists(image, { spawnFn }))) {
+  } else if (!noPull && (forcePull || !(await imageExists(image, { spawnFn })))) {
     await pullImage(image, { spawnFn, log });
   }
 

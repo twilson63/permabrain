@@ -46,6 +46,7 @@ const COMMANDS = [
   'build-dev-image',
   'stop-dev',
   'status-dev',
+  'restart-dev',
   'meta-info',
   'whois',
   'reference',
@@ -351,21 +352,22 @@ a specific tag key-value pair. Returns matching message IDs.`,
 
 Deploys the PermaBrain consensus and query Lua modules to a
 HyperBEAM node via the bundler device. Returns module IDs.`,
-    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--json]
+    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--no-pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--json]
 
 Deploy the HyperBEAM Forge dev container locally and verify that the
 PermaBrain devices are loaded.
 
-This command pulls the dev image if it is missing (or always with --pull),
-starts a detached Docker container on the requested port, and polls
-http://localhost:PORT/~meta@1.0/info until both permabrain-consensus and
-permabrain-query are reported.
+This command pulls the dev image if it is missing (or always with --pull,
+never with --no-pull), starts a detached Docker container on the requested
+port, and polls http://localhost:PORT/~meta@1.0/info until both
+permabrain-consensus and permabrain-query are reported.
 
 Options:
   --image <image>      Dev image to use (default ghcr.io/twilson63/hyperbeam-dev:latest)
   --port N             Host port to bind (default 8734)
   --project-dir <path> Path to the HyperBEAM Forge project (default <repo-root>/hb-forge)
   --pull               Force docker pull even if the image exists locally
+  --no-pull            Skip pulling/checking the image (use existing local image)
   --build-image        Build the dev image locally before deployment (uses build-dev-image)
   --timeout <ms>       Max time to wait for the node, in milliseconds (default 120000)
   --logs               Fetch and print container logs on failure (and include in JSON)
@@ -424,6 +426,33 @@ Examples:
   permabrain status-dev --port 8734
   permabrain status-dev --all
   permabrain status-dev --json`,
+    'restart-dev': `Usage: permabrain restart-dev [--image <image>] [--port N] [--project-dir <path>] [--container-name <name>] [--pull] [--no-pull] [--build-image] [--timeout <ms>] [--logs] [--log-lines N] [--dry-run] [--json]
+
+Stop and redeploy a HyperBEAM Forge dev container.
+
+This command stops the existing container for the requested port or name,
+then runs deploy-dev with the same options. It is useful for picking up a
+newly built image or resetting a stuck container.
+
+Options:
+  --image <image>           Dev image to use (default ghcr.io/twilson63/hyperbeam-dev:latest)
+  --port N                  Host port to bind (default 8734)
+  --project-dir <path>      Path to the HyperBEAM Forge project (default <repo-root>/hb-forge)
+  --container-name <name>   Name for the container (default permabrain-dev-PORT)
+  --pull                    Force docker pull even if the image exists locally
+  --no-pull                 Skip pulling/checking the image (use existing local image)
+  --build-image             Build the dev image locally before deployment
+  --timeout <ms>            Max time to wait for the node (default 120000)
+  --logs                    Fetch container logs on failure
+  --log-lines N             Number of tail lines to fetch with --logs (default 50)
+  --dry-run                 Print the restart plan without running Docker
+  --json                    Output structured JSON
+
+Examples:
+  permabrain restart-dev
+  permabrain restart-dev --port 8734 --no-pull
+  permabrain restart-dev --build-image --logs
+  permabrain restart-dev --dry-run --json`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,

@@ -20,6 +20,7 @@ import {
   getDevContainerStatus,
   statusDev,
   buildDevImage,
+  restartDev,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -767,3 +768,118 @@ console.log('35. deployDev dry-run returns resolved command with actual values')
 console.log('   ✓ dry-run resolved command');
 
 console.log('✅ All deploy-dev tests passed');
+
+console.log('36. restartDev dry-run prints stop + deploy plan');
+{
+  const log = fakeLog();
+  const result = await restartDev({ 'dry-run': true, port: '9000' }, { log });
+  assert.equal(result.action, 'restart-dev');
+  assert.ok(Array.isArray(result.stopped));
+  assert.ok(result.deploy.command.includes('permabrain-dev-9000'));
+  assert.ok(log.output.some((line) => line.includes('Dry-run restart plan')));
+  assert.ok(log.output.some((line) => line.includes('Would deploy:')));
+}
+console.log('   ✓ restartDev dry-run');
+
+console.log('37. restartDev stops existing container then deploys');
+{
+  const logs = [];
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === 'docker stop permabrain-dev-8734' || key === 'docker rm permabrain-dev-8734') {
+      out = { code: 0, stdout: '' };
+    } else if (key.startsWith('docker images')) {
+      out = { code: 0, stdout: `${image}\n` };
+    } else if (key.startsWith('docker run')) {
+      out = { code: 0, stdout: 'new-container-id\n' };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const metaInfo = { devices: { 'permabrain-consensus': {}, 'permabrain-query': {} } };
+  const fetchFn = fakeFetch([{ ok: true, body: JSON.stringify(metaInfo) }]);
+  const log = fakeLog();
+  const result = await restartDev({ 'no-pull': true }, { spawnFn, fetchFn, log });
+  assert.equal(result.restarted, true);
+  assert.equal(result.ok, true);
+  assert.ok(logs.includes('docker stop permabrain-dev-8734'));
+  assert.ok(logs.includes('docker rm permabrain-dev-8734'));
+  assert.ok(logs.some((k) => k.startsWith('docker run')));
+  assert.equal(result.containerId, 'new-container-id');
+}
+console.log('   ✓ restartDev stop + deploy');
+
+console.log('38. restartDev --no-pull skips image pull/check');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === 'docker stop permabrain-dev-8734' || key === 'docker rm permabrain-dev-8734') {
+      out = { code: 0, stdout: '' };
+    } else if (key.startsWith('docker run')) {
+      out = { code: 0, stdout: 'cid\n' };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const fetchFn = fakeFetch([{ ok: true, body: JSON.stringify({ devices: { 'permabrain-consensus': {}, 'permabrain-query': {} } }) }]);
+  await restartDev({ 'no-pull': true }, { spawnFn, fetchFn, log: fakeLog() });
+  assert.ok(!logs.some((k) => k.startsWith('docker images')), 'no image check');
+  assert.ok(!logs.some((k) => k.startsWith('docker pull')), 'no pull');
+}
+console.log('   ✓ restartDev --no-pull');
+
+console.log('39. restartDev --json outputs JSON');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      if (cmd === 'docker' && args[0] === 'stop') child.stdout.emit('data', Buffer.from(''));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await restartDev({ 'dry-run': true, json: true, port: '7777' }, { spawnFn, log });
+  assert.equal(result.action, 'restart-dev');
+  assert.ok(log.output.some((line) => line.includes('"action"')));
+}
+console.log('   ✓ restartDev --json');
+
+console.log('40. CLI restart-dev --help works');
+{
+  const help = execSync(`node ${join(process.cwd(), 'scripts/cli.mjs')} restart-dev --help`, {
+    encoding: 'utf8',
+  });
+  assert.match(help, /restart-dev/);
+  assert.match(help, /--no-pull/);
+  assert.match(help, /--build-image/);
+  assert.match(help, /--container-name/);
+}
+console.log('   ✓ restart-dev CLI help works');
+
+console.log('✅ All restart-dev tests passed');
