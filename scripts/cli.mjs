@@ -49,6 +49,7 @@ const COMMANDS = [
   'restart-dev',
   'logs-dev',
   'exec-dev',
+  'watch-dev',
   'meta-info',
   'whois',
   'reference',
@@ -156,6 +157,7 @@ Commands:
   restart-dev                  Restart a running local HyperBEAM dev container
   logs-dev                     Show or follow logs from a HyperBEAM dev container
   exec-dev [cmd...]            Run a command inside a HyperBEAM dev container
+  watch-dev                    Watch a HyperBEAM dev container's health and optionally restart it
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
@@ -494,6 +496,24 @@ Examples:
   permabrain exec-dev ls -la /work
   permabrain exec-dev --workdir /work/src cat dev_permabrain_consensus.erl
   permabrain exec-dev --env DEBUG=1 rebar3 device list --json`,
+    'watch-dev': `Usage: permabrain watch-dev [--port N] [--container-name <name>] [--interval <ms>] [--restart] [--timeout <ms>] [--json]
+
+Watch a HyperBEAM Forge dev container's health by polling docker ps and
+~meta@1.0/info for the required PermaBrain devices. Optionally restart the
+container when it becomes unhealthy.
+
+Options:
+  --port N                 Port the dev container exposes (default: 8734)
+  --container-name <name>  Docker container name (default: permabrain-dev-<port>)
+  --interval <ms>          Health-check interval in milliseconds (default: 30000, min: 1000)
+  --restart                Automatically restart the container when unhealthy
+  --timeout <ms>           Stop watching after this many milliseconds (default: 120000; 0 = forever)
+  --json                   Output the final report as JSON
+
+Examples:
+  permabrain watch-dev
+  permabrain watch-dev --interval 10000 --restart
+  permabrain watch-dev --timeout 0 --port 8734`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,

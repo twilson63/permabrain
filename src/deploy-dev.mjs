@@ -734,6 +734,146 @@ export async function execDev(args = {}, deps = {}) {
   }
 }
 
+export async function watchDev(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    fetchFn = fetch,
+    log = console,
+    processEnv = process.env,
+    setIntervalFn = setInterval,
+    clearIntervalFn = clearInterval,
+    DateNow = Date.now,
+  } = deps;
+
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+  const intervalMs = Number(args.interval || args.i || 30_000);
+  const restart = args.restart || false;
+  const timeoutMs = Number(args.timeout || 120_000);
+  const json = args.json || false;
+  const containerName = args['container-name'] || args.containerName || defaultContainerName(port);
+
+  if (!Number.isInteger(intervalMs) || intervalMs < 100) {
+    throw new Error(`Invalid interval: ${args.interval}. Must be at least 100ms.`);
+  }
+
+  const deadline = timeoutMs > 0 ? DateNow() + timeoutMs : 0;
+  const history = [];
+  let checks = 0;
+  let healthyChecks = 0;
+  let unhealthyChecks = 0;
+  let lastRestart = null;
+
+  log.log(`Watching HyperBEAM dev container ${containerName} every ${intervalMs}ms...`);
+
+  const checkOnce = async () => {
+    checks += 1;
+    const status = await getDevContainerStatus(
+      { port, 'container-name': containerName },
+      { spawnFn, fetchFn }
+    );
+    const entry = {
+      time: new Date().toISOString(),
+      running: status.running,
+      healthy: status.healthy,
+    };
+    history.push(entry);
+    if (status.healthy) {
+      healthyChecks += 1;
+    } else if (status.running) {
+      unhealthyChecks += 1;
+    }
+    return status;
+  };
+
+  // First check happens immediately.
+  let lastStatus = await checkOnce();
+  if (lastStatus.healthy) {
+    log.log(`Container ${containerName} is healthy.`);
+  } else if (!lastStatus.running) {
+    log.log(`Container ${containerName} is not running.`);
+  } else {
+    log.log(`Container ${containerName} is running but unhealthy.`);
+  }
+
+  if (restart && !lastStatus.healthy) {
+    log.log(`Health check failed; restarting ${containerName}...`);
+    try {
+      await restartDev(
+        { port, 'container-name': containerName, 'no-pull': true, json: false },
+        { spawnFn, fetchFn, log, processEnv }
+      );
+      lastRestart = new Date().toISOString();
+      lastStatus = await checkOnce();
+      if (lastStatus.healthy) {
+        log.log(`Container ${containerName} is healthy after restart.`);
+      }
+    } catch (err) {
+      log.error(`Restart failed: ${err.message}`);
+    }
+  }
+
+  if (deadline && DateNow() >= deadline) {
+    return finalizeWatch();
+  }
+
+  let timer = null;
+  const finished = new Promise((resolve) => {
+    timer = setIntervalFn(async () => {
+      lastStatus = await checkOnce();
+      if (!lastStatus.healthy && restart) {
+        log.log(`Health check failed; restarting ${containerName}...`);
+        try {
+          await restartDev(
+            { port, 'container-name': containerName, 'no-pull': true, json: false },
+            { spawnFn, fetchFn, log, processEnv }
+          );
+          lastRestart = new Date().toISOString();
+          // Re-check status after restart.
+          lastStatus = await checkOnce();
+        } catch (err) {
+          log.error(`Restart failed: ${err.message}`);
+        }
+      }
+
+      if (deadline && DateNow() >= deadline) {
+        clearIntervalFn(timer);
+        resolve();
+      }
+    }, intervalMs);
+  });
+
+  await finished;
+  return finalizeWatch();
+
+  function finalizeWatch() {
+    const result = {
+      ok: true,
+      name: containerName,
+      port,
+      intervalMs,
+      checks,
+      healthyChecks,
+      unhealthyChecks,
+      restart,
+      lastRestart,
+      running: lastStatus.running,
+      healthy: lastStatus.healthy,
+      history: history.slice(-20),
+    };
+    if (json) {
+      log.log(JSON.stringify(result, null, 2));
+    } else {
+      log.log(`Watched ${containerName} for ${checks} check(s).`);
+      log.log(`  Running: ${result.running}`);
+      log.log(`  Healthy: ${result.healthy}`);
+      log.log(`  Healthy checks: ${healthyChecks}`);
+      log.log(`  Unhealthy checks: ${unhealthyChecks}`);
+      if (lastRestart) log.log(`  Last restart: ${lastRestart}`);
+    }
+    return result;
+  }
+}
+
 export async function deployDev(args = {}, deps = {}) {
   const {
     spawnFn = spawn,

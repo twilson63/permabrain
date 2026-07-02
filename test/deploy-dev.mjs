@@ -24,6 +24,7 @@ import {
   logsDev,
   streamLogs,
   execDev,
+  watchDev,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -1197,4 +1198,166 @@ console.log('7. CLI exec-dev --help works');
 console.log('   ✓ exec-dev CLI help works');
 
 console.log('✅ All exec-dev tests passed');
+
+console.log('1. watchDev reports healthy container immediately and exits after timeout');
+{
+  let calls = 0;
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps --format')) {
+      calls += 1;
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' });
+  const log = fakeLog();
+
+  let intervals = [];
+  const setIntervalFn = (fn, ms) => {
+    const id = setInterval(fn, ms);
+    intervals.push(id);
+    return id;
+  };
+  const clearIntervalFn = (id) => {
+    clearInterval(id);
+    intervals = intervals.filter((i) => i !== id);
+  };
+
+  const result = await watchDev(
+    { timeout: 1, interval: 100 },
+    { spawnFn, fetchFn, log, setIntervalFn, clearIntervalFn, DateNow: Date.now }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.healthy, true);
+  assert.equal(result.running, true);
+  assert.ok(result.checks >= 1, 'at least one check');
+  assert.ok(result.healthyChecks >= 1, 'at least one healthy check');
+  assert.equal(result.unhealthyChecks, 0);
+  assert.ok(log.output.some((line) => line.includes('Watching HyperBEAM dev container')));
+}
+console.log('   ✓ watchDev healthy immediate');
+
+console.log('2. watchDev detects unhealthy container and restarts when --restart is set');
+{
+  let dockerCalls = [];
+  let healthy = false;
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    dockerCalls.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps --format')) {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else if (key.startsWith('docker run')) {
+      healthy = true;
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('new-id\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  const fetchFn = () => {
+    if (healthy) {
+      return Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' });
+    }
+    return Promise.resolve({ ok: true, text: async () => '{"other-device": true}' });
+  };
+
+  let intervalCount = 0;
+  let intervals = [];
+  const setIntervalFn = (fn, ms) => {
+    intervalCount += 1;
+    const id = { _fn: fn, _ms: ms, _n: intervalCount };
+    intervals.push(id);
+    const run = async () => {
+      await fn();
+    };
+    id._timer = setTimeout(run, ms);
+    return id;
+  };
+  const clearIntervalFn = (id) => {
+    clearTimeout(id._timer);
+    intervals = intervals.filter((i) => i !== id);
+  };
+
+  const log = fakeLog();
+  const result = await watchDev(
+    { timeout: 1, interval: 100, restart: true },
+    { spawnFn, fetchFn, log, setIntervalFn, clearIntervalFn, DateNow: Date.now }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.restart, true);
+  assert.equal(result.healthy, true);
+  assert.ok(dockerCalls.some((k) => k.startsWith('docker stop permabrain-dev-8734')), 'stopped container');
+  assert.ok(dockerCalls.some((k) => k.startsWith('docker run')), 'restarted container');
+  assert.ok(result.lastRestart, 'recorded restart time');
+  assert.ok(result.checks >= 1, 'at least one check');
+}
+console.log('   ✓ watchDev restart on unhealthy');
+
+console.log('3. watchDev --json outputs structured report');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if ([cmd, ...args].join(' ').startsWith('docker ps --format')) {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true}' });
+  const log = fakeLog();
+  const result = await watchDev({ timeout: 1, json: true }, { spawnFn, fetchFn, log, DateNow: Date.now });
+  assert.equal(result.ok, true);
+  assert.ok(result.checks >= 1, 'at least one check');
+  assert.ok(log.output.some((line) => line.includes('"checks"')));
+  assert.ok(log.output.some((line) => line.includes('"healthy"')));
+}
+console.log('   ✓ watchDev --json');
+
+console.log('4. watchDev rejects invalid interval');
+{
+  await assert.rejects(
+    watchDev({ interval: 50 }, { DateNow: Date.now }),
+    /Invalid interval/
+  );
+}
+console.log('   ✓ watchDev invalid interval');
+
+console.log('5. CLI watch-dev --help works');
+{
+  const help = execSync('node scripts/cli.mjs watch-dev --help', {
+    cwd: '/home/node/.openclaw/workspace/permabrain',
+    encoding: 'utf8',
+  });
+  assert.match(help, /watch-dev/);
+  assert.match(help, /--interval/);
+  assert.match(help, /--restart/);
+  assert.match(help, /--timeout/);
+}
+console.log('   ✓ watch-dev CLI help works');
+
+console.log('✅ All watch-dev tests passed');
 
