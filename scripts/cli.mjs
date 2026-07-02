@@ -51,6 +51,7 @@ const COMMANDS = [
   'exec-dev',
   'watch-dev',
   'wait-dev',
+  'check-dev',
   'meta-info',
   'whois',
   'reference',
@@ -160,6 +161,7 @@ Commands:
   exec-dev [cmd...]            Run a command inside a HyperBEAM dev container
   watch-dev                    Watch a HyperBEAM dev container's health and optionally restart it
   wait-dev                     Wait until a HyperBEAM dev container is healthy
+  check-dev                    Check prerequisites for deploying a HyperBEAM dev container
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   transport-status             Show transport metrics and circuit breaker state
@@ -535,6 +537,25 @@ Examples:
   permabrain wait-dev --timeout 30000 --interval 2000
   permabrain wait-dev --port 9000 --silent
   permabrain wait-dev --exit-code --json`,
+    'check-dev': `Usage: permabrain check-dev [--project-dir <path>] [--image <image>] [--port N] [--json] [--exit-code]
+
+Check that the current environment can build, pull, and run the HyperBEAM
+Forge dev container. Reports the status of required prerequisites (Docker CLI,
+Docker daemon, Forge project directory) and optional ones (Docker Buildx,
+rebar3, Erlang/OTP, GHCR write credentials, local dev image).
+
+Options:
+  --project-dir <path>  Path to the HyperBEAM Forge project (default <repo-root>/hb-forge)
+  --image <image>       Dev image to check (default ghcr.io/twilson63/hyperbeam-dev:latest)
+  --port N              Port the container would bind (default 8734)
+  --json                Output the full report as JSON
+  --exit-code           Return a non-throwing result with ok:false when not ready
+
+Examples:
+  permabrain check-dev
+  permabrain check-dev --json
+  permabrain check-dev --exit-code
+  permabrain check-dev --project-dir ./hb-forge --image my-registry/hyperbeam-dev:main`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,

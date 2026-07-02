@@ -1125,3 +1125,165 @@ export async function deployDev(args = {}, deps = {}) {
 
   return result;
 }
+
+export async function checkDev(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    log = console,
+    processEnv = process.env,
+  } = deps;
+
+  const json = args.json || false;
+  const exitCode = args['exit-code'] || args.exitCode || false;
+  const image = args.image || DEFAULT_IMAGE;
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+
+  let projectDir;
+  let projectCheck;
+  try {
+    projectDir = await resolveProjectDir(args['project-dir'] || args.projectDir);
+    validateProjectDir(projectDir);
+    projectCheck = {
+      name: 'Forge project directory',
+      ok: true,
+      required: true,
+      projectDir,
+    };
+  } catch (err) {
+    projectCheck = {
+      name: 'Forge project directory',
+      ok: false,
+      required: true,
+      error: err.message,
+    };
+  }
+
+  async function runCheck(cmd, args, { name, required = true, parse } = {}) {
+    try {
+      const { stdout, stderr } = await runProcess(cmd, args, { spawnFn, timeoutMs: 15_000 });
+      if (parse) {
+        return parse(stdout, stderr);
+      }
+      return { name, ok: true, required, stdout: stdout.trim() };
+    } catch (err) {
+      if (/Docker is not installed/.test(err.message)) {
+        return { name: name || 'Docker CLI', ok: false, required, error: 'Docker CLI is not installed or not on PATH' };
+      }
+      return { name, ok: false, required, error: err.message };
+    }
+  }
+
+  const dockerCli = await runCheck('docker', ['--version'], {
+    name: 'Docker CLI',
+    required: true,
+    parse: (stdout) => ({ name: 'Docker CLI', ok: true, required: true, version: stdout.trim() }),
+  });
+
+  const dockerDaemon = await runCheck('docker', ['version', '--format', '{{.Server.Version}}'], {
+    name: 'Docker daemon',
+    required: true,
+    parse: (stdout, stderr) => {
+      const version = stdout.trim();
+      if (!version) {
+        return { name: 'Docker daemon', ok: false, required: true, error: stderr || 'Docker daemon did not report a version' };
+      }
+      return { name: 'Docker daemon', ok: true, required: true, version };
+    },
+  });
+
+  const dockerBuildx = await runCheck('docker', ['buildx', 'version'], {
+    name: 'Docker Buildx',
+    required: false,
+    parse: (stdout) => ({ name: 'Docker Buildx', ok: true, required: false, version: stdout.trim() }),
+  });
+
+  const rebar3 = await runCheck('rebar3', ['--version'], {
+    name: 'rebar3',
+    required: false,
+    parse: (stdout) => ({ name: 'rebar3', ok: true, required: false, version: stdout.trim().split('\n')[0] }),
+  });
+
+  const erl = await runCheck('erl', ['+V'], {
+    name: 'Erlang/OTP (erl)',
+    required: false,
+    parse: (stdout, stderr) => {
+      const text = stdout || stderr || '';
+      const first = text.trim().split('\n')[0];
+      return { name: 'Erlang/OTP (erl)', ok: true, required: false, version: first };
+    },
+  });
+
+  let ghcr = { name: 'GHCR write credentials', ok: false, required: false, error: 'No GHCR credential env var (GITHUB_TOKEN or CR_PAT) set' };
+  if (processEnv.GITHUB_TOKEN || processEnv.CR_PAT) {
+    ghcr = { name: 'GHCR write credentials', ok: true, required: false, source: processEnv.GITHUB_TOKEN ? 'GITHUB_TOKEN' : 'CR_PAT' };
+  }
+
+  let imageCheck = { name: 'Dev image availability', ok: false, required: false, error: 'Skipped image check' };
+  if (dockerCli.ok && dockerDaemon.ok) {
+    try {
+      const exists = await imageExists(image, { spawnFn });
+      if (exists) {
+        imageCheck = { name: 'Dev image availability', ok: true, required: false, source: 'local', image };
+      } else {
+        imageCheck = {
+          name: 'Dev image availability',
+          ok: false,
+          required: false,
+          source: 'local',
+          image,
+          error: `Image ${image} is not present locally. Run 'permabrain deploy-dev' to pull it.`,
+        };
+      }
+    } catch (err) {
+      imageCheck = { name: 'Dev image availability', ok: false, required: false, image, error: err.message };
+    }
+  }
+
+  const checks = [projectCheck, dockerCli, dockerDaemon, dockerBuildx, rebar3, erl, ghcr, imageCheck];
+  const requiredReady = checks.filter((c) => c.required).every((c) => c.ok);
+  const warnings = checks.filter((c) => !c.required && !c.ok);
+  const ready = requiredReady;
+
+  const result = {
+    ok: ready,
+    ready,
+    image,
+    port,
+    projectDir: projectDir || null,
+    checks,
+    warnings: warnings.map((w) => ({ name: w.name, error: w.error })),
+    summary: ready
+      ? 'Dev-container environment is ready.'
+      : 'Dev-container environment is missing required prerequisites.',
+  };
+
+  if (!ready && !exitCode) {
+    const failed = checks.filter((c) => c.required && !c.ok).map((c) => `${c.name}: ${c.error}`).join('; ');
+    const err = new Error(`Dev-container prerequisites not met: ${failed}`);
+    err.checkResult = result;
+    throw err;
+  }
+
+  if (json) {
+    log.log(JSON.stringify(result, null, 2));
+  } else {
+    log.log('HyperBEAM Forge dev-container prerequisites:');
+    for (const check of checks) {
+      const symbol = check.ok ? '✓' : '✗';
+      const required = check.required ? 'required' : 'optional';
+      log.log(`  ${symbol} ${check.name} (${required})`);
+      if (check.version) log.log(`    ${check.version}`);
+      if (check.error) log.log(`    ${check.error}`);
+      if (check.source && !check.error) log.log(`    source: ${check.source}`);
+    }
+    if (result.warnings.length > 0) {
+      log.log(`\nWarnings (${result.warnings.length}):`);
+      for (const w of result.warnings) {
+        log.log(`  - ${w.name}: ${w.error}`);
+      }
+    }
+    log.log(`\n${result.summary}`);
+  }
+
+  return result;
+}

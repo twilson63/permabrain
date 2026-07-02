@@ -26,6 +26,7 @@ import {
   execDev,
   watchDev,
   waitDev,
+  checkDev,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -1600,5 +1601,159 @@ console.log('9. CLI wait-dev --help works');
 console.log('   ✓ wait-dev CLI help works');
 
 console.log('✅ All wait-dev tests passed');
+
+console.log('1. checkDev reports ready when all required prerequisites are present');
+{
+  const logs = [];
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === 'docker --version') {
+      out = { code: 0, stdout: 'Docker version 24.0.7\n' };
+    } else if (key === 'docker version --format {{.Server.Version}}') {
+      out = { code: 0, stdout: '24.0.7\n' };
+    } else if (key === 'docker buildx version') {
+      out = { code: 0, stdout: 'github.com/docker/buildx v0.11.2\n' };
+    } else if (key === 'rebar3 --version') {
+      out = { code: 0, stdout: 'rebar 3.22.1 on Erlang/OTP 26\n' };
+    } else if (key === 'erl +V') {
+      out = { code: 0, stdout: '', stderr: 'Erlang (BEAM) emulator version 14.0\n' };
+    } else if (key.startsWith('docker images')) {
+      out = { code: 0, stdout: `${image}\n` };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await checkDev(
+    {},
+    { spawnFn, log, processEnv: { GITHUB_TOKEN: 'token123' } }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.ready, true);
+  assert.ok(result.checks.some((c) => c.name === 'Docker CLI' && c.ok));
+  assert.ok(result.checks.some((c) => c.name === 'Docker daemon' && c.ok));
+  assert.ok(result.checks.some((c) => c.name === 'GHCR write credentials' && c.source === 'GITHUB_TOKEN'));
+  assert.ok(result.checks.some((c) => c.name === 'Dev image availability' && c.ok && c.source === 'local'));
+  assert.ok(log.output.some((line) => line.includes('Dev-container environment is ready')));
+}
+console.log('   ✓ checkDev reports ready');
+
+console.log('2. checkDev reports not ready when Docker is missing');
+{
+  const spawnFn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('error', { code: 'ENOENT' }));
+    return child;
+  };
+  const log = fakeLog();
+  const result = await checkDev({ 'exit-code': true }, { spawnFn, log, processEnv: {} });
+  assert.equal(result.ok, false);
+  assert.equal(result.ready, false);
+  const dockerCli = result.checks.find((c) => c.name === 'Docker CLI');
+  assert.equal(dockerCli.ok, false);
+  assert.match(dockerCli.error, /not installed/);
+}
+console.log('   ✓ checkDev not ready with missing Docker');
+
+console.log('3. checkDev --json outputs structured report');
+{
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === 'docker --version') {
+      out = { code: 0, stdout: 'Docker version 24.0.7\n' };
+    } else if (key === 'docker version --format {{.Server.Version}}') {
+      out = { code: 0, stdout: '24.0.7\n' };
+    } else if (key.startsWith('docker images')) {
+      out = { code: 0, stdout: `${image}\n` };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await checkDev({ json: true }, { spawnFn, log, processEnv: {} });
+  assert.equal(result.ok, true);
+  assert.ok(log.output.some((line) => line.includes('"ready"')));
+  assert.ok(log.output.some((line) => line.includes('"checks"')));
+}
+console.log('   ✓ checkDev JSON output');
+
+console.log('4. checkDev warns when optional tools are missing');
+{
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === 'docker --version') {
+      out = { code: 0, stdout: 'Docker version 24.0.7\n' };
+    } else if (key === 'docker version --format {{.Server.Version}}') {
+      out = { code: 0, stdout: '24.0.7\n' };
+    } else if (key === 'docker buildx version' || key === 'rebar3 --version' || key === 'erl +V') {
+      out = { code: 1, stdout: '', stderr: 'command not found' };
+    } else if (key.startsWith('docker images')) {
+      out = { code: 0, stdout: `${image}\n` };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await checkDev({}, { spawnFn, log, processEnv: { CR_PAT: 'pat123' } });
+  assert.equal(result.ok, true);
+  assert.equal(result.ready, true);
+  assert.equal(result.warnings.length, 3);
+  assert.ok(result.warnings.some((w) => w.name === 'Docker Buildx'));
+  assert.ok(result.warnings.some((w) => w.name === 'rebar3'));
+  assert.ok(result.warnings.some((w) => w.name === 'Erlang/OTP (erl)'));
+  assert.ok(log.output.some((line) => line.includes('Warnings (3)')));
+}
+console.log('   ✓ checkDev optional warnings');
+
+console.log('5. CLI check-dev --help works');
+{
+  const help = execSync('node scripts/cli.mjs check-dev --help', {
+    cwd: '/home/node/.openclaw/workspace/permabrain',
+    encoding: 'utf8',
+  });
+  assert.match(help, /check-dev/);
+  assert.match(help, /--project-dir/);
+  assert.match(help, /--image/);
+  assert.match(help, /--json/);
+  assert.match(help, /--exit-code/);
+}
+console.log('   ✓ check-dev CLI help works');
+
+console.log('✅ All check-dev tests passed');
 
 
