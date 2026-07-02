@@ -23,6 +23,7 @@ import {
   restartDev,
   logsDev,
   streamLogs,
+  execDev,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -1050,4 +1051,150 @@ console.log('8. CLI logs-dev --help works');
 console.log('   ✓ logs-dev CLI help works');
 
 console.log('✅ All logs-dev tests passed');
+
+console.log('1. execDev runs default rebar3 device list command');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    logs.push([cmd, ...args].join(' '));
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('permabrain-consensus\npermabrain-query\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await execDev({}, { spawnFn, log });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.command, ['rebar3', 'device', 'list']);
+  assert.ok(logs[0].startsWith('docker exec permabrain-dev-8734 rebar3 device list'));
+  assert.ok(log.output.some((line) => line.includes('permabrain-consensus')));
+}
+console.log('   ✓ execDev default command');
+
+console.log('2. execDev runs a custom command with arguments');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    logs.push([cmd, ...args].join(' '));
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('/work/src\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const result = await execDev({ _: ['ls', '-la', '/work/src'] }, { spawnFn, log: fakeLog() });
+  assert.deepEqual(result.command, ['ls', '-la', '/work/src']);
+  assert.ok(logs[0].startsWith('docker exec permabrain-dev-8734 ls -la /work/src'));
+}
+console.log('   ✓ execDev custom command');
+
+console.log('3. execDev honors --container-name, --work-dir, and --env');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    logs.push([cmd, ...args].join(' '));
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('ok\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const result = await execDev(
+    {
+      _: ['env'],
+      'container-name': 'my-dev',
+      'work-dir': '/work',
+      env: ['DEBUG=1', 'FOO=bar'],
+    },
+    { spawnFn, log: fakeLog() }
+  );
+  const key = logs[0];
+  assert.ok(key.startsWith('docker exec --workdir /work --env DEBUG=1 --env FOO=bar my-dev env'));
+  assert.equal(result.name, 'my-dev');
+  assert.equal(result.workdir, '/work');
+  assert.deepEqual(result.env, ['DEBUG=1', 'FOO=bar']);
+}
+console.log('   ✓ execDev container/workdir/env options');
+
+console.log('4. execDev returns structured JSON output');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('stdout-data'));
+      child.stderr.emit('data', Buffer.from('stderr-data'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await execDev({ _: ['cat'], json: true }, { spawnFn, log });
+  assert.equal(result.ok, true);
+  assert.equal(result.stdout, 'stdout-data');
+  assert.equal(result.stderr, 'stderr-data');
+  assert.ok(log.output[0].includes('"stdout": "stdout-data"'));
+}
+console.log('   ✓ execDev JSON output');
+
+console.log('5. execDev surfaces clear error for missing container');
+{
+  const spawnFn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stderr.emit('data', Buffer.from('Error response from daemon: No such container: permabrain-dev-8734\n'));
+      child.emit('close', 1);
+    });
+    return child;
+  };
+  await assert.rejects(
+    execDev({ _: ['ls'] }, { spawnFn, log: fakeLog() }),
+    /No dev container found: permabrain-dev-8734/
+  );
+}
+console.log('   ✓ execDev missing container error');
+
+console.log('6. execDev surfaces docker-missing error');
+{
+  const spawnFn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('error', { code: 'ENOENT' }));
+    return child;
+  };
+  await assert.rejects(
+    execDev({ _: ['ls'] }, { spawnFn, log: fakeLog() }),
+    /Docker is not installed/
+  );
+}
+console.log('   ✓ execDev docker missing error');
+
+console.log('7. CLI exec-dev --help works');
+{
+  const help = execSync('node scripts/cli.mjs exec-dev --help', {
+    cwd: '/home/node/.openclaw/workspace/permabrain',
+    encoding: 'utf8',
+  });
+  assert.match(help, /exec-dev/);
+  assert.match(help, /--work-dir/);
+  assert.match(help, /--env/);
+  assert.match(help, /--json/);
+}
+console.log('   ✓ exec-dev CLI help works');
+
+console.log('✅ All exec-dev tests passed');
 

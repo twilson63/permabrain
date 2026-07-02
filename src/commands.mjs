@@ -76,7 +76,7 @@ import {
 
 import { importBundleAutoDetect, importReportToMarkdown, BUNDLE_TYPES, detectBundleType } from './import-unified.mjs';
 import { publishDirectory, publishDirectoryToMarkdown } from './publish-dir.mjs';
-import { deployDev, stopDev, statusDev, buildDevImage, restartDev, logsDev } from './deploy-dev.mjs';
+import { deployDev, stopDev, statusDev, buildDevImage, restartDev, logsDev, execDev } from './deploy-dev.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -110,6 +110,7 @@ export async function runCommand(command, args) {
   if (command === 'status-dev') return statusDevCommand(args);
   if (command === 'restart-dev') return restartDevCommand(args);
   if (command === 'logs-dev') return logsDevCommand(args);
+  if (command === 'exec-dev') return execDevCommand(args);
   if (command === 'meta-info') return metaInfoCommand(args);
   if (command === 'whois') return whoisCommand(args);
   if (command === 'reference') return referenceCommand(args);
@@ -739,6 +740,10 @@ async function restartDevCommand(args) {
 
 async function logsDevCommand(args) {
   return logsDev(args, { log: console });
+}
+
+async function execDevCommand(args) {
+  return execDev(args, { log: console });
 }
 
 async function metaInfoCommand(args) {

@@ -689,6 +689,51 @@ export function streamLogs(name, { spawnFn = spawn, log = console, since = null,
   return controller;
 }
 
+export async function execDev(args = {}, deps = {}) {
+  const { spawnFn = spawn, log = console } = deps;
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+  const containerName =
+    args['container-name'] || args.containerName || defaultContainerName(port);
+  const json = args.json || false;
+  const workdir = args['work-dir'] || args.workdir || args.wd || null;
+  const envArgs = Array.isArray(args.env) ? args.env : args.env ? [args.env] : [];
+  const command = (args._ && args._.length > 0) ? args._ : ['rebar3', 'device', 'list'];
+
+  const dockerArgs = ['exec'];
+  if (workdir) dockerArgs.push('--workdir', String(workdir));
+  for (const e of envArgs) dockerArgs.push('--env', String(e));
+  dockerArgs.push(containerName, ...command);
+
+  try {
+    const { stdout, stderr } = await runProcess('docker', dockerArgs, {
+      spawnFn,
+      timeoutMs: 60_000,
+    });
+    const result = {
+      ok: true,
+      name: containerName,
+      command,
+      workdir,
+      env: envArgs,
+      stdout,
+      stderr: stderr || '',
+    };
+    if (json) {
+      log.log(JSON.stringify(result, null, 2));
+    } else {
+      if (stdout) log.log(stdout);
+      if (stderr) log.error(stderr);
+    }
+    return result;
+  } catch (err) {
+    if (/No such container/.test(err.message)) {
+      throw new Error(`No dev container found: ${containerName}`);
+    }
+    if (/Docker is not installed/.test(err.message)) throw err;
+    throw new Error(`exec failed in ${containerName}: ${err.message}`);
+  }
+}
+
 export async function deployDev(args = {}, deps = {}) {
   const {
     spawnFn = spawn,

@@ -48,6 +48,7 @@ const COMMANDS = [
   'status-dev',
   'restart-dev',
   'logs-dev',
+  'exec-dev',
   'meta-info',
   'whois',
   'reference',
@@ -154,6 +155,7 @@ Commands:
   status-dev                   Show status of a running local HyperBEAM dev container
   restart-dev                  Restart a running local HyperBEAM dev container
   logs-dev                     Show or follow logs from a HyperBEAM dev container
+  exec-dev [cmd...]            Run a command inside a HyperBEAM dev container
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
@@ -474,6 +476,24 @@ Examples:
   permabrain logs-dev --port 8734 --follow
   permabrain logs-dev --log-lines 100 --timestamps
   permabrain logs-dev --since 10m --json`,
+    'exec-dev': `Usage: permabrain exec-dev [cmd...] [--port N] [--container-name <name>] [--work-dir <path>] [--env KEY=VALUE] [--json]
+
+Run a command inside a running HyperBEAM Forge dev container. If no command
+is provided, lists loaded HyperBEAM devices via 'rebar3 device list'.
+
+Options:
+  --port N              Container mapped port (default: 8734)
+  --container-name      Container name override (default: permabrain-dev-<port>)
+  --work-dir <path>     Working directory inside the container (default: /work)
+  --env KEY=VALUE       Set an environment variable inside the container (repeatable)
+  --json                Output stdout/stderr as structured JSON
+
+Examples:
+  permabrain exec-dev
+  permabrain exec-dev rebar3 device list
+  permabrain exec-dev ls -la /work
+  permabrain exec-dev --workdir /work/src cat dev_permabrain_consensus.erl
+  permabrain exec-dev --env DEBUG=1 rebar3 device list --json`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,
