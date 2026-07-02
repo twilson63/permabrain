@@ -50,6 +50,7 @@ const COMMANDS = [
   'logs-dev',
   'exec-dev',
   'watch-dev',
+  'wait-dev',
   'meta-info',
   'whois',
   'reference',
@@ -158,9 +159,9 @@ Commands:
   logs-dev                     Show or follow logs from a HyperBEAM dev container
   exec-dev [cmd...]            Run a command inside a HyperBEAM dev container
   watch-dev                    Watch a HyperBEAM dev container's health and optionally restart it
+  wait-dev                     Wait until a HyperBEAM dev container is healthy
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
-  reference <subcommand>         Manage HyperBEAM references (create|update|resolve)
   transport-status             Show transport metrics and circuit breaker state
   watch                        Poll transport for new articles/attestations
   watch-files <dir>            Watch directory and auto-publish changed markdown files
@@ -514,6 +515,26 @@ Examples:
   permabrain watch-dev
   permabrain watch-dev --interval 10000 --restart
   permabrain watch-dev --timeout 0 --port 8734`,
+    'wait-dev': `Usage: permabrain wait-dev [--port N] [--container-name <name>] [--timeout <ms>] [--interval <ms>] [--json] [--exit-code] [--silent]
+
+Wait until a HyperBEAM Forge dev container is healthy by polling docker ps
+and ~meta@1.0/info for the required PermaBrain devices. Exits as soon as
+the container reports both permabrain-consensus and permabrain-query.
+
+Options:
+  --port N                 Port the dev container exposes (default: 8734)
+  --container-name <name>  Docker container name (default: permabrain-dev-<port>)
+  --timeout <ms>           Maximum time to wait in milliseconds (default: 120000; 0 = forever)
+  --interval <ms>          Poll interval in milliseconds (default: 1000, min: 100)
+  --json                   Output the result as JSON
+  --exit-code              Return non-zero on timeout instead of throwing
+  --silent                 Suppress progress messages (JSON output still works)
+
+Examples:
+  permabrain wait-dev
+  permabrain wait-dev --timeout 30000 --interval 2000
+  permabrain wait-dev --port 9000 --silent
+  permabrain wait-dev --exit-code --json`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,

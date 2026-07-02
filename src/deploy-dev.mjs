@@ -734,6 +734,116 @@ export async function execDev(args = {}, deps = {}) {
   }
 }
 
+export async function waitDev(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    fetchFn = fetch,
+    log = console,
+    DateNow = Date.now,
+    setTimeoutFn = setTimeout,
+  } = deps;
+
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+  const containerName = args['container-name'] || args.containerName || defaultContainerName(port);
+  const timeoutMs = Number(args.timeout || DEFAULT_TIMEOUT_MS);
+  const intervalMs = Number(args.interval || args.i || POLL_INTERVAL_MS);
+  const json = args.json || false;
+  const exitCode = args['exit-code'] || args.exitCode || false;
+  const silent = args.silent || false;
+  const requiredDevices = ['permabrain-consensus', 'permabrain-query'];
+  const verifyUrl = `http://localhost:${port}/~meta@1.0/info`;
+
+  if (!Number.isInteger(intervalMs) || intervalMs < 100) {
+    throw new Error(`Invalid interval: ${args.interval || args.i}. Must be at least 100ms.`);
+  }
+
+  const startedAt = DateNow();
+  const deadline = timeoutMs > 0 ? startedAt + timeoutMs : 0;
+  let checks = 0;
+  let lastStatus = { running: false, healthy: false };
+  let lastError = null;
+
+  const emit = silent && !json ? () => {} : log.log.bind(log);
+  emit(`Waiting for HyperBEAM dev container ${containerName} at ${verifyUrl}...`);
+
+  const checkOnce = async () => {
+    checks += 1;
+    try {
+      const status = await getDevContainerStatus(
+        { port, 'container-name': containerName },
+        { spawnFn, fetchFn }
+      );
+      lastStatus = status;
+      return status;
+    } catch (err) {
+      lastError = err;
+      if (/Docker is not installed/.test(err.message)) throw err;
+      return { running: false, healthy: false };
+    }
+  };
+
+  // Initial check.
+  let status = await checkOnce();
+  if (!status.healthy && status.running) {
+    emit(`Container ${containerName} is running but not yet healthy; polling every ${intervalMs}ms...`);
+  }
+
+  while (!status.healthy) {
+    if (deadline && DateNow() >= deadline) {
+      const durationMs = DateNow() - startedAt;
+      const result = {
+        ok: false,
+        name: containerName,
+        port,
+        verifyUrl,
+        running: lastStatus.running,
+        healthy: false,
+        checks,
+        durationMs,
+        timeoutMs,
+        error: lastError?.message || `Timed out waiting for ${requiredDevices.join(' and ')}`,
+      };
+      if (exitCode) {
+        if (json) {
+          log.log(JSON.stringify(result, null, 2));
+        } else {
+          log.error(`Wait timed out after ${durationMs}ms (${checks} check${checks === 1 ? '' : 's'}).`);
+        }
+        return result;
+      }
+      throw new Error(
+        `Timed out waiting for ${requiredDevices.join(' and ')} in ${containerName} at ${verifyUrl} ` +
+          `after ${timeoutMs}ms (${checks} check${checks === 1 ? '' : 's'}).`
+      );
+    }
+
+    if (!silent) emit(`Waiting for HyperBEAM dev node at ${verifyUrl}...`);
+    await new Promise((r) => setTimeoutFn(r, intervalMs));
+    status = await checkOnce();
+  }
+
+  const durationMs = DateNow() - startedAt;
+  const result = {
+    ok: true,
+    name: containerName,
+    port,
+    verifyUrl,
+    running: true,
+    healthy: true,
+    checks,
+    durationMs,
+    devices: requiredDevices,
+  };
+
+  if (json) {
+    log.log(JSON.stringify(result, null, 2));
+  } else {
+    emit(`Container ${containerName} is healthy after ${durationMs}ms (${checks} check${checks === 1 ? '' : 's'}).`);
+  }
+
+  return result;
+}
+
 export async function watchDev(args = {}, deps = {}) {
   const {
     spawnFn = spawn,

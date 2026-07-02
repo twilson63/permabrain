@@ -25,6 +25,7 @@ import {
   streamLogs,
   execDev,
   watchDev,
+  waitDev,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -1360,4 +1361,244 @@ console.log('5. CLI watch-dev --help works');
 console.log('   ✓ watch-dev CLI help works');
 
 console.log('✅ All watch-dev tests passed');
+
+console.log('1. waitDev reports healthy container immediately');
+{
+  let calls = 0;
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps --format')) {
+      calls += 1;
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' });
+  const log = fakeLog();
+  const result = await waitDev({ timeout: 5000 }, { spawnFn, fetchFn, log, DateNow: Date.now });
+  assert.equal(result.ok, true);
+  assert.equal(result.healthy, true);
+  assert.equal(result.running, true);
+  assert.equal(result.port, 8734);
+  assert.equal(result.name, 'permabrain-dev-8734');
+  assert.equal(result.checks, 1);
+  assert.ok(result.durationMs >= 0);
+  assert.ok(log.output.some((line) => line.includes('is healthy after')));
+}
+console.log('   ✓ waitDev healthy immediate');
+
+console.log('2. waitDev polls until container becomes healthy');
+{
+  let checks = 0;
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps --format')) {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  const fetchFn = () => {
+    checks += 1;
+    if (checks < 3) {
+      return Promise.resolve({ ok: true, text: async () => '{"other-device": true}' });
+    }
+    return Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' });
+  };
+  const log = fakeLog();
+  const delays = [];
+  const setTimeoutFn = (fn, ms) => {
+    delays.push(ms);
+    return setTimeout(fn, 1);
+  };
+  const result = await waitDev(
+    { timeout: 5000, interval: 100 },
+    { spawnFn, fetchFn, log, setTimeoutFn, DateNow: Date.now }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.healthy, true);
+  assert.equal(result.checks, 3);
+  assert.equal(delays.length, 2);
+  assert.ok(delays.every((ms) => ms === 100));
+}
+console.log('   ✓ waitDev polls until healthy');
+
+console.log('3. waitDev throws on timeout');
+{
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps --format')) {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"other-device": true}' });
+  const log = fakeLog();
+  const setTimeoutFn = (fn, ms) => setTimeout(fn, 1);
+  await assert.rejects(
+    waitDev({ timeout: 10, interval: 100 }, { spawnFn, fetchFn, log, setTimeoutFn, DateNow: Date.now }),
+    /Timed out waiting for permabrain-consensus and permabrain-query/
+  );
+}
+console.log('   ✓ waitDev timeout throws');
+
+console.log('4. waitDev --exit-code returns non-zero result on timeout instead of throwing');
+{
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps --format')) {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"other-device": true}' });
+  const log = fakeLog();
+  const setTimeoutFn = (fn, ms) => setTimeout(fn, 1);
+  const result = await waitDev(
+    { timeout: 10, interval: 100, 'exit-code': true },
+    { spawnFn, fetchFn, log, setTimeoutFn, DateNow: Date.now }
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.healthy, false);
+  assert.equal(result.running, true);
+  assert.ok(result.error.includes('permabrain-consensus'));
+}
+console.log('   ✓ waitDev exit-code result');
+
+console.log('5. waitDev --json outputs structured result');
+{
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps --format')) {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  const fetchFn = () => Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' });
+  const log = fakeLog();
+  const result = await waitDev({ json: true }, { spawnFn, fetchFn, log, DateNow: Date.now });
+  assert.equal(result.ok, true);
+  assert.ok(log.output.some((line) => line.includes('"healthy"')));
+  assert.ok(log.output.some((line) => line.includes('"checks"')));
+}
+console.log('   ✓ waitDev JSON output');
+
+console.log('6. waitDev --silent suppresses progress messages');
+{
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    if (key.startsWith('docker ps --format')) {
+      setImmediate(() => {
+        child.stdout.emit('data', Buffer.from('permabrain-dev-8734\t0.0.0.0:8734->8734/tcp\tUp\tabc123\n'));
+        child.emit('close', 0);
+      });
+    } else {
+      setImmediate(() => child.emit('close', 0));
+    }
+    return child;
+  };
+  let fetchCalls = 0;
+  const fetchFn = () => {
+    fetchCalls += 1;
+    if (fetchCalls < 2) {
+      return Promise.resolve({ ok: true, text: async () => '{"other-device": true}' });
+    }
+    return Promise.resolve({ ok: true, text: async () => '{"permabrain-consensus": true, "permabrain-query": true}' });
+  };
+  const log = fakeLog();
+  const setTimeoutFn = (fn, ms) => setTimeout(fn, 1);
+  const result = await waitDev(
+    { timeout: 5000, interval: 100, silent: true },
+    { spawnFn, fetchFn, log, setTimeoutFn, DateNow: Date.now }
+  );
+  assert.equal(result.ok, true);
+  assert.ok(!log.output.some((line) => line.includes('Waiting for')));
+  assert.ok(!log.output.some((line) => line.includes('running but not yet healthy')));
+}
+console.log('   ✓ waitDev silent mode');
+
+console.log('7. waitDev rejects invalid interval');
+{
+  await assert.rejects(
+    waitDev({ interval: 50 }, { DateNow: Date.now }),
+    /Invalid interval/
+  );
+}
+console.log('   ✓ waitDev invalid interval');
+
+console.log('8. waitDev surfaces docker-missing error');
+{
+  const spawnFn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => child.emit('error', { code: 'ENOENT' }));
+    return child;
+  };
+  await assert.rejects(
+    waitDev({}, { spawnFn, log: fakeLog(), DateNow: Date.now }),
+    /Docker is not installed/
+  );
+}
+console.log('   ✓ waitDev docker missing error');
+
+console.log('9. CLI wait-dev --help works');
+{
+  const help = execSync('node scripts/cli.mjs wait-dev --help', {
+    cwd: '/home/node/.openclaw/workspace/permabrain',
+    encoding: 'utf8',
+  });
+  assert.match(help, /wait-dev/);
+  assert.match(help, /--timeout/);
+  assert.match(help, /--interval/);
+  assert.match(help, /--exit-code/);
+  assert.match(help, /--silent/);
+  assert.match(help, /--json/);
+}
+console.log('   ✓ wait-dev CLI help works');
+
+console.log('✅ All wait-dev tests passed');
+
 
