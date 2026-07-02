@@ -427,6 +427,73 @@ export async function waitForDevices(url, requiredDevices, deps = {}) {
   );
 }
 
+export async function buildDevImage(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    log = console,
+    processEnv = process.env,
+  } = deps;
+
+  const projectDir = await resolveProjectDir(args['project-dir'] || args.projectDir);
+  validateProjectDir(projectDir);
+  const version = args.version || args.tag || 'latest';
+  const mode = args.push ? '--push' : args.multiarch ? '--multiarch' : '';
+  const dryRun = args['dry-run'] || args.dryRun || false;
+  const json = args.json || false;
+
+  const scriptPath = path.join(projectDir, 'scripts', 'build-dev-image.sh');
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(`Forge build script not found at ${scriptPath}`);
+  }
+
+  const plan = {
+    image: `ghcr.io/twilson63/hyperbeam-dev:${version}`,
+    projectDir,
+    script: scriptPath,
+    mode,
+    dryRun,
+  };
+
+  if (dryRun) {
+    if (json) {
+      log.log(JSON.stringify(plan, null, 2));
+    } else {
+      log.log('Dry-run plan:');
+      log.log(`  Image:      ${plan.image}`);
+      log.log(`  Project:    ${projectDir}`);
+      log.log(`  Script:     ${scriptPath}`);
+      log.log(`  Mode:       ${mode || 'local load'}`);
+    }
+    return plan;
+  }
+
+  const scriptArgs = [scriptPath, version];
+  if (mode) scriptArgs.push(mode);
+
+  log.log(`Building HyperBEAM dev image ${plan.image} from ${projectDir}...`);
+  const { stdout, stderr } = await runProcess('bash', scriptArgs, {
+    spawnFn,
+    timeoutMs: 900_000,
+  });
+
+  const result = {
+    ok: true,
+    image: plan.image,
+    projectDir,
+    mode: mode || 'local load',
+    stdout,
+    stderr,
+  };
+
+  if (json) {
+    log.log(JSON.stringify(result, null, 2));
+  } else {
+    log.log(`Built HyperBEAM dev image ${plan.image}`);
+    if (stderr) log.log(stderr);
+  }
+  return result;
+}
+
 export async function deployDev(args = {}, deps = {}) {
   const {
     spawnFn = spawn,
@@ -446,6 +513,7 @@ export async function deployDev(args = {}, deps = {}) {
   const dryRun = args['dry-run'] || args.dryRun || false;
   const forcePull = args.pull || false;
   const json = args.json || false;
+  const buildImage = args['build-image'] || args.buildImage || false;
   const enableLogs = args.logs || false;
   const logLines = Number(args['log-lines'] || args.logLines || DEFAULT_LOG_LINES);
 
@@ -458,6 +526,7 @@ export async function deployDev(args = {}, deps = {}) {
       command: 'docker run -d --rm -p PORT:8734 -v PROJECT:/work IMAGE sh -c "cd /work && rebar3 device local"',
       verifyUrl: `http://localhost:${port}/~meta@1.0/info`,
       requiredDevices: ['permabrain-consensus', 'permabrain-query'],
+      buildImage,
       logs: enableLogs,
       logLines,
     };
@@ -470,11 +539,20 @@ export async function deployDev(args = {}, deps = {}) {
       log.log(`  Project dir:  ${projectDir}`);
       log.log(`  Verify URL:   ${plan.verifyUrl}`);
       log.log(`  Command:      ${plan.command}`);
+      if (buildImage) {
+        log.log('  Build image:  yes (local build via build-dev-image)');
+      } else if (forcePull) {
+        log.log('  Pull image:   yes');
+      } else {
+        log.log('  Pull image:   if not present locally');
+      }
     }
     return plan;
   }
 
-  if (forcePull || !(await imageExists(image, { spawnFn }))) {
+  if (buildImage) {
+    await buildDevImage({ 'project-dir': projectDir, json }, { spawnFn, log });
+  } else if (forcePull || !(await imageExists(image, { spawnFn }))) {
     await pullImage(image, { spawnFn, log });
   }
 

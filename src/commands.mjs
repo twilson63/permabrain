@@ -76,7 +76,7 @@ import {
 
 import { importBundleAutoDetect, importReportToMarkdown, BUNDLE_TYPES, detectBundleType } from './import-unified.mjs';
 import { publishDirectory, publishDirectoryToMarkdown } from './publish-dir.mjs';
-import { deployDev, stopDev, statusDev } from './deploy-dev.mjs';
+import { deployDev, stopDev, statusDev, buildDevImage } from './deploy-dev.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -105,6 +105,7 @@ export async function runCommand(command, args) {
   if (command === 'match') return matchCommand(args);
   if (command === 'deploy-consensus') return deployConsensusCommand(args);
   if (command === 'deploy-dev') return deployDevCommand(args);
+  if (command === 'build-dev-image') return buildDevImageCommand(args);
   if (command === 'stop-dev') return stopDevCommand(args);
   if (command === 'status-dev') return statusDevCommand(args);
   if (command === 'meta-info') return metaInfoCommand(args);
@@ -712,6 +713,10 @@ async function deployConsensusCommand(args) {
     console.log(`  Query module: ${result.queryModuleId}`);
   }
   return result;
+}
+
+async function buildDevImageCommand(args) {
+  return buildDevImage(args, { log: console });
 }
 
 async function deployDevCommand(args) {

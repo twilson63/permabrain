@@ -19,6 +19,7 @@ import {
   listPermabrainDevContainers,
   getDevContainerStatus,
   statusDev,
+  buildDevImage,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -641,5 +642,113 @@ console.log('28. CLI status-dev --help works');
   assert.match(help, /--container-name/);
 }
 console.log('   ✓ status-dev CLI help works');
+
+console.log('29. buildDevImage dry-run returns plan');
+{
+  const log = fakeLog();
+  const result = await buildDevImage({ 'dry-run': true }, { log });
+  assert.equal(result.image, 'ghcr.io/twilson63/hyperbeam-dev:latest');
+  assert.ok(result.projectDir.endsWith('/hb-forge'), 'default project dir ends with /hb-forge');
+  assert.ok(result.script.endsWith('hb-forge/scripts/build-dev-image.sh'), 'script path correct');
+  assert.equal(result.mode, '');
+  assert.ok(log.output.some((line) => line.includes('Dry-run plan')));
+}
+console.log('   ✓ buildDevImage dry-run');
+
+console.log('30. buildDevImage dry-run honors --version, --push, and --multiarch');
+{
+  const log = fakeLog();
+  const result = await buildDevImage(
+    { 'dry-run': true, version: '0.2.0', push: true },
+    { log }
+  );
+  assert.equal(result.image, 'ghcr.io/twilson63/hyperbeam-dev:0.2.0');
+  assert.equal(result.mode, '--push');
+  const multi = await buildDevImage({ 'dry-run': true, multiarch: true }, { log: fakeLog() });
+  assert.equal(multi.mode, '--multiarch');
+}
+console.log('   ✓ buildDevImage mode options');
+
+console.log('31. buildDevImage invokes build script with bash');
+{
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    logs.push([cmd, ...args].join(' '));
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    setImmediate(() => {
+      child.stdout.emit('data', Buffer.from('Built: ghcr.io/twilson63/hyperbeam-dev:latest\n'));
+      child.emit('close', 0);
+    });
+    return child;
+  };
+  const log = fakeLog();
+  const result = await buildDevImage({}, { spawnFn, log });
+  assert.equal(result.ok, true);
+  assert.ok(logs.some((k) => k.startsWith('bash ')));
+  assert.ok(logs.some((k) => k.includes('build-dev-image.sh')));
+  assert.ok(result.stdout.includes('Built:'));
+}
+console.log('   ✓ buildDevImage invokes script');
+
+console.log('32. deployDev --build-image builds image before running');
+{
+  const logs = [];
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key.startsWith('bash')) {
+      out = { code: 0, stdout: 'Built\n' };
+    } else if (key.startsWith('docker run')) {
+      out = { code: 0, stdout: 'abc123\n' };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const metaInfo = { devices: { 'permabrain-consensus': {}, 'permabrain-query': {} } };
+  const fetchFn = fakeFetch([{ ok: true, body: JSON.stringify(metaInfo) }]);
+  const log = fakeLog();
+  const result = await deployDev({ 'build-image': true }, { spawnFn, fetchFn, log });
+  assert.equal(result.ok, true);
+  assert.ok(logs.some((k) => k.startsWith('bash ')), 'build script ran');
+  assert.ok(logs.some((k) => k.startsWith('docker run')), 'container ran');
+  assert.ok(!logs.some((k) => k.startsWith('docker pull')), 'did not pull');
+  assert.ok(!logs.some((k) => k.startsWith('docker images')), 'did not check local image');
+}
+console.log('   ✓ deployDev --build-image builds before running');
+
+console.log('33. CLI build-dev-image --help works');
+{
+  const help = execSync(`node ${join(process.cwd(), 'scripts/cli.mjs')} build-dev-image --help`, {
+    encoding: 'utf8',
+  });
+  assert.match(help, /build-dev-image/);
+  assert.match(help, /--project-dir/);
+  assert.match(help, /--version/);
+  assert.match(help, /--push/);
+  assert.match(help, /--multiarch/);
+}
+console.log('   ✓ build-dev-image CLI help works');
+
+console.log('34. deploy-dev dry-run --build-image reports build plan');
+{
+  const log = fakeLog();
+  const result = await deployDev({ 'dry-run': true, 'build-image': true }, { log });
+  assert.equal(result.buildImage, true);
+  assert.ok(log.output.some((line) => line.includes('Build image:  yes')));
+}
+console.log('   ✓ deploy-dev dry-run --build-image');
 
 console.log('✅ All deploy-dev tests passed');

@@ -43,6 +43,7 @@ const COMMANDS = [
   'match',
   'deploy-consensus',
   'deploy-dev',
+  'build-dev-image',
   'stop-dev',
   'status-dev',
   'meta-info',
@@ -350,7 +351,7 @@ a specific tag key-value pair. Returns matching message IDs.`,
 
 Deploys the PermaBrain consensus and query Lua modules to a
 HyperBEAM node via the bundler device. Returns module IDs.`,
-    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--json]
+    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--json]
 
 Deploy the HyperBEAM Forge dev container locally and verify that the
 PermaBrain devices are loaded.
@@ -365,6 +366,7 @@ Options:
   --port N             Host port to bind (default 8734)
   --project-dir <path> Path to the HyperBEAM Forge project (default <repo-root>/hb-forge)
   --pull               Force docker pull even if the image exists locally
+  --build-image        Build the dev image locally before deployment (uses build-dev-image)
   --timeout <ms>       Max time to wait for the node, in milliseconds (default 120000)
   --logs               Fetch and print container logs on failure (and include in JSON)
   --log-lines N        Number of tail lines to fetch with --logs (default 50)
@@ -375,7 +377,23 @@ Examples:
   permabrain deploy-dev
   permabrain deploy-dev --port 8734 --pull
   permabrain deploy-dev --dry-run --json
-  permabrain deploy-dev --logs --log-lines 100`,
+  permabrain deploy-dev --build-image --logs --log-lines 100`,
+    'build-dev-image': `Usage: permabrain build-dev-image [--project-dir <path>] [--version <tag>] [--push] [--multiarch] [--dry-run] [--json]
+
+Build the HyperBEAM Forge dev image using hb-forge/scripts/build-dev-image.sh.
+
+Options:
+  --project-dir <path> Path to the HyperBEAM Forge project (default <repo-root>/hb-forge)
+  --version <tag>      Image tag/version to build (default latest)
+  --push               Build and push linux/amd64 to GHCR (requires auth)
+  --multiarch          Build and push linux/amd64 + linux/arm64 to GHCR (requires auth)
+  --dry-run            Print the build plan without running Docker
+  --json               Output structured JSON
+
+Examples:
+  permabrain build-dev-image
+  permabrain build-dev-image --version 0.2.0 --push
+  permabrain build-dev-image --multiarch --json`,
     'stop-dev': `Usage: permabrain stop-dev [--port N] [--container-name <name>] [--all] [--json]
 
 Stop and remove a HyperBEAM Forge dev container started by deploy-dev.
