@@ -516,14 +516,23 @@ export async function deployDev(args = {}, deps = {}) {
   const buildImage = args['build-image'] || args.buildImage || false;
   const enableLogs = args.logs || false;
   const logLines = Number(args['log-lines'] || args.logLines || DEFAULT_LOG_LINES);
+  const containerName = args['container-name'] || args.containerName || `permabrain-dev-${port}`;
 
   if (dryRun) {
+    const resolvedCommand = [
+      'docker run -d --rm',
+      `--name ${containerName}`,
+      `-p ${port}:8734`,
+      `-v ${projectDir}:/work`,
+      image,
+      `sh -c "cd /work && rebar3 device local"`,
+    ].join(' ');
     const plan = {
       image,
       port,
       projectDir,
-      containerName: `permabrain-dev-${port}`,
-      command: 'docker run -d --rm -p PORT:8734 -v PROJECT:/work IMAGE sh -c "cd /work && rebar3 device local"',
+      containerName,
+      command: resolvedCommand,
       verifyUrl: `http://localhost:${port}/~meta@1.0/info`,
       requiredDevices: ['permabrain-consensus', 'permabrain-query'],
       buildImage,
@@ -557,7 +566,7 @@ export async function deployDev(args = {}, deps = {}) {
   }
 
   const { containerId, name } = await runContainer(
-    { image, port, projectDir, containerName: args['container-name'] || args.containerName },
+    { image, port, projectDir, containerName },
     { spawnFn }
   );
 
