@@ -1674,7 +1674,11 @@ const api = {
     await this.ensureInit();
     requireInit(this._home);
     const { runDoctor, doctorReportToMarkdown } = await import('./doctor.mjs');
-    const report = await runDoctor(this._home, { fix: opts.fix === true });
+    const report = await runDoctor(this._home, {
+      fix: opts.fix === true,
+      dev: opts.dev === true,
+      devProjectDir: opts.devProjectDir || opts['dev-project-dir'],
+    });
     if (opts.markdown) {
       return { ...report, markdown: doctorReportToMarkdown(report) };
     }

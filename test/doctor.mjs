@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import EventEmitter from 'node:events';
 import { runDoctor, doctorReportToMarkdown, rebuildIndexFromObjects } from '../src/doctor.mjs';
 import { statePaths } from '../src/config.mjs';
 
@@ -228,6 +230,47 @@ function fakeAttestationSummary(targetKey, id) {
   const report = JSON.parse(out);
   assert.equal(report.ok, true, 'CLI doctor reports ok');
   console.log('10. CLI doctor command runs');
+}
+
+// --- 11. doctor --dev includes dev-container readiness check ---
+{
+  const home = tmpHome();
+  const api = await initHome(home);
+  const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'ignore'],
+  }).trim();
+  const projectDir = path.join(repoRoot, 'hb-forge');
+
+  const outputs = new Map([
+    ['docker|--version', { code: 0, stdout: 'Docker version 24.0.0\n' }],
+    ['docker|version|--format|{{.Server.Version}}', { code: 0, stdout: '24.0.0\n' }],
+    ['docker|buildx|version', { code: 0, stdout: 'github.com/docker/buildx v0.11.0\n' }],
+    ['rebar3|--version', { code: 127, stderr: 'rebar3: command not found\n' }],
+    ['erl|+V', { code: 127, stderr: 'erl: command not found\n' }],
+    ['docker|images|--format|{{.Repository}}:{{.Tag}}|ghcr.io/twilson63/hyperbeam-dev', { code: 0, stdout: '' }],
+  ]);
+
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join('|');
+    const result = outputs.get(key) || { code: 0, stdout: '', stderr: '' };
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    process.nextTick(() => {
+      if (result.stdout) child.stdout.emit('data', Buffer.from(result.stdout));
+      if (result.stderr) child.stderr.emit('data', Buffer.from(result.stderr));
+      child.emit('close', result.code ?? 0, null);
+    });
+    return child;
+  };
+
+  const report = await runDoctor(home, { dev: true, devProjectDir: projectDir, spawnFn });
+  const devCheck = report.checks.find((c) => c.name === 'dev-container');
+  assert.ok(devCheck, 'dev-container check present');
+  assert.equal(devCheck.ok, true, 'dev check ok when Docker + project are present');
+  assert.ok(devCheck.message.includes('ready'), 'dev check message reports ready');
+  console.log('11. doctor --dev includes dev-container readiness check');
 }
 
 console.log('\n✅ All doctor tests passed');

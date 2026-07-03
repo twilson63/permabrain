@@ -4,6 +4,7 @@ import { getHome, statePaths, defaultConfig, loadConfig, VALID_TRANSPORTS, valid
 import { loadIdentity, publicIdentity, identityInitEvent } from './keys.mjs';
 import { loadIndex, writeIndex, latestByArticleKey, summarizeArticle, summarizeAttestation } from './cache.mjs';
 import { tagsToObject } from './tags.mjs';
+import { checkDev } from './deploy-dev.mjs';
 
 export function doctorReportToMarkdown(report) {
   const lines = [
@@ -135,9 +136,15 @@ function computeCacheDetails(home, index) {
 }
 
 export async function runDoctor(homeOrOpts, opts = {}) {
-  const home = typeof homeOrOpts === 'string' ? homeOrOpts : getHome();
+  const home = typeof homeOrOpts === 'string' ? homeOrOpts : (homeOrOpts?.home || getHome());
   const fix = opts.fix === true;
   const report = { ok: true, home, checks: [], issues: 0, fixed: 0, details: {} };
+  // Support passing options as the first argument for tests/mocks.
+  const firstArgIsOpts = typeof homeOrOpts === 'object' && homeOrOpts !== null;
+  const dev = firstArgIsOpts ? homeOrOpts.dev === true : opts.dev === true;
+  const devProjectDir = firstArgIsOpts ? homeOrOpts.devProjectDir : opts.devProjectDir;
+  const spawnFn = firstArgIsOpts ? homeOrOpts.spawnFn : opts.spawnFn;
+  const fetchFn = firstArgIsOpts ? homeOrOpts.fetchFn : opts.fetchFn;
 
   function addCheck(name, ok, message, fixes = []) {
     const check = { name, ok, message, fixes };
@@ -318,6 +325,31 @@ export async function runDoctor(homeOrOpts, opts = {}) {
     addCheck('cache-index', cacheOk,
       result.indexExists && result.indexReadable ? `index.json ${result.indexValid ? 'valid' : 'invalid'}: ${result.articlesCount} articles, ${result.attestationsCount} attestations${result.errors.length ? '; ' + result.errors.join('; ') : ''}${result.missingObjects.length ? '; ' + result.missingObjects.length + ' missing object(s)' : ''}${result.missingKeys.length ? '; ' + result.missingKeys.length + ' key(s) missing from index' : ''}${result.staleIndexKeys.length ? '; ' + result.staleIndexKeys.length + ' stale key(s)' : ''}${result.orphanAttestations.length ? '; ' + result.orphanAttestations.length + ' orphan attestation(s)' : ''}${result.brokenChains.length ? '; ' + result.brokenChains.length + ' broken chain link(s)' : ''}` : result.errors.join('; '),
       fixes);
+  }
+
+  // Dev-container readiness (optional; requested with --dev)
+  if (dev) {
+    let devResult;
+    try {
+      devResult = await checkDev(
+        { 'project-dir': devProjectDir, 'exit-code': true },
+        { spawnFn, fetchFn, log: { log: () => {}, error: () => {} } }
+      );
+    } catch (err) {
+      devResult = { ok: false, ready: false, summary: err.message, checks: [], warnings: [] };
+    }
+    const devOk = devResult.ok === true;
+    const failedRequired = devResult.checks?.filter((c) => c.required && !c.ok).map((c) => c.name).join(', ');
+    const failedOptional = devResult.warnings?.map((w) => w.name).join(', ');
+    const message = devOk
+      ? 'Dev-container environment is ready.'
+      : [
+          devResult.summary || 'Dev-container environment is not ready.',
+          failedRequired && `Missing required: ${failedRequired}`,
+          failedOptional && `Missing optional: ${failedOptional}`,
+        ].filter(Boolean).join(' ');
+    report.details.devContainer = devResult;
+    addCheck('dev-container', devOk, message, []);
   }
 
   return report;

@@ -166,7 +166,7 @@ export const COMMAND_OPTIONS = {
   restore: ['--passphrase', '--seed', '--home', '--dry-run'],
   backup: ['--passphrase', '--backup', '--keep', '--max-age-days', '--name', '--dry-run'],
   serve: ['--port'],
-  doctor: ['--fix'],
+  doctor: ['--fix', '--dev', '--dev-project-dir'],
   log: ['--action', '--status', '--key', '--agent', '--after', '--before', '--search', '--order', '--limit', '--offset', '--tail', '--follow', '--interval', '--markdown'],
   template: ['--source', '--topic', '--kind', '--title', '--key', '--app', '--source-url', '--variables', '--encrypt', '--recipient'],
   dashboard: ['--kind', '--topic', '--author', '--key', '--agent', '--after', '--before', '--sort', '--order', '--article-limit', '--activity-limit', '--log-limit', '--output', '--title', '--publish', '--page-id', '--recipient-key-id', '--recipient', '--subdomain', '--key-id', '--private-jwk', '--markdown'],

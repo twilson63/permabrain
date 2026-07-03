@@ -1982,7 +1982,11 @@ async function mergeCommand(args) {
 
 async function doctorCommand(args) {
   const home = getHome();
-  const report = await runDoctor(home, { fix: args.fix === true || args.fix === 'true' });
+  const report = await runDoctor(home, {
+    fix: args.fix === true || args.fix === 'true',
+    dev: args.dev === true || args.dev === 'true',
+    devProjectDir: args['dev-project-dir'] || args.devProjectDir,
+  });
   if (args.json) printJson(report);
   else console.log(doctorReportToMarkdown(report));
   if (!report.ok && process.env.PERMABRAIN_REQUIRE_DOCTOR_OK === '1') throw new Error('PermaBrain doctor found issues');

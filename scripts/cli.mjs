@@ -197,7 +197,8 @@ Commands:
                              PERMABRAIN_ACCESS_LOG_MAX_SIZE rotates the JSONL log at this size (default 10 MiB)
                              PERMABRAIN_ACCESS_LOG_MAX_FILES keeps this many rotated JSONL files (default 5)
                              PERMABRAIN_ACCESS_LOG_RETENTION_DAYS drops entries older than this when querying disk
-  doctor [--fix] [--json]      Validate local PermaBrain state and optionally repair it
+  doctor [--fix] [--json] [--dev] [--dev-project-dir <path>]
+                               Validate local PermaBrain state and optionally the dev-container prerequisites
   log [filters]                Query the local audit log
   access-log [filters]         Query HTTP access/request logs from disk or a running server
   template <file>              Publish an article from a markdown template
@@ -1125,12 +1126,17 @@ Metrics and monitoring:
                               Prometheus-compatible exposition text
 
 Press Ctrl+C to stop.`,
-    'doctor': `Usage: permabrain doctor [--fix] [--json]
+    'doctor': `Usage: permabrain doctor [--fix] [--json] [--dev] [--dev-project-dir <path>]
 
 Validate the local PermaBrain state (config, identity, cache index, object files)
 and report any issues. With --fix, attempts safe auto-repairs: recreates missing
 config.json, rebuilds a stale index from cache/objects, and restores a missing
-identity-init.json when keys.json is present.`,
+identity-init.json when keys.json is present.
+
+With --dev, also validate the HyperBEAM Forge dev-container environment
+(Docker CLI/daemon, Forge project directory, optional rebar3/Erlang/OTP, GHCR
+credentials, and local dev image availability). Use --dev-project-dir to point
+to a custom hb-forge directory.`,
     'log': `Usage: permabrain log [filters] [--tail [N]] [--follow] [--interval N] [--markdown] [--json]
        permabrain log export [--jsonl] [--output <path>] [--json]
        permabrain log import <file> [--skip-duplicates] [--json]
