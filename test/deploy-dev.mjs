@@ -219,6 +219,49 @@ console.log('5. deployDev reports error when required devices are missing');
 }
 console.log('   ✓ missing devices cause timeout error');
 
+console.log('5a. deployDev --rm-on-failure stops and removes container on verification failure');
+{
+  const logs = [];
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key.startsWith('docker images')) {
+      out = { code: 0, stdout: `${image}\n` };
+    } else if (key.startsWith('docker run')) {
+      out = { code: 0, stdout: 'c1\n' };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const fetchFn = fakeFetch([
+    { ok: true, body: JSON.stringify({ devices: ['other-device'] }) },
+  ]);
+  const log = fakeLog();
+  let err;
+  try {
+    await deployDev({ timeout: 50, 'rm-on-failure': true }, { spawnFn, fetchFn, log });
+    assert.fail('expected deployDev to throw');
+  } catch (e) {
+    err = e;
+  }
+  assert.match(err.message, /Timed out waiting/);
+  assert.ok(logs.includes('docker stop permabrain-dev-8734'), 'stopped container');
+  assert.ok(logs.includes('docker rm permabrain-dev-8734'), 'removed container');
+  assert.ok(log.output.some((line) => line.includes('Stopping and removing container')));
+  assert.ok(!log.output.some((line) => line.includes('may still be running')), 'no stray inspection hint');
+}
+console.log('   ✓ rm-on-failure cleans up container');
+
 console.log('6. deployDev surfaces clear error when docker is missing');
 {
   const spawnFn = () => {
@@ -312,10 +355,20 @@ console.log('11. CLI deploy-dev --help works');
   assert.match(help, /--project-dir/);
   assert.match(help, /--pull/);
   assert.match(help, /--tail/);
+  assert.match(help, /--rm-on-failure/);
 }
 console.log('   ✓ CLI help works');
 
-console.log('12. deployDev --logs includes log capture plan in dry-run');
+console.log('12. deployDev dry-run --rm-on-failure includes cleanup plan');
+{
+  const log = fakeLog();
+  const result = await deployDev({ 'dry-run': true, 'rm-on-failure': true }, { log });
+  assert.equal(result.rmOnFailure, true);
+  assert.ok(log.output.some((line) => line.includes('Cleanup:      yes')));
+}
+console.log('   ✓ dry-run rm-on-failure plan included');
+
+console.log('13. deployDev --logs includes log capture plan in dry-run');
 {
   const log = fakeLog();
   const result = await deployDev({ 'dry-run': true, logs: true, 'log-lines': '25' }, { log });
@@ -324,7 +377,7 @@ console.log('12. deployDev --logs includes log capture plan in dry-run');
 }
 console.log('   ✓ dry-run logs options included');
 
-console.log('13. deployDev --logs captures container logs on timeout');
+console.log('14. deployDev --logs captures container logs on timeout');
 {
   const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
   const logs = [];
@@ -887,6 +940,7 @@ console.log('40. CLI restart-dev --help works');
   assert.match(help, /--no-pull/);
   assert.match(help, /--build-image/);
   assert.match(help, /--container-name/);
+  assert.match(help, /--rm-on-failure/);
 }
 console.log('   ✓ restart-dev CLI help works');
 

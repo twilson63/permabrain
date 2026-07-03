@@ -166,6 +166,7 @@ export async function stopDev(args = {}, deps = {}) {
   const nameArg = args['container-name'] || args.containerName;
   const all = args.all || false;
   const json = args.json || false;
+  const silent = args.silent || false;
 
   let names;
   if (all) {
@@ -174,7 +175,7 @@ export async function stopDev(args = {}, deps = {}) {
       const msg = 'No permabrain-dev-* containers found.';
       if (json) {
         log.log(JSON.stringify({ ok: true, stopped: [], message: msg }));
-      } else {
+      } else if (!silent) {
         log.log(msg);
       }
       return { ok: true, stopped: [], message: msg };
@@ -225,7 +226,7 @@ export async function stopDev(args = {}, deps = {}) {
 
   if (json) {
     log.log(JSON.stringify(result, null, 2));
-  } else {
+  } else if (!silent) {
     log.log(result.message);
   }
 
@@ -521,6 +522,7 @@ export async function restartDev(args = {}, deps = {}) {
     'build-image': args['build-image'] || args.buildImage || false,
     logs: args.logs || false,
     'log-lines': args['log-lines'] || args.logLines,
+    'rm-on-failure': args['rm-on-failure'] || args.rmOnFailure || false,
     json,
   };
 
@@ -1079,6 +1081,7 @@ export async function deployDev(args = {}, deps = {}) {
   const logLines = Number(args['log-lines'] || args.logLines || DEFAULT_LOG_LINES);
   const containerName = args['container-name'] || args.containerName || `permabrain-dev-${port}`;
   const noPull = args['no-pull'] || args.noPull || false;
+  const rmOnFailure = args['rm-on-failure'] || args.rmOnFailure || false;
   let tail = args.tail || false;
   if (json && tail) {
     log.error('Warning: --tail is ignored when --json is set because it would interleave log output with JSON.');
@@ -1106,6 +1109,7 @@ export async function deployDev(args = {}, deps = {}) {
       logs: enableLogs,
       logLines,
       tail,
+      rmOnFailure,
     };
     if (json) {
       log.log(JSON.stringify(plan, null, 2));
@@ -1127,6 +1131,9 @@ export async function deployDev(args = {}, deps = {}) {
       }
       if (tail) {
         log.log('  Tail logs:    yes (stream container logs while waiting)');
+      }
+      if (rmOnFailure) {
+        log.log('  Cleanup:      yes (stop + remove container on verification failure)');
       }
     }
     return plan;
@@ -1162,6 +1169,16 @@ export async function deployDev(args = {}, deps = {}) {
     }
   };
 
+  const cleanupContainer = async () => {
+    if (!rmOnFailure) return;
+    try {
+      log.error(`Stopping and removing container ${name} due to --rm-on-failure...`);
+      await stopDev({ 'container-name': name, silent: true }, { spawnFn, log, processEnv });
+    } catch (cleanupErr) {
+      log.error(`Could not remove container: ${cleanupErr.message}`);
+    }
+  };
+
   try {
     verifyResult = await waitForDevices(verifyUrl, requiredDevices, {
       fetchFn,
@@ -1170,8 +1187,11 @@ export async function deployDev(args = {}, deps = {}) {
     });
   } catch (err) {
     await stopTail();
+    await cleanupContainer();
     log.error(`Deployment failed: ${err.message}`);
-    log.error(`Container ${containerId} (${name}) may still be running for inspection.`);
+    if (!rmOnFailure) {
+      log.error(`Container ${containerId} (${name}) may still be running for inspection.`);
+    }
     if (enableLogs) {
       try {
         capturedLogs = await containerLogs(name, { spawnFn, lines: logLines });

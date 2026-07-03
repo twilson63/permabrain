@@ -364,7 +364,7 @@ a specific tag key-value pair. Returns matching message IDs.`,
 
 Deploys the PermaBrain consensus and query Lua modules to a
 HyperBEAM node via the bundler device. Returns module IDs.`,
-    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--no-pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--tail] [--json]
+    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--no-pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--tail] [--rm-on-failure] [--json]
 
 Deploy the HyperBEAM Forge dev container locally and verify that the
 PermaBrain devices are loaded.
@@ -385,6 +385,7 @@ Options:
   --logs               Fetch and print container logs on failure (and include in JSON)
   --log-lines N        Number of tail lines to fetch with --logs (default 50)
   --tail               Stream container logs to stdout while waiting for devices
+  --rm-on-failure      Stop and remove the container if verification fails
   --dry-run            Print the deployment plan without running Docker
   --json               Output structured JSON
 
@@ -393,7 +394,8 @@ Examples:
   permabrain deploy-dev --port 8734 --pull
   permabrain deploy-dev --dry-run --json
   permabrain deploy-dev --build-image --logs --log-lines 100
-  permabrain deploy-dev --tail`,
+  permabrain deploy-dev --tail
+  permabrain deploy-dev --rm-on-failure`,
     'build-dev-image': `Usage: permabrain build-dev-image [--project-dir <path>] [--version <tag>] [--push] [--multiarch] [--dry-run] [--json]
 
 Build the HyperBEAM Forge dev image using hb-forge/scripts/build-dev-image.sh.
@@ -440,7 +442,7 @@ Examples:
   permabrain status-dev --port 8734
   permabrain status-dev --all
   permabrain status-dev --json`,
-    'restart-dev': `Usage: permabrain restart-dev [--image <image>] [--port N] [--project-dir <path>] [--container-name <name>] [--pull] [--no-pull] [--build-image] [--timeout <ms>] [--logs] [--log-lines N] [--dry-run] [--json]
+    'restart-dev': `Usage: permabrain restart-dev [--image <image>] [--port N] [--project-dir <path>] [--container-name <name>] [--pull] [--no-pull] [--build-image] [--timeout <ms>] [--logs] [--log-lines N] [--rm-on-failure] [--dry-run] [--json]
 
 Stop and redeploy a HyperBEAM Forge dev container.
 
@@ -459,6 +461,7 @@ Options:
   --timeout <ms>            Max time to wait for the node (default 120000)
   --logs                    Fetch container logs on failure
   --log-lines N             Number of tail lines to fetch with --logs (default 50)
+  --rm-on-failure           Stop and remove the container if verification fails
   --dry-run                 Print the restart plan without running Docker
   --json                    Output structured JSON
 
