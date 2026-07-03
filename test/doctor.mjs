@@ -270,6 +270,12 @@ function fakeAttestationSummary(targetKey, id) {
   assert.ok(devCheck, 'dev-container check present');
   assert.equal(devCheck.ok, true, 'dev check ok when Docker + project are present');
   assert.ok(devCheck.message.includes('ready'), 'dev check message reports ready');
+  const md = doctorReportToMarkdown(report);
+  assert.ok(md.includes('Prerequisite details'), 'markdown report lists prerequisite details');
+  assert.ok(md.includes('Docker CLI'), 'markdown report lists Docker CLI');
+  assert.ok(md.includes('GHCR write credentials'), 'markdown report lists GHCR credentials');
+  assert.ok(md.includes('(optional)'), 'markdown distinguishes optional prerequisites');
+  assert.ok(md.includes('Warnings'), 'markdown report lists warnings for missing optional tools');
   console.log('11. doctor --dev includes dev-container readiness check');
 }
 

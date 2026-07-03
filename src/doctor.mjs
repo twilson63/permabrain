@@ -26,6 +26,26 @@ export function doctorReportToMarkdown(report) {
       lines.push('Fixes applied:');
       for (const fix of check.fixes) lines.push(`- ${fix}`);
     }
+    if (check.name === 'dev-container' && report.details?.devContainer?.checks?.length) {
+      lines.push('');
+      lines.push('Prerequisite details:');
+      for (const dev of report.details.devContainer.checks) {
+        const devIcon = dev.ok ? '✓' : dev.required ? '✗' : '○';
+        const kind = dev.required ? 'required' : 'optional';
+        lines.push(`- ${devIcon} **${dev.name}** (${kind})`);
+        if (dev.version) lines.push(`  - version: ${dev.version}`);
+        if (dev.error) lines.push(`  - ${dev.error}`);
+        if (dev.source && !dev.error) lines.push(`  - source: ${dev.source}`);
+        if (dev.image && !dev.error) lines.push(`  - image: ${dev.image}`);
+      }
+      if (report.details.devContainer.warnings?.length) {
+        lines.push('');
+        lines.push(`Warnings (${report.details.devContainer.warnings.length}):`);
+        for (const w of report.details.devContainer.warnings) {
+          lines.push(`- ${w.name}: ${w.error}`);
+        }
+      }
+    }
     lines.push('');
   }
 
