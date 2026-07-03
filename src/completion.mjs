@@ -129,7 +129,7 @@ export const COMMAND_OPTIONS = {
   plan: ['--topic', '--kind', '--json'],
   match: ['--key', '--value', '--url'],
   'deploy-consensus': ['--url'],
-  'deploy-dev': ['--image', '--port', '--project-dir', '--pull', '--no-pull', '--timeout', '--dry-run', '--logs', '--log-lines', '--build-image', '--json'],
+  'deploy-dev': ['--image', '--port', '--project-dir', '--pull', '--no-pull', '--timeout', '--dry-run', '--logs', '--log-lines', '--build-image', '--tail', '--json'],
   'build-dev-image': ['--project-dir', '--version', '--push', '--multiarch', '--dry-run', '--json'],
   'stop-dev': ['--port', '--container-name', '--all', '--json'],
   'status-dev': ['--port', '--container-name', '--all', '--json'],

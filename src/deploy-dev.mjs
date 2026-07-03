@@ -1008,6 +1008,11 @@ export async function deployDev(args = {}, deps = {}) {
   const logLines = Number(args['log-lines'] || args.logLines || DEFAULT_LOG_LINES);
   const containerName = args['container-name'] || args.containerName || `permabrain-dev-${port}`;
   const noPull = args['no-pull'] || args.noPull || false;
+  let tail = args.tail || false;
+  if (json && tail) {
+    log.error('Warning: --tail is ignored when --json is set because it would interleave log output with JSON.');
+    tail = false;
+  }
 
   if (dryRun) {
     const resolvedCommand = [
@@ -1029,6 +1034,7 @@ export async function deployDev(args = {}, deps = {}) {
       buildImage,
       logs: enableLogs,
       logLines,
+      tail,
     };
     if (json) {
       log.log(JSON.stringify(plan, null, 2));
@@ -1047,6 +1053,9 @@ export async function deployDev(args = {}, deps = {}) {
         log.log('  Pull image:   yes');
       } else {
         log.log('  Pull image:   if not present locally');
+      }
+      if (tail) {
+        log.log('  Tail logs:    yes (stream container logs while waiting)');
       }
     }
     return plan;
@@ -1067,6 +1076,21 @@ export async function deployDev(args = {}, deps = {}) {
   const requiredDevices = ['permabrain-consensus', 'permabrain-query'];
   let verifyResult;
   let capturedLogs = null;
+  let tailController = null;
+  if (tail) {
+    tailController = streamLogs(name, { spawnFn, log });
+  }
+
+  const stopTail = async () => {
+    if (!tailController) return;
+    tailController.cancel();
+    try {
+      await tailController.wait();
+    } catch {
+      // ignore — tail cancellation is best-effort
+    }
+  };
+
   try {
     verifyResult = await waitForDevices(verifyUrl, requiredDevices, {
       fetchFn,
@@ -1074,6 +1098,7 @@ export async function deployDev(args = {}, deps = {}) {
       log,
     });
   } catch (err) {
+    await stopTail();
     log.error(`Deployment failed: ${err.message}`);
     log.error(`Container ${containerId} (${name}) may still be running for inspection.`);
     if (enableLogs) {
@@ -1091,6 +1116,8 @@ export async function deployDev(args = {}, deps = {}) {
     enriched.logs = capturedLogs?.logs || null;
     throw enriched;
   }
+
+  await stopTail();
 
   const result = {
     ok: true,

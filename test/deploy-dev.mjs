@@ -310,6 +310,7 @@ console.log('11. CLI deploy-dev --help works');
   assert.match(help, /--port/);
   assert.match(help, /--project-dir/);
   assert.match(help, /--pull/);
+  assert.match(help, /--tail/);
 }
 console.log('   ✓ CLI help works');
 
@@ -1755,5 +1756,87 @@ console.log('5. CLI check-dev --help works');
 console.log('   ✓ check-dev CLI help works');
 
 console.log('✅ All check-dev tests passed');
+
+console.log('1. deployDev --tail streams logs while waiting and cancels on success');
+{
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key.startsWith('docker images')) {
+      out = { code: 0, stdout: `${image}\n` };
+    } else if (key.startsWith('docker run')) {
+      out = { code: 0, stdout: 'abc123def456\n' };
+    } else if (key.startsWith('docker logs')) {
+      out = { code: 0, stdout: '' };
+      child.kill = (signal) => child.emit('close', null, signal);
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      if (!key.startsWith('docker logs')) child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const metaInfo = {
+    devices: {
+      'permabrain-consensus': {},
+      'permabrain-query': {},
+      other: {},
+    },
+  };
+  const fetchFn = fakeFetch([{ ok: true, body: JSON.stringify(metaInfo) }]);
+  const log = fakeLog();
+  const result = await deployDev({ tail: true }, { spawnFn, fetchFn, log });
+  assert.equal(result.ok, true);
+  assert.equal(result.containerId, 'abc123def456');
+  assert.ok(logs.some((k) => k.startsWith('docker logs')), 'started tail logs');
+  assert.ok(logs.some((k) => k.startsWith('docker run')), 'ran container');
+}
+console.log('   ✓ deployDev --tail streams and cancels');
+
+console.log('2. deployDev --tail is ignored when --json is set');
+{
+  const image = 'ghcr.io/twilson63/hyperbeam-dev:latest';
+  const logs = [];
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    logs.push(key);
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key.startsWith('docker images')) {
+      out = { code: 0, stdout: `${image}\n` };
+    } else if (key.startsWith('docker run')) {
+      out = { code: 0, stdout: 'xyz789\n' };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const metaInfo = { devices: ['permabrain-consensus', 'permabrain-query'] };
+  const fetchFn = fakeFetch([{ ok: true, body: JSON.stringify(metaInfo) }]);
+  const log = fakeLog();
+  const result = await deployDev({ tail: true, json: true }, { spawnFn, fetchFn, log });
+  assert.equal(result.ok, true);
+  assert.ok(!logs.some((k) => k.startsWith('docker logs')), 'did not start tail logs with json');
+  assert.ok(log.output.some((line) => line.includes('ignored when --json')));
+}
+console.log('   ✓ deployDev --tail ignored with --json');
+
+console.log('✅ All deploy-dev tail tests passed');
 
 

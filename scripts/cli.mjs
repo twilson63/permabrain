@@ -362,7 +362,7 @@ a specific tag key-value pair. Returns matching message IDs.`,
 
 Deploys the PermaBrain consensus and query Lua modules to a
 HyperBEAM node via the bundler device. Returns module IDs.`,
-    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--no-pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--json]
+    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--no-pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--tail] [--json]
 
 Deploy the HyperBEAM Forge dev container locally and verify that the
 PermaBrain devices are loaded.
@@ -382,6 +382,7 @@ Options:
   --timeout <ms>       Max time to wait for the node, in milliseconds (default 120000)
   --logs               Fetch and print container logs on failure (and include in JSON)
   --log-lines N        Number of tail lines to fetch with --logs (default 50)
+  --tail               Stream container logs to stdout while waiting for devices
   --dry-run            Print the deployment plan without running Docker
   --json               Output structured JSON
 
@@ -389,7 +390,8 @@ Examples:
   permabrain deploy-dev
   permabrain deploy-dev --port 8734 --pull
   permabrain deploy-dev --dry-run --json
-  permabrain deploy-dev --build-image --logs --log-lines 100`,
+  permabrain deploy-dev --build-image --logs --log-lines 100
+  permabrain deploy-dev --tail`,
     'build-dev-image': `Usage: permabrain build-dev-image [--project-dir <path>] [--version <tag>] [--push] [--multiarch] [--dry-run] [--json]
 
 Build the HyperBEAM Forge dev image using hb-forge/scripts/build-dev-image.sh.
