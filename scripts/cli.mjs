@@ -53,6 +53,7 @@ const COMMANDS = [
   'wait-dev',
   'check-dev',
   'verify-dev',
+  'config-dev',
   'meta-info',
   'whois',
   'reference',
@@ -164,6 +165,7 @@ Commands:
   wait-dev                     Wait until a HyperBEAM dev container is healthy
   check-dev                    Check prerequisites for deploying a HyperBEAM dev container
   verify-dev                   Verify that a HyperBEAM dev container reports required devices
+  config-dev                   Show, set, or unset default dev-container options
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   transport-status             Show transport metrics and circuit breaker state
@@ -580,6 +582,32 @@ Examples:
   permabrain verify-dev
   permabrain verify-dev --port 9000
   permabrain verify-dev --exit-code --json`,
+    'config-dev': `Usage: permabrain config-dev [show|set|unset|path] [options] [--json]
+
+Manage default options for the HyperBEAM Forge dev-container commands.
+Saved values are persisted in PERMABRAIN_HOME/dev-config.json (default
+~/.permabrain/dev-config.json) and apply to deploy-dev, restart-dev,
+status-dev, stop-dev, logs-dev, exec-dev, wait-dev, watch-dev, and
+verify-dev unless overridden on the command line.
+
+Subcommands:
+  show                   Display the effective default config (default)
+  set                    Save defaults from --image/--port/--project-dir/--container-name
+  unset <key>...         Remove saved keys so defaults are used again
+  path                   Print the config file path
+
+Options:
+  --image <image>        Default dev image
+  --port N               Default host port
+  --project-dir <path>   Default HyperBEAM Forge project directory
+  --container-name <n>   Default container name override
+  --json                 Output structured JSON
+
+Examples:
+  permabrain config-dev
+  permabrain config-dev set --port 9000 --image my-registry/hyperbeam-dev:main
+  permabrain config-dev unset image port
+  permabrain config-dev path`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,

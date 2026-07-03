@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { execSync } from 'node:child_process';
+import fs from 'node:fs';
 import { join } from 'node:path';
 import {
   deployDev,
@@ -28,6 +29,8 @@ import {
   waitDev,
   checkDev,
   verifyDev,
+  configDev,
+  loadDevConfig,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -2038,5 +2041,137 @@ console.log('2. deployDev --tail is ignored when --json is set');
 console.log('   ✓ deployDev --tail ignored with --json');
 
 console.log('✅ All deploy-dev tail tests passed');
+
+console.log('1. configDev show returns defaults when no config exists');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-dev-');
+  const log = fakeLog();
+  const result = await configDev({}, { log, home: tmpDir });
+  assert.equal(result.ok, true);
+  assert.equal(result.source, 'defaults');
+  assert.equal(result.config.image, 'ghcr.io/twilson63/hyperbeam-dev:latest');
+  assert.equal(result.config.port, 8734);
+  assert.equal(result.config.projectDir, null);
+  assert.equal(result.config.containerName, null);
+  assert.ok(log.output.some((line) => line.includes('HyperBEAM Forge dev-container defaults')));
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ configDev show defaults');
+
+console.log('2. configDev set saves values');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-dev-');
+  const log = fakeLog();
+  const result = await configDev(
+    {
+      _: ['set'],
+      image: 'custom-image:tag',
+      port: '9000',
+      'project-dir': '/work/hb-forge',
+      'container-name': 'my-dev',
+    },
+    { log, home: tmpDir }
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.saved.image, 'custom-image:tag');
+  assert.equal(result.saved.port, 9000);
+  assert.equal(result.saved.projectDir, '/work/hb-forge');
+  assert.equal(result.saved.containerName, 'my-dev');
+  const loaded = loadDevConfig(tmpDir);
+  assert.equal(loaded.image, 'custom-image:tag');
+  assert.equal(loaded.port, 9000);
+  assert.equal(loaded.source, 'saved');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ configDev set saves values');
+
+console.log('3. configDev show returns merged saved values');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-dev-');
+  await configDev(
+    { _: ['set'], port: '7777', image: 'saved:latest' },
+    { home: tmpDir, log: fakeLog() }
+  );
+  const log = fakeLog();
+  const result = await configDev({}, { log, home: tmpDir });
+  assert.equal(result.config.port, 7777);
+  assert.equal(result.config.image, 'saved:latest');
+  assert.equal(result.source, 'saved');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ configDev show merged saved values');
+
+console.log('4. configDev path prints config file path');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-dev-');
+  const log = fakeLog();
+  const result = await configDev({ _: ['path'] }, { log, home: tmpDir });
+  assert.equal(result.ok, true);
+  assert.ok(result.path.endsWith('dev-config.json'));
+  assert.ok(log.output[0].endsWith('dev-config.json'));
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ configDev path');
+
+console.log('5. configDev unset removes keys');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-dev-');
+  await configDev(
+    { _: ['set'], port: '7777', image: 'saved:latest' },
+    { home: tmpDir, log: fakeLog() }
+  );
+  const log = fakeLog();
+  const result = await configDev({ _: ['unset', 'image', 'port'] }, { log, home: tmpDir });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.unset, ['image', 'port']);
+  const loaded = loadDevConfig(tmpDir);
+  assert.equal(loaded.image, 'ghcr.io/twilson63/hyperbeam-dev:latest');
+  assert.equal(loaded.port, 8734);
+  assert.equal(loaded.source, 'defaults');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ configDev unset');
+
+console.log('6. configDev rejects invalid port');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-dev-');
+  await assert.rejects(
+    () => configDev({ _: ['set'], port: 'abc' }, { home: tmpDir, log: fakeLog() }),
+    /Invalid port/
+  );
+  await assert.rejects(
+    () => configDev({ _: ['set'], port: '70000' }, { home: tmpDir, log: fakeLog() }),
+    /Invalid port/
+  );
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ configDev invalid port rejected');
+
+console.log('7. configDev JSON output');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-dev-');
+  const log = fakeLog();
+  const result = await configDev({ _: ['path'], json: true }, { log, home: tmpDir });
+  assert.equal(result.ok, true);
+  assert.ok(log.output.some((line) => line.includes('"path":')));
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ configDev JSON output');
+
+console.log('8. CLI config-dev --help works');
+{
+  const help = execSync('node scripts/cli.mjs config-dev --help', {
+    cwd: '/home/node/.openclaw/workspace/permabrain',
+    encoding: 'utf8',
+  });
+  assert.match(help, /config-dev/);
+  assert.match(help, /--project-dir/);
+  assert.match(help, /--container-name/);
+  assert.match(help, /--port/);
+  assert.match(help, /--image/);
+}
+console.log('   ✓ config-dev CLI help works');
+
+console.log('✅ All config-dev tests passed');
 
 

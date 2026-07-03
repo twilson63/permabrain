@@ -1405,3 +1405,168 @@ export async function checkDev(args = {}, deps = {}) {
 
   return result;
 }
+
+function getDefaultDevConfig() {
+  return {
+    image: DEFAULT_IMAGE,
+    port: DEFAULT_PORT,
+    projectDir: null,
+    containerName: null,
+  };
+}
+
+function devConfigPath(home) {
+  return path.join(home, 'dev-config.json');
+}
+
+export function loadDevConfig(home) {
+  const defaults = getDefaultDevConfig();
+  const file = devConfigPath(home);
+  if (!fs.existsSync(file)) {
+    return { ...defaults, source: 'defaults', path: file };
+  }
+  let saved;
+  try {
+    saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    throw new Error(`Could not parse dev config at ${file}: ${err.message}`);
+  }
+  const hasSaved = Object.keys(saved).some((k) => ['image', 'port', 'projectDir', 'containerName'].includes(k));
+  const merged = {
+    image: saved.image ?? defaults.image,
+    port: saved.port ?? defaults.port,
+    projectDir: saved.projectDir ?? defaults.projectDir,
+    containerName: saved.containerName ?? defaults.containerName,
+  };
+  return { ...merged, source: hasSaved ? 'saved' : 'defaults', path: file };
+}
+
+function saveDevConfig(home, values) {
+  const file = devConfigPath(home);
+  const existing = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+  const allowed = ['image', 'port', 'projectDir', 'containerName'];
+  const next = {};
+  for (const key of allowed) {
+    if (Object.prototype.hasOwnProperty.call(values, key) && values[key] !== undefined && values[key] !== null) {
+      next[key] = values[key];
+    } else if (Object.prototype.hasOwnProperty.call(existing, key)) {
+      next[key] = existing[key];
+    }
+  }
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(next, null, 2) + '\n', 'utf8');
+  return { ...next, path: file };
+}
+
+function unsetDevConfigKeys(home, keys) {
+  const file = devConfigPath(home);
+  if (!fs.existsSync(file)) {
+    return { path: file };
+  }
+  const existing = JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const key of keys) {
+    delete existing[key];
+  }
+  fs.writeFileSync(file, JSON.stringify(existing, null, 2) + '\n', 'utf8');
+  return { ...existing, path: file };
+}
+
+export async function configDev(args = {}, deps = {}) {
+  const {
+    log = console,
+    fs: fsDep = fs,
+    home = getDefaultHome(),
+  } = deps;
+
+  const json = args.json || false;
+  const subcommand = args._?.[0] || 'show';
+  const file = devConfigPath(home);
+
+  if (subcommand === 'path') {
+    const result = { ok: true, path: file };
+    if (json) {
+      log.log(JSON.stringify(result, null, 2));
+    } else {
+      log.log(file);
+    }
+    return result;
+  }
+
+  if (subcommand === 'set') {
+    const values = {
+      image: args.image,
+      port: args.port ? Number(args.port) : undefined,
+      projectDir: args['project-dir'] || args.projectDir,
+      containerName: args['container-name'] || args.containerName,
+    };
+    if (values.port !== undefined && (!Number.isInteger(values.port) || values.port < 1 || values.port > 65535)) {
+      throw new Error(`Invalid port: ${args.port}`);
+    }
+    const saved = saveDevConfig(home, values);
+    const result = { ok: true, saved, path: file };
+    if (json) {
+      log.log(JSON.stringify(result, null, 2));
+    } else {
+      log.log('Saved dev-container defaults:');
+      for (const [key, value] of Object.entries(saved)) {
+        if (key === 'path') continue;
+        log.log(`  ${key}: ${value}`);
+      }
+      log.log(`Config file: ${file}`);
+    }
+    return result;
+  }
+
+  if (subcommand === 'unset') {
+    const keys = args._.slice(1);
+    if (keys.length === 0) {
+      throw new Error('unset requires at least one key (image, port, projectDir, containerName)');
+    }
+    const allowed = ['image', 'port', 'projectDir', 'containerName'];
+    for (const key of keys) {
+      if (!allowed.includes(key)) {
+        throw new Error(`Unknown dev config key: ${key}. Allowed: ${allowed.join(', ')}`);
+      }
+    }
+    const remaining = unsetDevConfigKeys(home, keys);
+    const result = { ok: true, unset: keys, remaining, path: file };
+    if (json) {
+      log.log(JSON.stringify(result, null, 2));
+    } else {
+      log.log(`Unset dev-container defaults: ${keys.join(', ')}`);
+      log.log(`Remaining saved keys: ${Object.keys(remaining).filter((k) => k !== 'path').join(', ') || 'none'}`);
+      log.log(`Config file: ${file}`);
+    }
+    return result;
+  }
+
+  // Default subcommand: show current effective config.
+  const config = loadDevConfig(home);
+  const result = {
+    ok: true,
+    config: {
+      image: config.image,
+      port: config.port,
+      projectDir: config.projectDir,
+      containerName: config.containerName,
+    },
+    source: config.source,
+    path: config.path,
+  };
+  if (json) {
+    log.log(JSON.stringify(result, null, 2));
+  } else {
+    log.log('HyperBEAM Forge dev-container defaults:');
+    log.log(`  image:         ${result.config.image}`);
+    log.log(`  port:          ${result.config.port}`);
+    log.log(`  projectDir:    ${result.config.projectDir || '(default)'}`);
+    log.log(`  containerName: ${result.config.containerName || '(default)'}`);
+    log.log(`  source:        ${result.source}`);
+    log.log(`  path:          ${result.path}`);
+  }
+  return result;
+}
+
+function getDefaultHome() {
+  return process.env.PERMABRAIN_HOME || path.join(process.env.HOME || process.cwd(), '.permabrain');
+}
