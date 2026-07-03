@@ -27,6 +27,7 @@ import {
   watchDev,
   waitDev,
   checkDev,
+  verifyDev,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -1756,6 +1757,151 @@ console.log('5. CLI check-dev --help works');
 console.log('   ✓ check-dev CLI help works');
 
 console.log('✅ All check-dev tests passed');
+
+console.log('1. verifyDev reports healthy when required devices are present');
+{
+  const containerName = 'permabrain-dev-8734';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === `docker ps --format {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.ID}} --filter name=${containerName}`) {
+      out = { code: 0, stdout: `${containerName}\t0.0.0.0:8734->8734/tcp\tUp 2 seconds\tabc123\n` };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const metaInfo = {
+    devices: {
+      'permabrain-consensus': {},
+      'permabrain-query': {},
+      other: {},
+    },
+  };
+  const fetchFn = fakeFetch([{ ok: true, body: JSON.stringify(metaInfo) }]);
+  const log = fakeLog();
+  const result = await verifyDev({}, { spawnFn, fetchFn, log });
+  assert.equal(result.ok, true);
+  assert.equal(result.healthy, true);
+  assert.equal(result.running, true);
+  assert.deepEqual(result.devices, ['permabrain-consensus', 'permabrain-query']);
+  assert.ok(log.output.some((line) => line.includes('verified')));
+}
+console.log('   ✓ verifyDev healthy');
+
+console.log('2. verifyDev reports unhealthy when required devices are missing');
+{
+  const containerName = 'permabrain-dev-8734';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === `docker ps --format {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.ID}} --filter name=${containerName}`) {
+      out = { code: 0, stdout: `${containerName}\t0.0.0.0:8734->8734/tcp\tUp 2 seconds\tabc123\n` };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const fetchFn = fakeFetch([{ ok: true, body: JSON.stringify({ devices: { other: {} } }) }]);
+  const log = fakeLog();
+  const result = await verifyDev({ 'exit-code': true }, { spawnFn, fetchFn, log });
+  assert.equal(result.ok, false);
+  assert.equal(result.healthy, false);
+  assert.equal(result.running, true);
+  assert.ok(result.error.includes('permabrain-consensus'));
+}
+console.log('   ✓ verifyDev unhealthy with exit-code');
+
+console.log('3. verifyDev throws when container is not running');
+{
+  const containerName = 'permabrain-dev-8734';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === `docker ps --format {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.ID}} --filter name=${containerName}`) {
+      out = { code: 0, stdout: '' };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const fetchFn = fakeFetch([]);
+  const log = fakeLog();
+  await assert.rejects(
+    () => verifyDev({}, { spawnFn, fetchFn, log }),
+    /No permabrain-dev container is running/
+  );
+}
+console.log('   ✓ verifyDev throws when not running');
+
+console.log('4. verifyDev JSON output');
+{
+  const containerName = 'permabrain-dev-9000';
+  const spawnFn = (cmd, args) => {
+    const key = [cmd, ...args].join(' ');
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let out;
+    if (key === `docker ps --format {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.ID}} --filter name=${containerName}`) {
+      out = { code: 0, stdout: `${containerName}\t0.0.0.0:9000->8734/tcp\tUp 5 seconds\tabc123\n` };
+    } else {
+      out = { code: 0, stdout: '' };
+    }
+    setImmediate(() => {
+      if (out.stderr) child.stderr.emit('data', Buffer.from(out.stderr));
+      if (out.stdout) child.stdout.emit('data', Buffer.from(out.stdout));
+      child.emit('close', out.code ?? 0);
+    });
+    return child;
+  };
+  const fetchFn = fakeFetch([{ ok: true, body: JSON.stringify({ devices: { 'permabrain-consensus': {}, 'permabrain-query': {} } }) }]);
+  const log = fakeLog();
+  const result = await verifyDev({ port: 9000, json: true }, { spawnFn, fetchFn, log });
+  assert.equal(result.ok, true);
+  assert.equal(result.port, 9000);
+  assert.ok(log.output.some((line) => line.includes('"ok": true')));
+}
+console.log('   ✓ verifyDev JSON output');
+
+console.log('5. CLI verify-dev --help works');
+{
+  const help = execSync('node scripts/cli.mjs verify-dev --help', {
+    cwd: '/home/node/.openclaw/workspace/permabrain',
+    encoding: 'utf8',
+  });
+  assert.match(help, /verify-dev/);
+  assert.match(help, /--container-name/);
+  assert.match(help, /--json/);
+  assert.match(help, /--exit-code/);
+}
+console.log('   ✓ verify-dev CLI help works');
+
+console.log('✅ All verify-dev tests passed');
 
 console.log('1. deployDev --tail streams logs while waiting and cancels on success');
 {

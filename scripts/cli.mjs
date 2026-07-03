@@ -52,6 +52,7 @@ const COMMANDS = [
   'watch-dev',
   'wait-dev',
   'check-dev',
+  'verify-dev',
   'meta-info',
   'whois',
   'reference',
@@ -162,6 +163,7 @@ Commands:
   watch-dev                    Watch a HyperBEAM dev container's health and optionally restart it
   wait-dev                     Wait until a HyperBEAM dev container is healthy
   check-dev                    Check prerequisites for deploying a HyperBEAM dev container
+  verify-dev                   Verify that a HyperBEAM dev container reports required devices
   meta-info                    Show HyperBEAM node metadata
   whois <address>              Look up an agent identity on HyperBEAM
   transport-status             Show transport metrics and circuit breaker state
@@ -558,6 +560,22 @@ Examples:
   permabrain check-dev --json
   permabrain check-dev --exit-code
   permabrain check-dev --project-dir ./hb-forge --image my-registry/hyperbeam-dev:main`,
+    'verify-dev': `Usage: permabrain verify-dev [--port N] [--container-name <name>] [--json] [--exit-code]
+
+Verify that a running HyperBEAM Forge dev container reports the required
+PermaBrain devices (permabrain-consensus and permabrain-query) via
+~meta@1.0/info. This is a one-shot check; use wait-dev to block until healthy.
+
+Options:
+  --port N                 Port the dev container exposes (default: 8734)
+  --container-name <name>  Docker container name (default: permabrain-dev-<port>)
+  --json                   Output the result as JSON
+  --exit-code              Return non-zero result instead of throwing when verification fails
+
+Examples:
+  permabrain verify-dev
+  permabrain verify-dev --port 9000
+  permabrain verify-dev --exit-code --json`,
     'meta-info': `Usage: permabrain meta-info [--url http://localhost:10000] [--json]
 
 Fetches HyperBEAM node metadata from the ~meta@1.0/info device.`,

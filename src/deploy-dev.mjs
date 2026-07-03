@@ -844,6 +844,77 @@ export async function waitDev(args = {}, deps = {}) {
   return result;
 }
 
+export async function verifyDev(args = {}, deps = {}) {
+  const {
+    spawnFn = spawn,
+    fetchFn = fetch,
+    log = console,
+  } = deps;
+
+  const port = Number(args.port || args.p || DEFAULT_PORT);
+  const containerName = args['container-name'] || args.containerName || defaultContainerName(port);
+  const json = args.json || false;
+  const exitCode = args['exit-code'] || args.exitCode || false;
+  const requiredDevices = ['permabrain-consensus', 'permabrain-query'];
+  const verifyUrl = `http://localhost:${port}/~meta@1.0/info`;
+
+  const status = await getDevContainerStatus(
+    { port, 'container-name': containerName },
+    { spawnFn, fetchFn }
+  );
+
+  if (!status.running) {
+    const result = {
+      ok: false,
+      name: containerName,
+      port,
+      verifyUrl,
+      running: false,
+      healthy: false,
+      devices: requiredDevices,
+      error: `No permabrain-dev container is running for port ${port}.`,
+    };
+    if (exitCode) {
+      if (json) log.log(JSON.stringify(result, null, 2));
+      else log.error(result.error);
+      return result;
+    }
+    throw new Error(result.error);
+  }
+
+  const result = {
+    ok: status.healthy === true,
+    name: containerName,
+    port,
+    verifyUrl,
+    running: true,
+    healthy: status.healthy === true,
+    devices: requiredDevices,
+    info: status.info || null,
+  };
+
+  if (!result.ok) {
+    result.error = `Container ${containerName} is running but does not report all required devices (${requiredDevices.join(', ')}).`;
+    if (exitCode) {
+      if (json) log.log(JSON.stringify(result, null, 2));
+      else log.error(result.error);
+      return result;
+    }
+    throw new Error(result.error);
+  }
+
+  if (json) {
+    log.log(JSON.stringify(result, null, 2));
+  } else {
+    log.log(`Container ${containerName} is verified and healthy.`);
+    log.log(`  Port:        ${port}`);
+    log.log(`  Verify URL:  ${verifyUrl}`);
+    log.log(`  Devices:     ${requiredDevices.join(', ')}`);
+  }
+
+  return result;
+}
+
 export async function watchDev(args = {}, deps = {}) {
   const {
     spawnFn = spawn,
