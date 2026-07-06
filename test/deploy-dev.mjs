@@ -31,6 +31,7 @@ import {
   verifyDev,
   configDev,
   loadDevConfig,
+  withDevConfigDefaults,
 } from '../src/deploy-dev.mjs';
 
 function fakeSpawn(logs, outputs) {
@@ -2173,5 +2174,91 @@ console.log('8. CLI config-dev --help works');
 console.log('   ✓ config-dev CLI help works');
 
 console.log('✅ All config-dev tests passed');
+
+console.log('1. withDevConfigDefaults fills saved defaults');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-defaults-');
+  await configDev(
+    {
+      _: ['set'],
+      image: 'saved-image:tag',
+      port: '7777',
+      'project-dir': '/tmp/saved-hb-forge',
+      'container-name': 'saved-container',
+    },
+    { home: tmpDir, log: fakeLog() }
+  );
+  const merged = withDevConfigDefaults({}, tmpDir);
+  assert.equal(merged.image, 'saved-image:tag');
+  assert.equal(merged.port, 7777);
+  assert.equal(merged['project-dir'], '/tmp/saved-hb-forge');
+  assert.equal(merged['container-name'], 'saved-container');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ withDevConfigDefaults fills saved defaults');
+
+console.log('2. withDevConfigDefaults lets CLI args override saved defaults');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-override-');
+  await configDev(
+    { _: ['set'], image: 'saved-image:tag', port: '7777' },
+    { home: tmpDir, log: fakeLog() }
+  );
+  const merged = withDevConfigDefaults({ image: 'cli-image:tag', port: '8888' }, tmpDir);
+  assert.equal(merged.image, 'cli-image:tag');
+  assert.equal(merged.port, '8888');
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ CLI args override saved defaults');
+
+console.log('3. withDevConfigDefaults keeps built-in defaults when nothing is saved');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-empty-');
+  const merged = withDevConfigDefaults({}, tmpDir);
+  assert.equal(merged.image, 'ghcr.io/twilson63/hyperbeam-dev:latest');
+  assert.equal(merged.port, 8734);
+  assert.equal(merged['project-dir'], undefined);
+  assert.equal(merged['container-name'], undefined);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ built-in defaults preserved');
+
+console.log('4. deployDev dry-run uses saved defaults via withDevConfigDefaults');
+{
+  const tmpDir = fs.mkdtempSync('/tmp/permabrain-config-deploy-');
+  await configDev(
+    {
+      _: ['set'],
+      image: 'saved-image:tag',
+      port: '7777',
+      'container-name': 'saved-dev',
+    },
+    { home: tmpDir, log: fakeLog() }
+  );
+  const log = fakeLog();
+  const merged = withDevConfigDefaults({ 'dry-run': true }, tmpDir);
+  const result = await deployDev(merged, { log });
+  assert.equal(result.image, 'saved-image:tag');
+  assert.equal(result.port, 7777);
+  assert.equal(result.containerName, 'saved-dev');
+  assert.ok(result.command.includes('saved-image:tag'));
+  assert.ok(result.command.includes('7777:8734'));
+  assert.ok(result.command.includes('saved-dev'));
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+}
+console.log('   ✓ deployDev dry-run uses saved defaults');
+
+console.log('5. CLI config-dev --help mentions build-dev-image and check-dev');
+{
+  const help = execSync('node scripts/cli.mjs config-dev --help', {
+    cwd: '/home/node/.openclaw/workspace/permabrain',
+    encoding: 'utf8',
+  });
+  assert.match(help, /build-dev-image/);
+  assert.match(help, /check-dev/);
+}
+console.log('   ✓ config-dev help lists all consuming commands');
+
+console.log('✅ All dev-config default tests passed');
 
 

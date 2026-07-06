@@ -1570,3 +1570,34 @@ export async function configDev(args = {}, deps = {}) {
 function getDefaultHome() {
   return process.env.PERMABRAIN_HOME || path.join(process.env.HOME || process.cwd(), '.permabrain');
 }
+
+/**
+ * Merge saved dev-container defaults from PERMABRAIN_HOME/dev-config.json into
+ * CLI args. CLI arguments always win; only unset keys are filled from config.
+ */
+export function withDevConfigDefaults(args = {}, home = getDefaultHome()) {
+  let config;
+  try {
+    config = loadDevConfig(home);
+  } catch {
+    config = getDefaultDevConfig();
+  }
+
+  const hasValue = (keys) =>
+    keys.some((k) => args[k] !== undefined && args[k] !== null && args[k] !== '');
+
+  const next = { ...args };
+  if (!hasValue(['image']) && config.image) {
+    next.image = config.image;
+  }
+  if (!hasValue(['port', 'p']) && config.port != null) {
+    next.port = config.port;
+  }
+  if (!hasValue(['project-dir', 'projectDir']) && config.projectDir) {
+    next['project-dir'] = config.projectDir;
+  }
+  if (!hasValue(['container-name', 'containerName']) && config.containerName) {
+    next['container-name'] = config.containerName;
+  }
+  return next;
+}

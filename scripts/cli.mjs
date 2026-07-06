@@ -587,8 +587,8 @@ Examples:
 Manage default options for the HyperBEAM Forge dev-container commands.
 Saved values are persisted in PERMABRAIN_HOME/dev-config.json (default
 ~/.permabrain/dev-config.json) and apply to deploy-dev, restart-dev,
-status-dev, stop-dev, logs-dev, exec-dev, wait-dev, watch-dev, and
-verify-dev unless overridden on the command line.
+build-dev-image, check-dev, status-dev, stop-dev, logs-dev, exec-dev,
+wait-dev, watch-dev, and verify-dev unless overridden on the command line.
 
 Subcommands:
   show                   Display the effective default config (default)

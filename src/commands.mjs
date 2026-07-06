@@ -76,7 +76,7 @@ import {
 
 import { importBundleAutoDetect, importReportToMarkdown, BUNDLE_TYPES, detectBundleType } from './import-unified.mjs';
 import { publishDirectory, publishDirectoryToMarkdown } from './publish-dir.mjs';
-import { deployDev, stopDev, statusDev, buildDevImage, restartDev, logsDev, execDev, watchDev, waitDev, checkDev, verifyDev, configDev } from './deploy-dev.mjs';
+import { deployDev, stopDev, statusDev, buildDevImage, restartDev, logsDev, execDev, watchDev, waitDev, checkDev, verifyDev, configDev, withDevConfigDefaults } from './deploy-dev.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -724,47 +724,47 @@ async function deployConsensusCommand(args) {
 }
 
 async function buildDevImageCommand(args) {
-  return buildDevImage(args, { log: console });
+  return buildDevImage(withDevConfigDefaults(args), { log: console });
 }
 
 async function deployDevCommand(args) {
-  return deployDev(args, { log: console });
+  return deployDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function stopDevCommand(args) {
-  return stopDev(args, { log: console });
+  return stopDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function statusDevCommand(args) {
-  return statusDev(args, { log: console });
+  return statusDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function restartDevCommand(args) {
-  return restartDev(args, { log: console });
+  return restartDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function logsDevCommand(args) {
-  return logsDev(args, { log: console });
+  return logsDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function execDevCommand(args) {
-  return execDev(args, { log: console });
+  return execDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function watchDevCommand(args) {
-  return watchDev(args, { log: console });
+  return watchDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function waitDevCommand(args) {
-  return waitDev(args, { log: console });
+  return waitDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function checkDevCommand(args) {
-  return checkDev(args, { log: console });
+  return checkDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function verifyDevCommand(args) {
-  return verifyDev(args, { log: console });
+  return verifyDev(withDevConfigDefaults(args), { log: console });
 }
 
 async function configDevCommand(args) {
