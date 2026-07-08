@@ -1082,6 +1082,10 @@ export async function deployDev(args = {}, deps = {}) {
   const containerName = args['container-name'] || args.containerName || `permabrain-dev-${port}`;
   const noPull = args['no-pull'] || args.noPull || false;
   const rmOnFailure = args['rm-on-failure'] || args.rmOnFailure || false;
+  const intervalMs = Number(args.interval || args.i || POLL_INTERVAL_MS);
+  if (!Number.isInteger(intervalMs) || intervalMs < 100) {
+    throw new Error(`Invalid interval: ${args.interval || args.i}. Must be at least 100ms.`);
+  }
   let tail = args.tail || false;
   if (json && tail) {
     log.error('Warning: --tail is ignored when --json is set because it would interleave log output with JSON.');
@@ -1108,6 +1112,7 @@ export async function deployDev(args = {}, deps = {}) {
       buildImage,
       logs: enableLogs,
       logLines,
+      intervalMs,
       tail,
       rmOnFailure,
     };
@@ -1129,6 +1134,7 @@ export async function deployDev(args = {}, deps = {}) {
       } else {
         log.log('  Pull image:   if not present locally');
       }
+      log.log(`  Poll interval: ${intervalMs}ms`);
       if (tail) {
         log.log('  Tail logs:    yes (stream container logs while waiting)');
       }
@@ -1183,6 +1189,7 @@ export async function deployDev(args = {}, deps = {}) {
     verifyResult = await waitForDevices(verifyUrl, requiredDevices, {
       fetchFn,
       timeoutMs,
+      intervalMs,
       log,
     });
   } catch (err) {

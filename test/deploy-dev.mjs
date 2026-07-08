@@ -2259,6 +2259,24 @@ console.log('5. CLI config-dev --help mentions build-dev-image and check-dev');
 }
 console.log('   ✓ config-dev help lists all consuming commands');
 
+console.log('6. deployDev dry-run includes --interval and rejects invalid intervals');
+{
+  const log = fakeLog();
+  const result = await deployDev({ 'dry-run': true, interval: '500' }, { log });
+  assert.equal(result.intervalMs, 500);
+  assert.ok(log.output.some((line) => line.includes('Poll interval: 500ms')));
+
+  await assert.rejects(
+    deployDev({ interval: '50' }, { log: fakeLog() }),
+    /Invalid interval/
+  );
+  await assert.rejects(
+    deployDev({ interval: 'not-a-number' }, { log: fakeLog() }),
+    /Invalid interval/
+  );
+}
+console.log('   ✓ deployDev --interval validation and dry-run inclusion');
+
 console.log('✅ All dev-config default tests passed');
 
 

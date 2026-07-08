@@ -367,7 +367,7 @@ a specific tag key-value pair. Returns matching message IDs.`,
 
 Deploys the PermaBrain consensus and query Lua modules to a
 HyperBEAM node via the bundler device. Returns module IDs.`,
-    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--no-pull] [--timeout <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--tail] [--rm-on-failure] [--json]
+    'deploy-dev': `Usage: permabrain deploy-dev [--image <image>] [--port N] [--project-dir <path>] [--pull] [--no-pull] [--timeout <ms>] [--interval <ms>] [--dry-run] [--logs] [--log-lines N] [--build-image] [--tail] [--rm-on-failure] [--json]
 
 Deploy the HyperBEAM Forge dev container locally and verify that the
 PermaBrain devices are loaded.
@@ -385,6 +385,7 @@ Options:
   --no-pull            Skip pulling/checking the image (use existing local image)
   --build-image        Build the dev image locally before deployment (uses build-dev-image)
   --timeout <ms>       Max time to wait for the node, in milliseconds (default 120000)
+  --interval <ms>, -i  Polling interval while waiting for devices, in milliseconds (default 1000)
   --logs               Fetch and print container logs on failure (and include in JSON)
   --log-lines N        Number of tail lines to fetch with --logs (default 50)
   --tail               Stream container logs to stdout while waiting for devices
